@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import SearchResults from "./components/SearchResults";
 import ResultsTable from "./components/ResultsTable";
+import debounce from "lodash/debounce";
 
 const API_KEY = process.env.NEXT_PUBLIC_WATCHMODE_API_KEY;
 const AUTO_COMPLETE_API = `https://api.watchmode.com/v1/autocomplete-search/?apiKey=${API_KEY}&search_field=name&search_value=`;
@@ -12,6 +13,7 @@ const STREAM_SOURCE_API = (showId: number) =>
 export type AutoCompleteResult = {
   id: number;
   name: string;
+  image_url: string;
 };
 
 export type StreamingSource = {
@@ -28,7 +30,7 @@ export default function Home() {
   const [isGBOnly, setIsGBOnly] = useState(false);
 
   const hasNoShows = showTitle && showStreamingSources.length === 0;
-  const showClearResults = searchQuery === showTitle && searchQuery !== "";
+  const showClearResults = searchQuery !== "";
 
   const filteredStreamingSources = isGBOnly
     ? showStreamingSources.filter(
@@ -36,10 +38,16 @@ export default function Home() {
       )
     : showStreamingSources;
 
+  console.log(filteredStreamingSources);
+
   const fetchAutoCompleteResults = async (query: string) => {
-    const response = await fetch(AUTO_COMPLETE_API + query);
-    const data = await response.json();
-    setAutoCompleteResults(data.results);
+    if (query) {
+      const response = await fetch(AUTO_COMPLETE_API + query);
+      const data = await response.json();
+      setAutoCompleteResults(data.results);
+    } else {
+      setAutoCompleteResults([]);
+    }
   };
 
   const fetchSourcesResults = async (id: number) => {
@@ -49,14 +57,20 @@ export default function Home() {
     setShowStreamingSources(data);
   };
 
-  const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value);
-  };
-
-  const handleSubmit = () => {
-    fetchAutoCompleteResults(searchQuery);
+  const handleSubmit = (query: string) => {
+    fetchAutoCompleteResults(query);
     setShowStreamingSources([]);
     setShowTitle("");
+  };
+
+  const debouncedSubmit = useMemo(
+    () => debounce((query: string) => handleSubmit(query), 1000),
+    []
+  );
+
+  const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+    debouncedSubmit(e.target.value);
   };
 
   const handleSelectResult = (
@@ -118,7 +132,11 @@ export default function Home() {
             />
             <button
               type="submit"
-              onClick={showClearResults ? handleClearSearch : handleSubmit}
+              onClick={
+                showClearResults
+                  ? handleClearSearch
+                  : () => handleSubmit(searchQuery)
+              }
               className="relative w-full px-6 py-3 overflow-hidden text-white transition-all duration-100 bg-black border border-black md:w-auto fill-white active:scale-95 will-change-transform rounded-xl"
             >
               <span className="flex items-center transition-all opacity-1">

@@ -10,12 +10,14 @@
   },
   "dependencies": {
     "@vercel/analytics": "^1.5.0",
+    "lodash": "^4.17.21",
     "next": "15.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@types/lodash": "^4.17.16",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
