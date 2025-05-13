@@ -1,18 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import SearchResults from "./components/SearchResults";
+import ResultsTable from "./components/ResultsTable";
 
 const API_KEY = process.env.NEXT_PUBLIC_WATCHMODE_API_KEY;
 const AUTO_COMPLETE_API = `https://api.watchmode.com/v1/autocomplete-search/?apiKey=${API_KEY}&search_field=name&search_value=`;
 const STREAM_SOURCE_API = (showId: number) =>
   `https://api.watchmode.com/v1/title/${showId}/sources/?apiKey=${API_KEY}`;
 
-type AutoCompleteResult = {
+export type AutoCompleteResult = {
   id: number;
   name: string;
 };
 
-type StreamingSource = {
+export type StreamingSource = {
   name: string;
   region: string;
   type: string;
@@ -28,7 +30,11 @@ export default function Home() {
   const hasNoShows = showTitle && showStreamingSources.length === 0;
   const showClearResults = searchQuery === showTitle && searchQuery !== "";
 
-  const filteredStreamingSources = isGBOnly ? showStreamingSources.filter((source: StreamingSource) => source.region === "GB") : showStreamingSources;
+  const filteredStreamingSources = isGBOnly
+    ? showStreamingSources.filter(
+        (source: StreamingSource) => source.region === "GB"
+      )
+    : showStreamingSources;
 
   const fetchAutoCompleteResults = async (query: string) => {
     const response = await fetch(AUTO_COMPLETE_API + query);
@@ -74,12 +80,12 @@ export default function Home() {
 
   const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setIsGBOnly(e.target.checked);
-  }
+  };
 
   return (
     <>
-      <section className="w-full">
-        <div className="relative px-6 py-20 overflow-hidden text-center bg-white isolate sm:px-16 sm:shadow-sm dark:bg-transparent">
+      <section className="w-full bg-linear-to-r from-cyan-700 via-blue-500 to-indigo-600">
+        <div className="relative px-6 py-20 overflow-hidden text-center isolate sm:px-16 sm:shadow-sm dark:bg-transparent">
           <p className="max-w-2xl mx-auto text-3xl font-bold text-gray-900 dark:text-gray-200 sm:text-4xl">
             Telly Sauce!
           </p>
@@ -122,42 +128,10 @@ export default function Home() {
               </span>
             </button>
           </div>
-          {autoCompleteResults.length > 0 && (
-            <div className="pointer-events-auto rounded-lg bg-white text-[0.8125rem]/5 text-slate-700 ring-1 shadow-xl shadow-black/5 ring-slate-700/10">
-              <div className="px-3.5 py-3">
-                {autoCompleteResults.map((result: AutoCompleteResult) => (
-                  <div
-                    key={result.id}
-                    onClick={(e) =>
-                      handleSelectResult(e, result.id, result.name)
-                    }
-                    className="flex items-center rounded-md p-1.5 hover:bg-indigo-600 hover:text-white"
-                  >
-                    {result.name}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          <svg
-            viewBox="0 0 1024 1024"
-            className="absolute left-1/2 top-1/2 -z-10 h-[64rem] w-[64rem] -translate-x-1/2 [mask-image:radial-gradient(closest-side,white,transparent)]"
-            aria-hidden="true"
-          >
-            <circle
-              cx="512"
-              cy="512"
-              r="512"
-              fill="url(#827591b1-ce8c-4110-b064-7cb85a0b1217)"
-              fillOpacity="0.7"
-            ></circle>
-            <defs>
-              <radialGradient id="827591b1-ce8c-4110-b064-7cb85a0b1217">
-                <stop stopColor="#3b82f6"></stop>
-                <stop offset="1" stopColor="#1d4ed8"></stop>
-              </radialGradient>
-            </defs>
-          </svg>
+          <SearchResults
+            data={autoCompleteResults}
+            handleSelectResult={handleSelectResult}
+          />
         </div>
       </section>
       <section>
@@ -165,38 +139,7 @@ export default function Home() {
           <h2 className="text-2xl text-center font-semibold text-gray-800 dark:text-gray-200 pt-4 pb-8">
             {showTitle}
           </h2>
-          {filteredStreamingSources.length > 0 && (
-            <table className="w-full table-auto border-collapse text-sm w-full max-w-3xl mx-auto">
-              <thead>
-                <tr>
-                  <th className="border-b border-gray-200 p-4 pt-0 pb-3 pl-8 text-left font-medium text-gray-400 dark:border-gray-600 dark:text-gray-200">
-                    Service
-                  </th>
-                  <th className="border-b border-gray-200 p-4 pt-0 pb-3 text-left font-medium text-gray-400 dark:border-gray-600 dark:text-gray-200">
-                    Region
-                  </th>
-                  <th className="border-b border-gray-200 p-4 pt-0 pr-8 pb-3 text-left font-medium text-gray-400 dark:border-gray-600 dark:text-gray-200">
-                    Price
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-800">
-                {filteredStreamingSources.map((source: StreamingSource, i) => (
-                  <tr key={i}>
-                    <td className="border-b border-gray-100 p-4 pl-8 text-gray-500 dark:border-gray-700 dark:text-gray-400">
-                      {source.name}
-                    </td>
-                    <td className="border-b border-gray-100 p-4 text-gray-500 dark:border-gray-700 dark:text-gray-400">
-                      {source.region}
-                    </td>
-                    <td className="border-b border-gray-100 p-4 pr-8 text-gray-500 dark:border-gray-700 dark:text-gray-400">
-                      {source.type}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+          <ResultsTable data={filteredStreamingSources} />
           {hasNoShows && (
             <p className="text-center text-gray-500 ">No results</p>
           )}
