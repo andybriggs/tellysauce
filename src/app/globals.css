@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
+  --background: #f7f2e2;
   --foreground: #171717;
 }
 
@@ -22,4 +22,38 @@ body {
   color: var(--foreground);
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+.pixelate {
+  position: relative;
+}
+
+.pixelate::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: inherit;
+  background-size: inherit;
+  background-position: inherit;
+  background-repeat: inherit;
+  filter: contrast(1.4) brightness(0.7) saturate(0.8);
+  z-index: -2;
+}
+
+.pixelate::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(circle at 25% 25%, rgba(255,255,255,0.8) 2px, transparent 2px),
+    radial-gradient(circle at 75% 75%, rgba(0,0,0,0.6) 1px, transparent 1px);
+  background-size: 6px 6px, 4px 4px;
+  mix-blend-mode: overlay;
+  z-index: -1;
 }

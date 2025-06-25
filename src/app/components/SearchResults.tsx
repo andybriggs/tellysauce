@@ -5,7 +5,8 @@ type Props = {
   handleSelectResult: (
     e: React.MouseEvent<HTMLElement>,
     id: number,
-    name: string
+    name: string,
+    image: string
   ) => void;
 };
 
@@ -16,7 +17,9 @@ const SearchResults = ({ data, handleSelectResult }: Props) =>
         {data.map((result: AutoCompleteResult) => (
           <div
             key={result.id}
-            onClick={(e) => handleSelectResult(e, result.id, result.name)}
+            onClick={(e) =>
+              handleSelectResult(e, result.id, result.name, result.image_url)
+            }
             className="flex items-center rounded-md p-1.5 hover:bg-indigo-600 hover:text-white cursor-pointer"
           >
             <img
