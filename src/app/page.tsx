@@ -27,16 +27,16 @@ export default function Home() {
   const [autoCompleteResults, setAutoCompleteResults] = useState([]);
   const [showStreamingSources, setShowStreamingSources] = useState([]);
   const [showTitle, setShowTitle] = useState("");
-  const [isGBOnly, setIsGBOnly] = useState(false);
+  const [isInternational, setIsInternational] = useState(false);
   const [background, setBackground] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   console.log(background);
 
-  const hasNoShows = showTitle && showStreamingSources.length === 0;
+  const hasNoShows = showStreamingSources.length === 0;
   const showClearResults = searchQuery !== "";
 
-  const filteredStreamingSources = isGBOnly
+  const filteredStreamingSources = !isInternational
     ? showStreamingSources.filter(
         (source: StreamingSource) => source.region === "GB"
       )
@@ -101,7 +101,7 @@ export default function Home() {
   };
 
   const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setIsGBOnly(e.target.checked);
+    setIsInternational(e.target.checked);
   };
 
   return (
@@ -128,21 +128,6 @@ export default function Home() {
           <p className="max-w-xl mx-auto mt-6 text-lg leading-8 text-gray-600 dark:text-gray-300">
             Find out where you can stream your favourtie TV shows.
           </p>
-          <div className="flex items-center mt-4 w-full justify-center text-gray-600">
-            <input
-              id="default-checkbox"
-              type="checkbox"
-              value=""
-              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded-sm focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-              onChange={handleCheckboxChange}
-            />
-            <label
-              htmlFor="default-checkbox"
-              className="ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
-            >
-              Show GB only
-            </label>
-          </div>
           <div className="relative flex flex-col items-center justify-center max-w-2xl gap-2 px-2 py-2 mx-auto mt-8 bg-white border shadow-2xl dark:bg-gray-50 min-w-sm md:flex-row rounded-2xl focus-within:border-gray-300">
             <input
               id="search-bar"
@@ -197,20 +182,37 @@ export default function Home() {
           />
         </div>
       </section>
-      <section
-        className="relative bg-no-repeat bg-cover pixelate"
-        style={{ backgroundImage: `url(${background})`, zIndex: -1 }}
-      >
-        <div className="relative p-4 z-10">
-          <h2 className="text-2xl text-center font-semibold text-white pt-4 pb-8">
-            {showTitle}
-          </h2>
-          <ResultsTable data={filteredStreamingSources} />
-          {hasNoShows && (
-            <p className="text-center text-gray-500">No results</p>
-          )}
-        </div>
-      </section>
+      {(showTitle || hasNoShows) && (
+        <section
+          className="relative bg-no-repeat bg-cover pixelate"
+          style={{ backgroundImage: `url(${background})`, zIndex: -1 }}
+        >
+          <div className="relative p-4 z-10">
+            <h2 className="text-2xl text-center font-semibold text-white pt-4">
+              {showTitle}
+            </h2>
+            <div className="flex items-center mt-4 w-full justify-center text-gray-600 mb-8">
+              <input
+                id="default-checkbox"
+                type="checkbox"
+                value=""
+                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded-sm focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                onChange={handleCheckboxChange}
+              />
+              <label
+                htmlFor="default-checkbox"
+                className="ms-2 text-sm font-medium text-white dark:text-gray-300"
+              >
+                Show International
+              </label>
+            </div>
+            <ResultsTable data={filteredStreamingSources} />
+            {hasNoShows && (
+              <p className="text-center text-gray-500">No results</p>
+            )}
+          </div>
+        </section>
+      )}
     </>
   );
 }
