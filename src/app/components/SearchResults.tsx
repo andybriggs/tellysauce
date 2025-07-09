@@ -10,11 +10,11 @@ type Props = {
   ) => void;
 };
 
-const SearchResults = ({ data, handleSelectResult }: Props) =>
-  data.length > 0 && (
-    <div className="pointer-events-auto rounded-lg bg-white text-[0.8125rem]/5 text-slate-700 ring-1 shadow-xl shadow-black/5 ring-slate-700/10 max-w-2xl mx-auto">
-      <div className="px-3.5 py-3">
-        {data.map((result: AutoCompleteResult) => (
+const SearchResults = ({ data, handleSelectResult }: Props) => (
+  <div className="relative pointer-events-auto rounded-lg bg-white text-[0.8125rem]/5 text-slate-700 ring-1 shadow-xl shadow-black/5 ring-slate-700/10 max-w-2xl mx-auto">
+    <div className="px-3.5 py-3">
+      {data.length > 0 ? (
+        data.map((result: AutoCompleteResult) => (
           <div
             key={result.id}
             onClick={(e) =>
@@ -30,9 +30,12 @@ const SearchResults = ({ data, handleSelectResult }: Props) =>
             />
             {result.name}
           </div>
-        ))}
-      </div>
+        ))
+      ) : (
+        <p>No results</p>
+      )}
     </div>
-  );
+  </div>
+);
 
 export default SearchResults;

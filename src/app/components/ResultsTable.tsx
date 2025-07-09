@@ -4,7 +4,7 @@ type Props = {
   data: StreamingSource[];
 };
 const ResultsTable = ({ data }: Props) =>
-  data.length > 0 && (
+  data?.length > 0 ? (
     <table className="w-full table-auto border-collapse text-sm max-w-3xl mx-auto bg-white/80 dark:bg-gray-800/80 rounded-xl overflow-hidden backdrop-blur-sm">
       <thead>
         <tr>
@@ -35,6 +35,10 @@ const ResultsTable = ({ data }: Props) =>
         ))}
       </tbody>
     </table>
+  ) : (
+    <div className="bg-blue-500 text-white text-center p-4 rounded">
+      <p>No sources found</p>
+    </div>
   );
 
 export default ResultsTable;

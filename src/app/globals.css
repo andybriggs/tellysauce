@@ -14,7 +14,9 @@
   }
 }
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
 }
 
@@ -29,7 +31,7 @@ body {
 }
 
 .pixelate::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
@@ -44,15 +46,18 @@ body {
 }
 
 .pixelate::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: 
-    radial-gradient(circle at 25% 25%, rgba(255,255,255,0.8) 2px, transparent 2px),
-    radial-gradient(circle at 75% 75%, rgba(0,0,0,0.6) 1px, transparent 1px);
+  background: radial-gradient(
+      circle at 25% 25%,
+      rgba(255, 255, 255, 0.8) 2px,
+      transparent 2px
+    ),
+    radial-gradient(circle at 75% 75%, rgba(0, 0, 0, 0.6) 1px, transparent 1px);
   background-size: 6px 6px, 4px 4px;
   mix-blend-mode: overlay;
   z-index: -1;
