@@ -15,7 +15,7 @@ const Search = ({
   handleSubmit,
   handleClearSearch,
 }: Props) => (
-  <div className="relative flex flex-col items-center justify-center max-w-2xl gap-2 px-2 py-2 mx-auto mt-8 bg-white border shadow-2xl dark:bg-gray-50 min-w-sm md:flex-row rounded-2xl focus-within:border-gray-300">
+  <div className="relative flex flex-col items-center justify-center gap-2 px-2 py-2 mx-auto mt-8 bg-white border shadow-2xl dark:bg-gray-50 min-w-sm md:flex-row rounded-2xl focus-within:border-gray-300">
     <input
       id="search-bar"
       placeholder="Twin Peaks"

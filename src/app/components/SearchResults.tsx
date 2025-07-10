@@ -1,4 +1,5 @@
 import { AutoCompleteResult } from "../page";
+import Image from "next/image";
 
 type Props = {
   data: AutoCompleteResult[];
@@ -6,27 +7,35 @@ type Props = {
     e: React.MouseEvent<HTMLElement>,
     id: number,
     name: string,
-    image: string
+    image: string,
+    type: string
   ) => void;
 };
 
 const SearchResults = ({ data, handleSelectResult }: Props) => (
-  <div className="relative pointer-events-auto rounded-lg bg-white text-[0.8125rem]/5 text-slate-700 ring-1 shadow-xl shadow-black/5 ring-slate-700/10 max-w-2xl mx-auto">
+  <div className="absolute w-full pointer-events-auto rounded-lg bg-white text-[0.8125rem]/5 text-slate-700 ring-1 shadow-xl shadow-black/5 ring-slate-700/10 mx-auto">
     <div className="px-3.5 py-3">
       {data.length > 0 ? (
         data.map((result: AutoCompleteResult) => (
           <div
             key={result.id}
             onClick={(e) =>
-              handleSelectResult(e, result.id, result.name, result.image_url)
+              handleSelectResult(
+                e,
+                result.id,
+                result.name,
+                result.image_url,
+                result.type
+              )
             }
             className="flex items-center rounded-md p-1.5 hover:bg-indigo-600 hover:text-white cursor-pointer"
           >
-            <img
+            <Image
               src={result.image_url}
               alt={result.name}
-              loading="lazy"
-              className="w-10 h-10 rounded object-contain mr-5 bg-gray-200"
+              width={48}
+              height={48}
+              className="inline-block align-middle rounded shadow bg-white mr-4"
             />
             {result.name}
           </div>
