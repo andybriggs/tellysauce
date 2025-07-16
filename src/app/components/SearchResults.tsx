@@ -1,4 +1,4 @@
-import { AutoCompleteResult } from "../page";
+import { AutoCompleteResult } from "@/app/types";
 import Image from "next/image";
 
 type Props = {

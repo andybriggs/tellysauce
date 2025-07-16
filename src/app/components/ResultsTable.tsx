@@ -1,4 +1,4 @@
-import { StreamingSource } from "../page";
+import { StreamingSource } from "@/app/types";
 import Image from "next/image";
 import { STREAMING_SOURCES } from "../contants";
 
