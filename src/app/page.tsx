@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { debounce } from "lodash";
 import { useStreamingSearch } from "./hooks/useStreamingSearch";
+import { useMyShows } from "./hooks/useMyShows";
 import { PlusIcon } from "@heroicons/react/24/outline";
 import Hero from "./components/Hero";
 import Search from "./components/Search";
@@ -10,15 +11,19 @@ import SearchResults from "./components/SearchResults";
 import ResultsTable from "./components/ResultsTable";
 import Image from "next/image";
 import { SHOW_TYPES } from "./contants";
+import MyShows from "./components/MyShows";
 
 export default function Home() {
   const { state, dispatch, fetchAutoCompleteResults, fetchSourcesResults } =
     useStreamingSearch();
 
+  const { addShow, removeShow, isSaved } = useMyShows();
+
   const {
     searchQuery,
     autoCompleteResults,
-    showTitle,
+    showName,
+    showId,
     showImage,
     showType,
     showStreamingSources,
@@ -29,7 +34,7 @@ export default function Home() {
 
   const debouncedSubmit = useMemo(
     () => debounce((query: string) => fetchAutoCompleteResults(query), 500),
-    []
+    [fetchAutoCompleteResults]
   );
 
   const filteredStreamingSources = isInternational
@@ -44,14 +49,16 @@ export default function Home() {
 
   const handleSelectResult = (
     e: React.MouseEvent<HTMLElement>,
-    showId: number,
-    title: string,
+    id: number,
+    name: string,
     image: string,
     type: string
   ) => {
     e.preventDefault();
-    dispatch({ type: "SELECT_SHOW", payload: { title, image, type } });
-    fetchSourcesResults(showId);
+    dispatch({ type: "SELECT_SHOW", payload: { id, name, image, type } });
+    fetchSourcesResults(id);
+
+    dispatch({ type: isSaved(id) ? "MARK_ADDED" : "RESET_ADDED" });
   };
 
   const handleClearSearch = () => {
@@ -63,17 +70,29 @@ export default function Home() {
   };
 
   const onClickAddToMyShows = () => {
+    if (!showId) return;
+
     const show = {
-      title: state.showTitle,
-      image: state.showImage,
-      type: state.showType,
+      id: showId,
+      name: showName,
+      image: showImage,
+      type: showType,
     };
 
-    const existing = JSON.parse(localStorage.getItem("myShows") || "[]");
-    const updated = [...existing, show];
-    localStorage.setItem("myShows", JSON.stringify(updated));
-    dispatch({ type: "MARK_ADDED" });
+    if (isSaved(showId)) {
+      removeShow(showId);
+      dispatch({ type: "RESET_ADDED" });
+    } else {
+      addShow(show);
+      dispatch({ type: "MARK_ADDED" });
+    }
   };
+
+  useEffect(() => {
+    if (showId != null) {
+      dispatch({ type: isSaved(showId) ? "MARK_ADDED" : "RESET_ADDED" });
+    }
+  }, [showId, isSaved, dispatch]);
 
   return (
     <>
@@ -99,14 +118,16 @@ export default function Home() {
         </div>
       </section>
 
-      {showTitle && (
+      {!showName && <MyShows />}
+
+      {showName && (
         <section className="relative bg-black h-screen">
           <div className="relative p-4">
             <div className="flex items-center justify-center">
               {showImage && (
                 <Image
                   src={showImage}
-                  alt={showTitle}
+                  alt={showName}
                   width={48}
                   height={48}
                   className="inline-block align-middle rounded shadow bg-white mr-4"
@@ -114,7 +135,7 @@ export default function Home() {
               )}
               <div>
                 <h2 className="text-2xl text-center font-semibold text-white self-start">
-                  {showTitle}
+                  {showName}
                 </h2>
                 <p className="mt-1 text-left">
                   <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-gray-500/10 ring-inset">
@@ -132,6 +153,7 @@ export default function Home() {
                     id="default-checkbox"
                     type="checkbox"
                     onChange={handleCheckboxChange}
+                    checked={isInternational}
                   />
                   Show International
                 </label>
@@ -140,6 +162,7 @@ export default function Home() {
                     isShowAdded ? "bg-red-500" : "bg-green-500"
                   } text-white px-4 py-2 rounded-md flex gap-2 items-center`}
                   onClick={onClickAddToMyShows}
+                  disabled={!showId}
                 >
                   <PlusIcon className="w-4 h-4" />
                   {isShowAdded ? "Remove from my shows" : "Add to my shows"}

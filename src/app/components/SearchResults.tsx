@@ -16,7 +16,7 @@ const SearchResults = ({ data, handleSelectResult }: Props) => (
   <div className="absolute w-full pointer-events-auto rounded-lg bg-white text-[0.8125rem]/5 text-slate-700 ring-1 shadow-xl shadow-black/5 ring-slate-700/10 mx-auto">
     <div className="px-3.5 py-3">
       {data.length > 0 ? (
-        data.map((result: AutoCompleteResult) => (
+        data.map((result) => (
           <div
             key={result.id}
             onClick={(e) =>

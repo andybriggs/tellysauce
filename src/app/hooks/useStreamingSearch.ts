@@ -4,10 +4,11 @@ import {
   StreamingSearchState,
 } from "./useStreamingSearchReducer";
 
-const initialState: StreamingSearchState = {
+export const initialState: StreamingSearchState = {
   searchQuery: "",
   autoCompleteResults: [],
-  showTitle: "",
+  showId: undefined,
+  showName: "",
   showImage: undefined,
   showType: undefined,
   showStreamingSources: [],
