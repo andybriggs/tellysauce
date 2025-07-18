@@ -4,7 +4,7 @@ import { useMemo, useEffect } from "react";
 import { debounce } from "lodash";
 import { useStreamingSearch } from "./hooks/useStreamingSearch";
 import { useMyShows } from "./hooks/useMyShows";
-import { PlusIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
 import Hero from "./components/Hero";
 import Search from "./components/Search";
 import SearchResults from "./components/SearchResults";
@@ -12,6 +12,7 @@ import ResultsTable from "./components/ResultsTable";
 import Image from "next/image";
 import { SHOW_TYPES } from "./contants";
 import MyShows from "./components/MyShows";
+import { Show } from "./types";
 
 export default function Home() {
   const { state, dispatch, fetchAutoCompleteResults, fetchSourcesResults } =
@@ -69,7 +70,7 @@ export default function Home() {
     dispatch({ type: "TOGGLE_INTERNATIONAL" });
   };
 
-  const onClickAddToMyShows = () => {
+  const onClickAddRemoveShow = () => {
     if (!showId) return;
 
     const show = {
@@ -83,7 +84,7 @@ export default function Home() {
       removeShow(showId);
       dispatch({ type: "RESET_ADDED" });
     } else {
-      addShow(show);
+      addShow(show as Show);
       dispatch({ type: "MARK_ADDED" });
     }
   };
@@ -161,10 +162,14 @@ export default function Home() {
                   className={`${
                     isShowAdded ? "bg-red-500" : "bg-green-500"
                   } text-white px-4 py-2 rounded-md flex gap-2 items-center`}
-                  onClick={onClickAddToMyShows}
+                  onClick={onClickAddRemoveShow}
                   disabled={!showId}
                 >
-                  <PlusIcon className="w-4 h-4" />
+                  {isShowAdded ? (
+                    <PlusIcon className="w-4 h-4" />
+                  ) : (
+                    <TrashIcon className="w-4 h-4" />
+                  )}
                   {isShowAdded ? "Remove from my shows" : "Add to my shows"}
                 </button>
               </div>
