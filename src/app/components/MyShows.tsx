@@ -5,7 +5,7 @@ import { useMyShows } from "../hooks/useMyShows";
 import MyShowCard from "./MyShowCard";
 
 const MyShows = () => {
-  const { myShows } = useMyShows(); // shared state
+  const { myShows, removeShow } = useMyShows(); // shared state
 
   if (!myShows.length) {
     return (
@@ -15,14 +15,12 @@ const MyShows = () => {
     );
   }
 
-  console.log(myShows);
-
   return (
     <div className="m-8">
       <ul className="flex gap-4 overflow-auto">
         {myShows.map((show) => (
           <li key={show.id}>
-            <MyShowCard show={show} />
+            <MyShowCard show={show} removeShow={removeShow} />
           </li>
         ))}
       </ul>

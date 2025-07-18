@@ -17,23 +17,35 @@ function parseShows(raw: string | null): Show[] {
 }
 
 export function useMyShows() {
-  // Lazy init so we only touch localStorage on client
-  const [myShows, setMyShows] = useState<Show[]>(() =>
-    typeof window === "undefined"
-      ? []
-      : parseShows(localStorage.getItem(STORAGE_KEY))
-  );
+  const [hasMounted, setHasMounted] = useState(false);
+  const [myShows, setMyShows] = useState<Show[]>([]);
 
-  // Cross-tab sync (optional but nice)
+  // Detect client mount
   useEffect(() => {
-    function handleStorage(e: StorageEvent) {
+    setHasMounted(true);
+  }, []);
+
+  // Load from localStorage only on client
+  useEffect(() => {
+    if (hasMounted) {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      setMyShows(parseShows(stored));
+    }
+  }, [hasMounted]);
+
+  // Cross-tab sync
+  useEffect(() => {
+    if (!hasMounted) return;
+
+    const handleStorage = (e: StorageEvent) => {
       if (e.key === STORAGE_KEY) {
         setMyShows(parseShows(e.newValue));
       }
-    }
+    };
+
     window.addEventListener("storage", handleStorage);
     return () => window.removeEventListener("storage", handleStorage);
-  }, []);
+  }, [hasMounted]);
 
   const isSaved = useCallback(
     (id?: number) =>
@@ -43,7 +55,7 @@ export function useMyShows() {
 
   const addShow = useCallback((show: Show) => {
     setMyShows((prev) => {
-      if (prev.some((s) => s.id === show.id)) return prev; // no dupes
+      if (prev.some((s) => s.id === show.id)) return prev;
       const next = [...prev, show];
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       return next;
@@ -58,5 +70,11 @@ export function useMyShows() {
     });
   }, []);
 
-  return { myShows, addShow, removeShow, isSaved };
+  return {
+    hasMounted,
+    myShows,
+    addShow,
+    removeShow,
+    isSaved,
+  };
 }
