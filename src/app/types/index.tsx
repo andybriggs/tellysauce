@@ -17,3 +17,9 @@ export type StreamingSource = {
   region: string;
   type: string;
 };
+
+export type Recommendation = {
+  title: string;
+  description: string;
+  tags: string[];
+};

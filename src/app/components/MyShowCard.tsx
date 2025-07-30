@@ -13,8 +13,8 @@ const MyShowCard = ({
   const { image, name, type, id } = show;
 
   return (
-    <div className="max-w-md mx-auto md:max-w-2xl mt-6 min-w-0 break-words bg-white w-full mb-6 shadow-lg rounded-xl mt-16">
-      <div className="px-6">
+    <div className="bg-white h-full w-full flex flex-col rounded-xl shadow-md py-8 px-4">
+      <div className="px-6 flex flex-col h-full">
         {image && (
           <div className="flex flex-wrap justify-center">
             <div className="w-full flex justify-center">
@@ -30,7 +30,8 @@ const MyShowCard = ({
             </div>
           </div>
         )}
-        <div className="text-center mt-2">
+
+        <div className="text-center m-2 p-2 border-b border-slate-200">
           <h3 className="text-2xl text-slate-700 font-bold leading-normal mb-1">
             {name}
           </h3>
@@ -38,17 +39,19 @@ const MyShowCard = ({
             {SHOW_TYPES[type as keyof typeof SHOW_TYPES] || type}
           </span>
         </div>
-        <div className="mt-6 py-6 border-t border-slate-200 text-center">
-          <div className="flex flex-wrap justify-center">
-            <div className="w-full px-4">
-              <button
-                className="bg-red-500 text-white text-small py-2 px-4 rounded-md flex gap-2 items-center"
-                onClick={() => removeShow(id)}
-              >
-                <TrashIcon className="w-4 h-4" />
-                Remove
-              </button>
-            </div>
+
+        {/* Spacer to push the button to the bottom */}
+        <div className="flex-grow" />
+
+        <div className="flex justify-center">
+          <div className="w-full px-4">
+            <button
+              className="bg-red-500 text-white text-small py-2 px-4 rounded-md flex gap-2 items-center"
+              onClick={() => removeShow(id)}
+            >
+              <TrashIcon className="w-4 h-4" />
+              Remove
+            </button>
           </div>
         </div>
       </div>

@@ -23,6 +23,7 @@ const Search = ({
       value={searchQuery}
       className="flex-1 w-full px-6 py-2 bg-white rounded-md outline-none dark:bg-gray-50"
       type="text"
+      autoComplete="off"
     />
     <button
       disabled={isLoading}

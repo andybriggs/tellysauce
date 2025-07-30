@@ -13,6 +13,7 @@ import Image from "next/image";
 import { SHOW_TYPES } from "./contants";
 import MyShows from "./components/MyShows";
 import { Show } from "./types";
+import RecommendShows from "./components/RecommendShows";
 
 export default function Home() {
   const { state, dispatch, fetchAutoCompleteResults, fetchSourcesResults } =
@@ -119,7 +120,12 @@ export default function Home() {
         </div>
       </section>
 
-      {!showName && <MyShows />}
+      {!showName && (
+        <div className="max-w-screen-lg mx-auto p-4">
+          <MyShows />
+          <RecommendShows />
+        </div>
+      )}
 
       {showName && (
         <section className="relative bg-black h-screen">

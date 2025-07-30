@@ -16,13 +16,13 @@ const MyShows = () => {
   }
 
   return (
-    <div className="m-8">
+    <div className="mb-4">
       <h2 className="text-2xl text-white font-bold leading-normal mb-4">
-        My Shows
+        My Show
       </h2>
-      <ul className="flex gap-4 overflow-auto pt-24">
+      <ul className="flex items-stretch gap-4 overflow-auto py-4">
         {myShows.map((show) => (
-          <li key={show.id}>
+          <li key={show.id} className="h-auto">
             <MyShowCard show={show} removeShow={removeShow} />
           </li>
         ))}
