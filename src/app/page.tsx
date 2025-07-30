@@ -34,10 +34,17 @@ export default function Home() {
     isShowAdded,
   } = state;
 
-  const debouncedSubmit = useMemo(
-    () => debounce((query: string) => fetchAutoCompleteResults(query), 500),
-    [fetchAutoCompleteResults]
-  );
+  const debouncedSubmit = useMemo(() => {
+    return debounce((query: string) => {
+      fetchAutoCompleteResults(query);
+    }, 500);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      debouncedSubmit.cancel();
+    };
+  }, [debouncedSubmit]);
 
   const filteredStreamingSources = isInternational
     ? showStreamingSources
