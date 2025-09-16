@@ -9,7 +9,11 @@ function parseShows(raw: string | null): Show[] {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((show) => ({
+      ...show,
+      rating: typeof show.rating === "number" ? show.rating : 0,
+    }));
   } catch {
     return [];
   }
@@ -19,12 +23,10 @@ export function useMyShows() {
   const [hasMounted, setHasMounted] = useState(false);
   const [myShows, setMyShows] = useState<Show[]>([]);
 
-  // Detect client mount
   useEffect(() => {
     setHasMounted(true);
   }, []);
 
-  // Load from localStorage only on client
   useEffect(() => {
     if (hasMounted) {
       const stored = localStorage.getItem(STORAGE_KEY);
@@ -32,7 +34,6 @@ export function useMyShows() {
     }
   }, [hasMounted]);
 
-  // Cross-tab sync
   useEffect(() => {
     if (!hasMounted) return;
 
@@ -52,10 +53,11 @@ export function useMyShows() {
     [myShows]
   );
 
-  const addShow = useCallback((show: Show) => {
+  const addShow = useCallback((show: Omit<Show, "rating">) => {
     setMyShows((prev) => {
       if (prev.some((s) => s.id === show.id)) return prev;
-      const next = [...prev, show];
+      const newShow: Show = { ...show, rating: 0 };
+      const next = [...prev, newShow];
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       return next;
     });
@@ -69,11 +71,22 @@ export function useMyShows() {
     });
   }, []);
 
+  const rateShow = useCallback((id: number, rating: number) => {
+    setMyShows((prev) => {
+      const next = prev.map((s) =>
+        s.id === id ? { ...s, rating: Math.max(0, Math.min(5, rating)) } : s
+      );
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   return {
     hasMounted,
     myShows,
     addShow,
     removeShow,
+    rateShow,
     isSaved,
   };
 }

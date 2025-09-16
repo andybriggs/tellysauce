@@ -6,10 +6,7 @@ export type StreamingSearchState = {
   autoCompleteResults: AutoCompleteResult[];
   showName: string;
   showId?: number;
-  showImage?: string;
   showType?: string;
-  showStreamingSources: StreamingSource[];
-  isInternational: boolean;
   isLoading: boolean;
   isShowAdded: boolean;
 };
@@ -50,19 +47,6 @@ export function streamingSearchReducer(
       return {
         ...initialState,
       };
-    case "SELECT_SHOW":
-      return {
-        ...state,
-        showId: action.payload.id,
-        showName: action.payload.name,
-        showImage: action.payload.image,
-        showType: action.payload.type,
-        autoCompleteResults: [],
-      };
-    case "SET_SOURCES":
-      return { ...state, showStreamingSources: action.payload };
-    case "TOGGLE_INTERNATIONAL":
-      return { ...state, isInternational: !state.isInternational };
     case "MARK_ADDED":
       return { ...state, isShowAdded: true };
     case "RESET_ADDED":

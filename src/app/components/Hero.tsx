@@ -15,8 +15,8 @@ const Hero = () => (
         </div>
       </div>
     </div>
-    <p className="max-w-xl mx-auto mt-6 text-lg leading-8 text-gray-600 dark:text-gray-300">
-      Find out where you can stream your favourtie TV shows.
+    <p className="max-w-xl mx-auto mt-12 text-xl sm:text-2xl font-medium text-gray-800 dark:text-gray-200 leading-relaxed">
+      Get started by searching for your favorite titles
     </p>
   </>
 );

@@ -9,10 +9,7 @@ export const initialState: StreamingSearchState = {
   autoCompleteResults: [],
   showId: undefined,
   showName: "",
-  showImage: undefined,
   showType: undefined,
-  showStreamingSources: [],
-  isInternational: false,
   isLoading: false,
   isShowAdded: false,
 };
@@ -20,37 +17,44 @@ export const initialState: StreamingSearchState = {
 export function useStreamingSearch() {
   const [state, dispatch] = useReducer(streamingSearchReducer, initialState);
 
-  // API keys & endpoints
-  const API_KEY = process.env.NEXT_PUBLIC_WATCHMODE_API_KEY;
-  const AUTO_COMPLETE_API = `https://api.watchmode.com/v1/autocomplete-search/?apiKey=${API_KEY}&search_field=name&search_value=`;
-  const STREAM_SOURCE_API = (id: number) =>
-    `https://api.watchmode.com/v1/title/${id}/sources/?apiKey=${API_KEY}`;
-
   // Actions
   const fetchAutoCompleteResults = async (query: string) => {
     dispatch({ type: "SET_LOADING", payload: true });
-    if (!query) {
+
+    const trimmed = query?.trim() ?? "";
+    if (!trimmed) {
       dispatch({ type: "SET_RESULTS", payload: [] });
       dispatch({ type: "SET_LOADING", payload: false });
       return;
     }
 
-    const res = await fetch(AUTO_COMPLETE_API + query);
-    const data = await res.json();
-    dispatch({ type: "SET_RESULTS", payload: data.results });
-    dispatch({ type: "SET_LOADING", payload: false });
-  };
+    try {
+      const res = await fetch(
+        `/api/autocomplete?q=${encodeURIComponent(trimmed)}`,
+        {
+          method: "GET",
+        }
+      );
 
-  const fetchSourcesResults = async (id: number) => {
-    const res = await fetch(STREAM_SOURCE_API(id));
-    const data = await res.json();
-    dispatch({ type: "SET_SOURCES", payload: data });
+      if (!res.ok) {
+        // Optional: you might want to surface error state in your reducer
+        dispatch({ type: "SET_RESULTS", payload: [] });
+        dispatch({ type: "SET_LOADING", payload: false });
+        return;
+      }
+
+      const data = await res.json();
+      dispatch({ type: "SET_RESULTS", payload: data?.results ?? [] });
+    } catch {
+      dispatch({ type: "SET_RESULTS", payload: [] });
+    } finally {
+      dispatch({ type: "SET_LOADING", payload: false });
+    }
   };
 
   return {
     state,
     dispatch,
     fetchAutoCompleteResults,
-    fetchSourcesResults,
   };
 }

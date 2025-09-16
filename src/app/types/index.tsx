@@ -8,8 +8,10 @@ export type AutoCompleteResult = {
 export type Show = {
   id: number;
   name: string;
-  image: string;
-  type: string;
+  image: string | null;
+  type: string | undefined;
+  rating: number;
+  description: string | null;
 };
 
 export type StreamingSource = {
@@ -22,4 +24,5 @@ export type Recommendation = {
   title: string;
   description: string;
   tags: string[];
+  reason: string;
 };
