@@ -13,30 +13,35 @@ const MyShowCard = ({
   const { image, name, id } = show;
 
   return (
-    <Link href={`/title/${id}`}>
-      <div className="bg-white h-full w-full flex flex-col rounded-xl shadow-md py-8 px-4">
-        <div className="px-6 flex flex-col h-full">
-          {image && (
-            <div className="flex flex-wrap justify-center">
-              <div className="w-full flex justify-center">
-                <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-100 border-4 border-white shadow-lg -mt-12">
-                  <Image
-                    src={image}
-                    alt={name}
-                    width={96}
-                    height={96}
-                    className="object-cover w-full h-full"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
+    <Link href={`/title/${id}`} className="block flex-none">
+      <div className="relative w-48 h-64 flex-none rounded-xl shadow-md overflow-hidden snap-start select-none">
+        {image ? (
+          <Image
+            src={image}
+            alt={name}
+            fill
+            className="object-cover transition-transform duration-300 will-change-transform hover:scale-105"
+            sizes="256px"
+          />
+        ) : (
+          <div className="absolute inset-0 bg-slate-800" />
+        )}
 
-          <div className="text-center m-2 p-2 border-b border-slate-200">
-            <h3 className=" text-slate-700 font-bold leading-normal mb-1 whitespace-nowrap">
-              {name}
-            </h3>
-          </div>
+        {/* Gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/40 to-transparent" />
+
+        {/* Title top + centered with background */}
+        <div className="absolute top-0 left-0 right-0 flex justify-center p-3">
+          <span
+            className="bg-black/50 px-3 py-1 rounded-md text-white text-lg font-bold truncate max-w-[90%]"
+            title={name}
+          >
+            {name}
+          </span>
+        </div>
+
+        {/* Rating bottom */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
           <StarRating showId={id} rating={show.rating} rateShow={rateShow} />
         </div>
       </div>

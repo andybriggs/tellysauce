@@ -19,7 +19,7 @@ const StarRating = ({
 
   return (
     <div>
-      <p className="text-gray-600 text-sm text-center">
+      <p className="text-white-600 text-sm text-center">
         {rating ? "Your rating" : "Rate this title"}
       </p>
       <ul className="flex text-yellow-500 pt-2 pb-4 justify-center">

@@ -53,7 +53,7 @@ const MyRatedShows = ({ layout = "carousel" }: MyRatedShowsProps) => {
       <ul
         className={
           isGrid
-            ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 py-4"
+            ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 py-4"
             : "flex items-stretch gap-4 overflow-auto py-4"
         }
       >
