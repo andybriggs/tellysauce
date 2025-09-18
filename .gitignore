@@ -1,4 +1,5 @@
 .env.local
+.env.development.local
 .DS_Store
 .next/
 next-env.d.ts
