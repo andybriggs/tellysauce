@@ -44,7 +44,7 @@ ${compact.map((s: any) => `${s.title}::${s.rating ?? ""}`).join("\n")}
 Task:
 - Propose EXACTLY 8 new titles (exclude anything already listed).
 - Weight toward higher-rated favorites.
-- Use web search only to sanity-check year/genre if needed.
+- Use web search to check for latest titles and reviews.
 - Output ONE line per item, NO preamble/numbering/URLs.
 - END output with: <<<END>>>
 

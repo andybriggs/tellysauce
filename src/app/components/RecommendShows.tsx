@@ -5,7 +5,7 @@ import { useMyShows } from "../hooks/useMyShows";
 import { useGeminiRecommendations } from "../hooks/useRecommendations";
 import { useStreamingSearch } from "../hooks/useStreamingSearch";
 import { useMemo } from "react";
-import { ArrowPathIcon, SparklesIcon } from "@heroicons/react/24/solid";
+import { ArrowPathIcon, PlusIcon, SparklesIcon } from "@heroicons/react/24/solid";
 
 export default function RecommendShows() {
   const { myShows } = useMyShows();
@@ -128,20 +128,17 @@ export default function RecommendShows() {
                 />
                 IMDb
               </a>
-              <button
-                disabled
-                onClick={() => handleStreamingSearch(rec.title)}
-                className="bg-blue-500 text-white text-sm py-2 px-4 rounded-md flex gap-2 items-center disabled:opacity-50"
+              <a
+                href={`https://www.google.com/search?q=site:imdb.com+${encodeURIComponent(
+                  rec.title
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-green-500 text-white text-sm py-2 px-4 rounded-md flex gap-2 items-center hover:bg-green-600 disabled:opacity-50"
               >
-                <Image
-                  src="/logo.png"
-                  alt="Streaming"
-                  width={10}
-                  height={10}
-                  className="rounded-md border border-black self-left"
-                />
-                Sauce?
-              </button>
+                <PlusIcon className="h-5 w-5" />
+                Add to watch list
+              </a>
             </div>
           </li>
         ))}
