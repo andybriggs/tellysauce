@@ -6,7 +6,7 @@ import { useStreamingSearch } from "./hooks/useStreamingSearch";
 import Hero from "./components/Hero";
 import Search from "./components/Search";
 import SearchResults from "./components/SearchResults";
-import MyShows from "./components/MyShows";
+import MyRatedShows from "./components/MyRatedShows";
 import RecommendShows from "./components/RecommendShows";
 import { useRouter } from "next/navigation";
 
@@ -69,7 +69,7 @@ export default function Home() {
       </section>
 
       <div className="max-w-screen-lg mx-auto p-8">
-        <MyShows />
+        <MyRatedShows />
         <RecommendShows />
       </div>
     </>

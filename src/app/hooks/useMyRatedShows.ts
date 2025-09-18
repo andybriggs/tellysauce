@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Show } from "../types";
 
-const STORAGE_KEY = "myShows";
+const STORAGE_KEY = "myRatedShows";
 
 function parseShows(raw: string | null): Show[] {
   if (!raw) return [];
@@ -19,9 +19,9 @@ function parseShows(raw: string | null): Show[] {
   }
 }
 
-export function useMyShows() {
+export function useMyRatedShows() {
   const [hasMounted, setHasMounted] = useState(false);
-  const [myShows, setMyShows] = useState<Show[]>([]);
+  const [myRatedShows, setMyRatedShows] = useState<Show[]>([]);
 
   useEffect(() => {
     setHasMounted(true);
@@ -30,7 +30,7 @@ export function useMyShows() {
   useEffect(() => {
     if (hasMounted) {
       const stored = localStorage.getItem(STORAGE_KEY);
-      setMyShows(parseShows(stored));
+      setMyRatedShows(parseShows(stored));
     }
   }, [hasMounted]);
 
@@ -39,7 +39,7 @@ export function useMyShows() {
 
     const handleStorage = (e: StorageEvent) => {
       if (e.key === STORAGE_KEY) {
-        setMyShows(parseShows(e.newValue));
+        setMyRatedShows(parseShows(e.newValue));
       }
     };
 
@@ -49,12 +49,12 @@ export function useMyShows() {
 
   const isSaved = useCallback(
     (id?: number) =>
-      typeof id === "number" ? myShows.some((s) => s.id === id) : false,
-    [myShows]
+      typeof id === "number" ? myRatedShows.some((s) => s.id === id) : false,
+    [myRatedShows]
   );
 
   const addShow = useCallback((show: Omit<Show, "rating">) => {
-    setMyShows((prev) => {
+    setMyRatedShows((prev) => {
       if (prev.some((s) => s.id === show.id)) return prev;
       const newShow: Show = { ...show, rating: 0 };
       const next = [...prev, newShow];
@@ -64,7 +64,7 @@ export function useMyShows() {
   }, []);
 
   const removeShow = useCallback((id: number) => {
-    setMyShows((prev) => {
+    setMyRatedShows((prev) => {
       const next = prev.filter((s) => s.id !== id);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       return next;
@@ -72,7 +72,7 @@ export function useMyShows() {
   }, []);
 
   const rateShow = useCallback((id: number, rating: number) => {
-    setMyShows((prev) => {
+    setMyRatedShows((prev) => {
       const next = prev.map((s) =>
         s.id === id ? { ...s, rating: Math.max(0, Math.min(5, rating)) } : s
       );
@@ -83,7 +83,7 @@ export function useMyShows() {
 
   return {
     hasMounted,
-    myShows,
+    myRatedShows,
     addShow,
     removeShow,
     rateShow,

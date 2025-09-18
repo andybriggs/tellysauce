@@ -1,28 +1,26 @@
 "use client";
 
-import Image from "next/image";
-import { useMyShows } from "../hooks/useMyShows";
 import { useGeminiRecommendations } from "../hooks/useRecommendations";
 import { useMemo } from "react";
-import {
-  ArrowPathIcon,
-  PlusIcon,
-  SparklesIcon,
-} from "@heroicons/react/24/solid";
+import { ArrowPathIcon, SparklesIcon } from "@heroicons/react/24/solid";
+import { useMyRatedShows } from "../hooks/useMyRatedShows";
 
 export default function RecommendShows() {
-  const { myShows } = useMyShows();
+  const { myRatedShows } = useMyRatedShows();
   const { recommendations, isLoading, getRecommendations } =
     useGeminiRecommendations();
 
   const handleClick = () => {
-    const showList = myShows.map((show) => ({
+    const showList = myRatedShows.map((show) => ({
       name: show.name,
       rating: show.rating,
     }));
     getRecommendations(showList);
   };
-  const hasShows = useMemo(() => myShows.length > 0, [myShows.length]);
+  const hasShows = useMemo(
+    () => myRatedShows.length > 0,
+    [myRatedShows.length]
+  );
 
   if (!hasShows) {
     return (
@@ -105,36 +103,6 @@ export default function RecommendShows() {
                 Why we think you&apos;ll like it
               </h4>
               <p className="text-gray-700 text-sm mt-1">{rec.reason}</p>
-            </div>
-            <div className="flex flex-col gap-2 shrink-0 mt-4 sm:mt-0">
-              <a
-                href={`https://www.google.com/search?q=site:imdb.com+${encodeURIComponent(
-                  rec.title
-                )}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-green-500 text-white text-sm py-2 px-4 rounded-md flex gap-2 items-center hover:bg-green-600 disabled:opacity-50"
-              >
-                <Image
-                  src="/imdb.png"
-                  alt="IMDb"
-                  width={20}
-                  height={20}
-                  className="rounded-md border border-black self-left"
-                />
-                IMDb
-              </a>
-              <a
-                href={`https://www.google.com/search?q=site:imdb.com+${encodeURIComponent(
-                  rec.title
-                )}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-green-500 text-white text-sm py-2 px-4 rounded-md flex gap-2 items-center hover:bg-green-600 disabled:opacity-50"
-              >
-                <PlusIcon className="h-5 w-5" />
-                Add to watch list
-              </a>
             </div>
           </li>
         ))}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMyShows } from "@/app/hooks/useMyShows"; // ← adjust if your hook lives elsewhere
+import { useMyRatedShows } from "@/app/hooks/useMyRatedShows"; // ← adjust if your hook lives elsewhere
 import type { Show } from "@/app/types"; // ← adjust to your actual types path
 
 interface SaveToggleButtonProps {
@@ -12,7 +12,7 @@ export default function SaveToggleButton({
   show,
   size = "md",
 }: SaveToggleButtonProps) {
-  const { hasMounted, isSaved, addShow, removeShow } = useMyShows();
+  const { hasMounted, isSaved, addShow, removeShow } = useMyRatedShows();
 
   const saved = hasMounted ? isSaved(show.id) : false;
 
