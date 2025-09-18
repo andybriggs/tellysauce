@@ -3,15 +3,17 @@
 import Image from "next/image";
 import { useMyShows } from "../hooks/useMyShows";
 import { useGeminiRecommendations } from "../hooks/useRecommendations";
-import { useStreamingSearch } from "../hooks/useStreamingSearch";
 import { useMemo } from "react";
-import { ArrowPathIcon, PlusIcon, SparklesIcon } from "@heroicons/react/24/solid";
+import {
+  ArrowPathIcon,
+  PlusIcon,
+  SparklesIcon,
+} from "@heroicons/react/24/solid";
 
 export default function RecommendShows() {
   const { myShows } = useMyShows();
   const { recommendations, isLoading, getRecommendations } =
     useGeminiRecommendations();
-  const { dispatch, fetchAutoCompleteResults } = useStreamingSearch();
 
   const handleClick = () => {
     const showList = myShows.map((show) => ({
@@ -20,12 +22,6 @@ export default function RecommendShows() {
     }));
     getRecommendations(showList);
   };
-
-  const handleStreamingSearch = async (title: string) => {
-    dispatch({ type: "SET_QUERY", payload: title });
-    fetchAutoCompleteResults(title);
-  };
-
   const hasShows = useMemo(() => myShows.length > 0, [myShows.length]);
 
   if (!hasShows) {

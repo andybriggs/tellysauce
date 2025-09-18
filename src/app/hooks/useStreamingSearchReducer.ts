@@ -1,4 +1,4 @@
-import { AutoCompleteResult, StreamingSource } from "@/app/types";
+import { AutoCompleteResult } from "@/app/types";
 import { initialState } from "./useStreamingSearch";
 
 export type StreamingSearchState = {
@@ -16,18 +16,6 @@ export type StreamingSearchAction =
   | { type: "SET_RESULTS"; payload: AutoCompleteResult[] }
   | { type: "SET_LOADING"; payload: boolean }
   | { type: "CLEAR_RESULTS" }
-  | {
-      type: "SELECT_SHOW";
-      payload: {
-        id: number;
-        name: string;
-        image: string;
-        type: string;
-      };
-    }
-  | { type: "SET_SOURCES"; payload: StreamingSource[] }
-  | { type: "TOGGLE_INTERNATIONAL" }
-  | { type: "ADD_TO_MY_SHOWS" }
   | { type: "MARK_ADDED" }
   | { type: "RESET_ADDED" }
   | { type: "SET_ADDED_STATE"; payload: boolean };
