@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ArrowPathIcon, SparklesIcon } from "@heroicons/react/24/solid";
 import { useGeminiRecommendations } from "../hooks/useRecommendations";
 import { useMyRatedShows } from "../hooks/useMyRatedShows";
@@ -9,6 +10,9 @@ export default function RecommendShows() {
   const { myRatedShows } = useMyRatedShows();
   const { recommendations, isLoading, getRecommendations } =
     useGeminiRecommendations();
+  const router = useRouter();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [opening, setOpening] = useState<number | null>(null);
 
   const hasShows = useMemo(
     () => myRatedShows.length > 0,
@@ -22,6 +26,26 @@ export default function RecommendShows() {
     }));
     getRecommendations(showList);
   };
+
+  async function openTitleByName(title: string) {
+    try {
+      setOpening((prev) => prev ?? 1); // just to trigger a visual state if you want
+      const res = await fetch(
+        `/api/resolve-title?q=${encodeURIComponent(title)}`,
+        {
+          cache: "no-store",
+        }
+      );
+      const { id } = await res.json();
+      if (id) router.push(`/title/${id}`);
+      else alert(`Couldn't resolve Watchmode ID for “${title}”.`);
+    } catch (e) {
+      console.error(e);
+      alert("Sorry—something went wrong opening that title.");
+    } finally {
+      setOpening(null);
+    }
+  }
 
   if (!hasShows) {
     return (
@@ -41,11 +65,8 @@ export default function RecommendShows() {
   }
 
   return (
-    <section
-      className="mt-6 rounded-3xl p-6 sm:p-8 md:p-10 
-             bg-gradient-to-br from-cyan-900 to-slate-900 via-fuchsia-900 
-             ring-1 ring-white/10"
-    >
+    <section className="mt-6 rounded-3xl p-6 sm:p-8 md:p-10 bg-gradient-to-br from-cyan-900 via-fuchsia-900 to-slate-900 ring-1 ring-white/10">
+      {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-white text-3xl md:text-4xl font-semibold tracking-tight">
@@ -57,24 +78,16 @@ export default function RecommendShows() {
         </div>
 
         {/* Refresh button */}
-        <div
-          className={[
-            "group relative rounded-full p-[2px]",
-            "bg-[conic-gradient(at_10%_10%,#7c3aed,#22d3ee,#f59e0b,#ec4899,#7c3aed)]",
-            "shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset]",
-          ].join(" ")}
-        >
+        <div className="group relative rounded-full p-[2px] bg-[conic-gradient(at_10%_10%,#7c3aed,#22d3ee,#f59e0b,#ec4899,#7c3aed)] shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset]">
           <button
             onClick={handleClick}
             disabled={isLoading}
             aria-live="polite"
             className={[
               "relative rounded-full px-6 md:px-8 py-3 md:py-4",
-              "bg-slate-900/90 text-white",
-              "font-semibold text-sm md:text-base tracking-wide",
+              "bg-slate-900/90 text-white font-semibold text-sm md:text-base tracking-wide",
               "flex items-center justify-center gap-2 md:gap-3",
-              "shadow-lg ring-1 ring-white/10 backdrop-blur",
-              "transition-[transform,background] active:scale-[0.99]",
+              "shadow-lg ring-1 ring-white/10 backdrop-blur transition-[transform,background] active:scale-[0.99]",
               isLoading ? "cursor-wait" : "group-hover:bg-slate-900",
             ].join(" ")}
           >
@@ -91,6 +104,7 @@ export default function RecommendShows() {
         </div>
       </div>
 
+      {/* Loading skeletons */}
       {isLoading && (
         <ul className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -113,11 +127,17 @@ export default function RecommendShows() {
           {recommendations.map((rec, idx) => (
             <li
               key={idx}
+              role="button"
+              tabIndex={0}
+              onClick={() => openTitleByName(rec.title)}
+              onKeyDown={(e) => e.key === "Enter" && openTitleByName(rec.title)}
               className={[
-                "relative overflow-hidden rounded-3xl p-6 md:p-8",
+                "relative overflow-hidden rounded-3xl p-6 md:p-8 cursor-pointer",
                 "bg-white/10 backdrop-blur-md ring-1 ring-white/15 shadow-[0_8px_30px_rgb(0,0,0,0.25)]",
-                "hover:bg-white/[.12] hover:ring-white/20 transition-colors",
+                "hover:bg-white/[.12] hover:ring-white/20 transition-colors outline-none",
+                "focus-visible:ring-2 focus-visible:ring-cyan-400/60",
               ].join(" ")}
+              aria-label={`Open ${rec.title}`}
             >
               {/* AI Pick tag — absolute top-right */}
               <span className="absolute top-3 right-3 inline-flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white ring-1 ring-white/15 whitespace-nowrap">
@@ -142,15 +162,14 @@ export default function RecommendShows() {
                 </p>
               ) : null}
 
-              {rec.description ? (
+              {rec.description && (
                 <p className="mt-4 text-white/85 text-base md:text-lg leading-relaxed line-clamp-3">
                   {rec.description}
                 </p>
-              ) : null}
+              )}
 
-              {rec.reason ? (
+              {rec.reason && (
                 <div className="mt-5">
-                  {/* refined overline heading */}
                   <div className="flex items-center gap-3">
                     <span className="h-px w-6 bg-white/15" />
                     <h4 className="text-[11px] font-medium tracking-wider text-white/65">
@@ -161,7 +180,7 @@ export default function RecommendShows() {
                     {rec.reason}
                   </p>
                 </div>
-              ) : null}
+              )}
             </li>
           ))}
         </ul>
