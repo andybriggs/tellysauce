@@ -13,7 +13,7 @@ interface MyRatedShowsProps {
 const MyRatedShows = ({ layout = "carousel" }: MyRatedShowsProps) => {
   const { myRatedShows, rateShow } = useMyRatedShows();
 
-  const isEmpty = !MyRatedShows.length;
+  const isEmpty = !myRatedShows.length;
   const isGrid = layout === "grid";
 
   if (isEmpty) {
@@ -25,7 +25,7 @@ const MyRatedShows = ({ layout = "carousel" }: MyRatedShowsProps) => {
         <div className="flex items-stretch gap-4 overflow-auto py-4">
           <div className="flex flex-col justify-center items-center rounded-2xl bg-gray-800/60 border-2 border-dashed border-gray-600 text-gray-300 w-48 min-h-[12rem] flex-shrink-0 p-4 cursor-pointer hover:border-gray-400 transition">
             <p className="text-center text-sm font-medium">
-              Search to add titles
+              Search and rate some titles
             </p>
           </div>
         </div>

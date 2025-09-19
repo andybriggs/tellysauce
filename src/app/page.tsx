@@ -46,7 +46,7 @@ export default function Home() {
 
   return (
     <>
-      <section className="w-full bg-amber-50">
+      <section className="w-full bg-amber-50 relative z-10">
         <div className="relative px-6 py-20 text-center isolate sm:px-16 sm:shadow-sm dark:bg-transparent">
           <Hero />
           <div className="max-w-2xl mx-auto relative overflow-visible">

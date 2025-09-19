@@ -1,9 +1,14 @@
+// app/hooks/useMyRatedShows.ts
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
 import type { Show } from "../types";
 
 const STORAGE_KEY = "myRatedShows";
+
+function clampRating(r: number) {
+  return Math.max(0, Math.min(5, r));
+}
 
 function parseShows(raw: string | null): Show[] {
   if (!raw) return [];
@@ -12,7 +17,7 @@ function parseShows(raw: string | null): Show[] {
     if (!Array.isArray(parsed)) return [];
     return parsed.map((show) => ({
       ...show,
-      rating: typeof show.rating === "number" ? show.rating : 0,
+      rating: typeof show.rating === "number" ? clampRating(show.rating) : 0,
     }));
   } catch {
     return [];
@@ -71,22 +76,52 @@ export function useMyRatedShows() {
     });
   }, []);
 
+  /** Legacy: update rating only if the show already exists */
   const rateShow = useCallback((id: number, rating: number) => {
     setMyRatedShows((prev) => {
       const next = prev.map((s) =>
-        s.id === id ? { ...s, rating: Math.max(0, Math.min(5, rating)) } : s
+        s.id === id ? { ...s, rating: clampRating(rating) } : s
       );
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       return next;
     });
   }, []);
 
+  /** NEW: get current rating (0 if not saved) */
+  const getRating = useCallback(
+    (id: number) => myRatedShows.find((s) => s.id === id)?.rating ?? 0,
+    [myRatedShows]
+  );
+
+  /**
+   * NEW: upsert helper used by the title page star rater.
+   * - If the show exists → update rating
+   * - If it doesn't → add it with the provided meta and rating
+   */
+  const rateShowAuto = useCallback(
+    (meta: Omit<Show, "rating">, id: number, rating: number) => {
+      setMyRatedShows((prev) => {
+        const exists = prev.some((s) => s.id === id);
+        const r = clampRating(rating);
+        const next = exists
+          ? prev.map((s) => (s.id === id ? { ...s, rating: r } : s))
+          : [...prev, { ...meta, rating: r } as Show];
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        return next;
+      });
+    },
+    []
+  );
+
   return {
+    // existing API (unchanged)
     hasMounted,
     myRatedShows,
     addShow,
     removeShow,
     rateShow,
     isSaved,
+    getRating,
+    rateShowAuto,
   };
 }

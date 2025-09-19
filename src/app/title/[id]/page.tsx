@@ -8,9 +8,9 @@ import Overview from "@/app/components/Overview";
 import ExternalLinks from "@/app/components/ExternalLinks";
 import WhereToWatch from "@/app/components/WhereToWatch";
 import TagsList from "@/app/components/TagsList";
-import SaveToggleButton from "@/app/components/SaveToggleButton";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import TitleActions from "@/app/components/TitleActions";
 
 export const revalidate = 3600;
 
@@ -158,7 +158,7 @@ export default async function TitlePage({ params }: PageProps) {
           <div className="space-y-3">
             <TitleHeader
               title={title}
-              actionSlot={<SaveToggleButton show={showToSave} />}
+              actionSlot={<TitleActions show={showToSave} />}
             />
             <MetaPills
               year={data.year}

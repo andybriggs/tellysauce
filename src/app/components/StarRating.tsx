@@ -1,5 +1,7 @@
+// app/components/StarRating.tsx
 import { StarIcon } from "@heroicons/react/24/solid";
 import { StarIcon as StarIconOutline } from "@heroicons/react/24/outline";
+import clsx from "clsx";
 
 const StarRating = ({
   rating,
@@ -14,15 +16,14 @@ const StarRating = ({
     index < rating ? (
       <StarIcon className="w-8 h-8" />
     ) : (
-      <StarIconOutline className="w-8 h-8" />
+      <StarIconOutline
+        className={clsx("w-8 h-8", !Boolean(rating) ? "animate-pulse" : "")}
+      />
     );
 
   return (
-    <div>
-      <p className="text-white-600 text-sm text-center">
-        {rating ? "Your rating" : "Rate this title"}
-      </p>
-      <ul className="flex text-yellow-500 pt-2 pb-4 justify-center">
+    <div className="text-center mt-3 flex items-center">
+      <ul className="flex text-yellow-500 pt-2">
         {Array.from({ length: 5 }, (_, index) => (
           <li key={index}>
             <button
@@ -30,6 +31,7 @@ const StarRating = ({
                 e.preventDefault();
                 rateShow(showId, index + 1);
               }}
+              aria-label={`Rate ${index + 1} star${index === 0 ? "" : "s"}`}
             >
               {getStarIcon(index)}
             </button>
