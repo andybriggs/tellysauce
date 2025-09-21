@@ -1,6 +1,5 @@
 interface TitleHeaderProps {
   title: string;
-  /** Optional area to the right of the title (e.g., Save button) */
   actionSlot?: React.ReactNode;
 }
 

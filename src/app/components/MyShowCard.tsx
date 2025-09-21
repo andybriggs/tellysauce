@@ -1,16 +1,17 @@
+// app/components/MyShowCard.tsx
 import Image from "next/image";
 import { Show } from "../types";
 import StarRating from "./StarRating";
 import Link from "next/link";
 
-const MyShowCard = ({
-  show,
-  rateShow,
-}: {
+type Props = {
   show: Show;
-  rateShow: (id: number, rating: number) => void;
-}) => {
+  rateShow?: (id: number, rating: number) => void; // ⬅️ optional
+};
+
+const MyShowCard = ({ show, rateShow }: Props) => {
   const { image, name, id } = show;
+  const showStars = typeof rateShow === "function";
 
   return (
     <Link href={`/title/${id}`} className="block flex-none">
@@ -27,10 +28,8 @@ const MyShowCard = ({
           <div className="absolute inset-0 bg-slate-800" />
         )}
 
-        {/* Gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/40 to-transparent" />
 
-        {/* Title top + centered with background */}
         <div className="absolute top-0 left-0 right-0 flex justify-center p-3">
           <span
             className="bg-black/50 px-3 py-1 rounded-md text-white text-lg font-bold truncate max-w-[90%]"
@@ -40,10 +39,12 @@ const MyShowCard = ({
           </span>
         </div>
 
-        {/* Rating bottom */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
-          <StarRating showId={id} rating={show.rating} rateShow={rateShow} />
-        </div>
+        {/* Rating only when rateShow is provided */}
+        {showStars && (
+          <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
+            <StarRating showId={id} rating={show.rating} rateShow={rateShow!} />
+          </div>
+        )}
       </div>
     </Link>
   );
