@@ -42,7 +42,8 @@ User favorites (title::rating), one per line:
 ${compact.map((s: any) => `${s.title}::${s.rating ?? ""}`).join("\n")}
 
 Task:
-- Propose EXACTLY 8 new titles (exclude anything already listed).
+- Propose EXACTLY 8 new titles
+- You MUST NOT include shows that are already in the users favourtie shows list
 - Weight toward higher-rated favorites.
 - Use web search to check for latest titles and reviews.
 - Output ONE line per item, NO preamble/numbering/URLs.
