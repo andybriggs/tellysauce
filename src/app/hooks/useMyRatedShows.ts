@@ -62,7 +62,7 @@ function removeFromWatchList(id: number) {
       (s: unknown) =>
         typeof s === "object" &&
         s !== null &&
-        (s as Record<string, any>).id !== id
+        (s as Record<string, unknown>).id !== id
     );
 
     if (next.length !== parsed.length) {
@@ -165,7 +165,6 @@ export function useMyRatedShows() {
 
         localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
 
-        // remove from watchlist when a show gets (up)rated/added via rating
         removeFromWatchList(id);
 
         return next;
@@ -175,7 +174,6 @@ export function useMyRatedShows() {
   );
 
   return {
-    // existing API (unchanged)
     hasMounted,
     myRatedShows,
     addShow,

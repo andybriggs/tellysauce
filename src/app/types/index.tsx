@@ -22,7 +22,7 @@ export type StreamingSource = {
 
 export type Recommendation = {
   title: string;
-  description: string;
-  tags: string[];
-  reason: string;
+  tags?: string[];
+  description?: string;
+  reason?: string;
 };
