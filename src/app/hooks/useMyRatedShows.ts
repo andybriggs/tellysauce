@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { Show } from "../types";
 
 const STORAGE_KEY = "myRatedShows";
+const WATCHLIST_KEY = "watchList";
 
 function clampRating(r: number) {
   return Math.max(0, Math.min(5, r));
@@ -21,6 +22,57 @@ function parseShows(raw: string | null): Show[] {
     }));
   } catch {
     return [];
+  }
+}
+
+/** Defer a synthetic storage event so other hooks update AFTER this render commits */
+function notifySameTabStorage(
+  key: string,
+  oldValue: string | null,
+  newValue: string | null
+) {
+  // Defer to next macrotask to avoid "setState while rendering a different component"
+  setTimeout(() => {
+    try {
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key,
+          oldValue,
+          newValue,
+          storageArea: localStorage,
+          url: window.location.href,
+        })
+      );
+    } catch {
+      // noop — we don't want UX to break if this throws
+    }
+  }, 0);
+}
+
+/** Remove an id from the watchlist (updates LS + notifies same-tab listeners) */
+function removeFromWatchList(id: number) {
+  try {
+    const raw = localStorage.getItem(WATCHLIST_KEY);
+    if (!raw) return;
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return;
+
+    const next = parsed.filter(
+      (s: unknown) =>
+        typeof s === "object" &&
+        s !== null &&
+        (s as Record<string, any>).id !== id
+    );
+
+    if (next.length !== parsed.length) {
+      const newValue = JSON.stringify(next);
+      localStorage.setItem(WATCHLIST_KEY, newValue);
+      // Notify same-tab listeners after commit
+      notifySameTabStorage(WATCHLIST_KEY, raw, newValue);
+    }
+  } catch {
+    // swallow; malformed JSON shouldn't break rating UX
   }
 }
 
@@ -83,6 +135,10 @@ export function useMyRatedShows() {
         s.id === id ? { ...s, rating: clampRating(rating) } : s
       );
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+
+      // ensure it's no longer on the watchlist whenever a rating happens
+      removeFromWatchList(id);
+
       return next;
     });
   }, []);
@@ -106,7 +162,12 @@ export function useMyRatedShows() {
         const next = exists
           ? prev.map((s) => (s.id === id ? { ...s, rating: r } : s))
           : [...prev, { ...meta, rating: r } as Show];
+
         localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+
+        // remove from watchlist when a show gets (up)rated/added via rating
+        removeFromWatchList(id);
+
         return next;
       });
     },

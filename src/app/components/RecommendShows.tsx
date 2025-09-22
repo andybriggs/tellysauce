@@ -5,9 +5,12 @@ import { useRouter } from "next/navigation";
 import { ArrowPathIcon, SparklesIcon } from "@heroicons/react/24/solid";
 import { useGeminiRecommendations } from "../hooks/useRecommendations";
 import { useMyRatedShows } from "../hooks/useMyRatedShows";
+import { useWatchList } from "../hooks/useWatchList";
 
 export default function RecommendShows() {
   const { myRatedShows } = useMyRatedShows();
+  const { watchList } = useWatchList();
+
   const { recommendations, isLoading, getRecommendations } =
     useGeminiRecommendations();
   const router = useRouter();
@@ -24,7 +27,8 @@ export default function RecommendShows() {
       name: s.name,
       rating: s.rating,
     }));
-    getRecommendations(showList);
+    const watchListTitles = watchList?.map((title) => title.name);
+    getRecommendations(showList, watchListTitles);
   };
 
   async function openTitleByName(title: string) {

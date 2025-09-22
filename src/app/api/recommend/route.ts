@@ -21,18 +21,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { shows } = await req.json();
-    if (!Array.isArray(shows) || shows.length === 0) {
-      return Response.json({ error: "No shows provided" }, { status: 400 });
+    const { titles, watchList } = await req.json();
+    if (!Array.isArray(titles) || titles.length === 0) {
+      return Response.json({ error: "No titles provided" }, { status: 400 });
     }
 
     const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_GEMINI_API_KEY! });
 
     // 1) Make the input tiny (title + rating only, cap at 12)
-    const compact = shows.slice(0, 12).map((s: any) => ({
+    const compact = titles.slice(0, 12).map((s: any) => ({
       title: s.title ?? s.name ?? String(s),
       rating: s.rating ?? s.score ?? s.userRating ?? null,
     }));
+
+    // Serialize watchlist into prompt (if provided)
+    const watchListLines =
+      Array.isArray(watchList) && watchList.length > 0
+        ? watchList.map((w: string) => `- ${w}`).join("\n")
+        : "(none provided)";
 
     // ---------- PASS 1: Grounded (tools ON, JSON mode OFF) ----------
     const groundedPrompt = `
@@ -41,9 +47,12 @@ You are a TV/film expert.
 User favorites (title::rating), one per line:
 ${compact.map((s: any) => `${s.title}::${s.rating ?? ""}`).join("\n")}
 
+User watchlist (titles to avoid):
+${watchListLines}
+
 Task:
 - Propose EXACTLY 8 new titles
-- You MUST NOT include shows that are already in the users favourtie shows list
+- DO NOT include titles that are already in the users favourite titles list OR watchlist
 - Weight toward higher-rated favorites.
 - Use web search to check for latest titles and reviews.
 - Output ONE line per item, NO preamble/numbering/URLs.
@@ -70,7 +79,6 @@ Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
     // Extract text robustly (response.text can be empty even when parts have text)
     const parts = groundedRes?.candidates?.[0]?.content?.parts ?? [];
     const raw = parts
-
       .map((p: any) => (typeof p.text === "string" ? p.text : ""))
       .join("")
       .trim();
@@ -132,7 +140,6 @@ ${groundedText}
       },
     });
 
-    // NOTE: you had `${text}` here; that variable doesn't exist. Use groundedText above.
     const recommendations: Rec[] = JSON.parse(structuringRes.text || "[]");
     return Response.json({ recommendations });
   } catch (err) {

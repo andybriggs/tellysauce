@@ -22,14 +22,17 @@ export function useGeminiRecommendations() {
     }
   }, []);
 
-  const getRecommendations = async (showList: { name: string; rating: number; }[]) => {
+  const getRecommendations = async (
+    showList: { name: string; rating: number }[],
+    watchList: string[]
+  ) => {
     if (!showList.length) return;
 
     setIsLoading(true);
     const res = await fetch("/api/recommend", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ shows: showList }),
+      body: JSON.stringify({ titles: showList, watchList }),
     });
 
     const data = await res.json();
