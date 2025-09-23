@@ -121,7 +121,7 @@ export async function generateMetadata({
 }
 
 export default async function TitlePage({ params }: PageProps) {
-  const { id } = await params; // await the promise
+  const { id } = await params;
 
   const [data, sources] = await Promise.all([
     fetchTitleDetails(id),

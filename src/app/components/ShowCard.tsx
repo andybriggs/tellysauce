@@ -5,7 +5,7 @@ import Link from "next/link";
 
 type Props = {
   show: Show;
-  rateShow?: (id: number, rating: number) => void; // ⬅️ optional
+  rateShow?: (id: number, rating: number) => void;
 };
 
 const ShowCard = ({ show, rateShow }: Props) => {
@@ -38,7 +38,6 @@ const ShowCard = ({ show, rateShow }: Props) => {
           </span>
         </div>
 
-        {/* Rating only when rateShow is provided */}
         {showStars && (
           <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
             <StarRating showId={id} rating={show.rating} rateShow={rateShow!} />

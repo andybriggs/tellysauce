@@ -1,5 +1,4 @@
-// app/all-rated-shows/page.tsx
-import RatedShows from "@/app/components/RatedShows";
+import RatedShows from "../components/RatedShows";
 import Container from "../components/Container";
 import BackLink from "../components/BackLink";
 
