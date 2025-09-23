@@ -1,16 +1,15 @@
-// app/all-rated-shows/page.tsx
-import RatedShows from "@/app/components/RatedShows";
 import Container from "../components/Container";
 import BackLink from "../components/BackLink";
+import Watchlist from "../components/Watchlist";
 
-export default function AllRatedShowsPage() {
+export default function WatchlistPage() {
   return (
     <div className="mb-6">
       <Container>
         <div className="col-span-full mb-4">
           <BackLink href="/" label="Back" />
         </div>
-        <RatedShows layout="grid" />
+        <Watchlist layout="grid" />
       </Container>
     </div>
   );

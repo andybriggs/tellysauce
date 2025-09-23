@@ -1,4 +1,4 @@
-// app/hooks/useMyRatedShows.ts
+// app/hooks/useRatedShows.ts
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
@@ -76,9 +76,9 @@ function removeFromWatchList(id: number) {
   }
 }
 
-export function useMyRatedShows() {
+export function useRatedShows() {
   const [hasMounted, setHasMounted] = useState(false);
-  const [myRatedShows, setMyRatedShows] = useState<Show[]>([]);
+  const [ratedShows, setRatedShows] = useState<Show[]>([]);
 
   useEffect(() => {
     setHasMounted(true);
@@ -87,7 +87,7 @@ export function useMyRatedShows() {
   useEffect(() => {
     if (hasMounted) {
       const stored = localStorage.getItem(STORAGE_KEY);
-      setMyRatedShows(parseShows(stored));
+      setRatedShows(parseShows(stored));
     }
   }, [hasMounted]);
 
@@ -96,7 +96,7 @@ export function useMyRatedShows() {
 
     const handleStorage = (e: StorageEvent) => {
       if (e.key === STORAGE_KEY) {
-        setMyRatedShows(parseShows(e.newValue));
+        setRatedShows(parseShows(e.newValue));
       }
     };
 
@@ -106,12 +106,12 @@ export function useMyRatedShows() {
 
   const isSaved = useCallback(
     (id?: number) =>
-      typeof id === "number" ? myRatedShows.some((s) => s.id === id) : false,
-    [myRatedShows]
+      typeof id === "number" ? ratedShows.some((s) => s.id === id) : false,
+    [ratedShows]
   );
 
   const addShow = useCallback((show: Omit<Show, "rating">) => {
-    setMyRatedShows((prev) => {
+    setRatedShows((prev) => {
       if (prev.some((s) => s.id === show.id)) return prev;
       const newShow: Show = { ...show, rating: 0 };
       const next = [...prev, newShow];
@@ -121,7 +121,7 @@ export function useMyRatedShows() {
   }, []);
 
   const removeShow = useCallback((id: number) => {
-    setMyRatedShows((prev) => {
+    setRatedShows((prev) => {
       const next = prev.filter((s) => s.id !== id);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       return next;
@@ -130,7 +130,7 @@ export function useMyRatedShows() {
 
   /** Legacy: update rating only if the show already exists */
   const rateShow = useCallback((id: number, rating: number) => {
-    setMyRatedShows((prev) => {
+    setRatedShows((prev) => {
       const next = prev.map((s) =>
         s.id === id ? { ...s, rating: clampRating(rating) } : s
       );
@@ -145,8 +145,8 @@ export function useMyRatedShows() {
 
   /** NEW: get current rating (0 if not saved) */
   const getRating = useCallback(
-    (id: number) => myRatedShows.find((s) => s.id === id)?.rating ?? 0,
-    [myRatedShows]
+    (id: number) => ratedShows.find((s) => s.id === id)?.rating ?? 0,
+    [ratedShows]
   );
 
   /**
@@ -156,7 +156,7 @@ export function useMyRatedShows() {
    */
   const rateShowAuto = useCallback(
     (meta: Omit<Show, "rating">, id: number, rating: number) => {
-      setMyRatedShows((prev) => {
+      setRatedShows((prev) => {
         const exists = prev.some((s) => s.id === id);
         const r = clampRating(rating);
         const next = exists
@@ -175,7 +175,7 @@ export function useMyRatedShows() {
 
   return {
     hasMounted,
-    myRatedShows,
+    ratedShows,
     addShow,
     removeShow,
     rateShow,

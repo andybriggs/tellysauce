@@ -2,16 +2,16 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useMyRatedShows } from "@/app/hooks/useMyRatedShows";
 import { useWatchList } from "@/app/hooks/useWatchList";
 import { useGeminiRecommendations } from "@/app/hooks/useRecommendations";
 import EmptyRecommendations from "./EmptyRecommendations";
 import RecommendationsHeader from "./RecommendationsHeader";
 import RecommendationSkeletonGrid from "./RecommendationSkeletonGrid";
 import RecommendationsGrid from "./RecommendationsGrid";
+import { useRatedShows } from "@/app/hooks/useRatedShows";
 
 export default function RecommendShows() {
-  const { myRatedShows } = useMyRatedShows();
+  const { ratedShows } = useRatedShows();
   const { watchList } = useWatchList();
 
   const { recommendations, isLoading, getRecommendations } =
@@ -21,19 +21,16 @@ export default function RecommendShows() {
   // optional local opening indicator if you want to reflect a "pending open"
   const [opening, setOpening] = useState<string | null>(null);
 
-  const hasShows = useMemo(
-    () => myRatedShows.length > 0,
-    [myRatedShows.length]
-  );
+  const hasShows = useMemo(() => ratedShows?.length > 0, [ratedShows?.length]);
 
   const handleClick = useCallback(() => {
-    const showList = myRatedShows.map((s) => ({
+    const showList = ratedShows.map((s) => ({
       name: s.name,
       rating: s.rating,
     }));
     const watchListTitles = watchList?.map((title) => title.name) ?? [];
     getRecommendations(showList, watchListTitles);
-  }, [getRecommendations, myRatedShows, watchList]);
+  }, [getRecommendations, ratedShows, watchList]);
 
   const openTitleByName = useCallback(
     async (title: string) => {
@@ -65,7 +62,7 @@ export default function RecommendShows() {
         onClick={handleClick}
         isLoading={isLoading}
         canRun={hasShows}
-        hasResults={recommendations.length > 0}
+        hasResults={recommendations?.length > 0}
       />
 
       {isLoading ? (

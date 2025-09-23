@@ -4,11 +4,11 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowPathIcon, SparklesIcon } from "@heroicons/react/24/solid";
 import { useGeminiRecommendations } from "../hooks/useRecommendations";
-import { useMyRatedShows } from "../hooks/useMyRatedShows";
+import { useRatedShows } from "../hooks/useRatedShows";
 import { useWatchList } from "../hooks/useWatchList";
 
 export default function RecommendShows() {
-  const { myRatedShows } = useMyRatedShows();
+  const { ratedShows } = useRatedShows();
   const { watchList } = useWatchList();
 
   const { recommendations, isLoading, getRecommendations } =
@@ -17,13 +17,10 @@ export default function RecommendShows() {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [opening, setOpening] = useState<number | null>(null);
 
-  const hasShows = useMemo(
-    () => myRatedShows.length > 0,
-    [myRatedShows.length]
-  );
+  const hasShows = useMemo(() => ratedShows.length > 0, [ratedShows.length]);
 
   const handleClick = () => {
-    const showList = myRatedShows.map((s) => ({
+    const showList = ratedShows.map((s) => ({
       name: s.name,
       rating: s.rating,
     }));

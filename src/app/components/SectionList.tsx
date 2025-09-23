@@ -1,33 +1,40 @@
 "use client";
 
 import Link from "next/link";
-import MyShowCard from "./MyShowCard";
-import { useWatchList } from "../hooks/useWatchList";
+import { ReactNode } from "react";
 
 type Layout = "carousel" | "grid";
 
-interface MyWatchListProps {
+interface SectionListProps<T> {
+  title: string;
+  items: T[];
   layout?: Layout;
+  viewAllHref?: string; // only shows when layout !== "grid"
+  emptyState: ReactNode; // what to render when items is empty
+  renderItem: (item: T) => ReactNode;
+  getKey: (item: T) => string | number;
 }
 
-const MyWatchList = ({ layout = "carousel" }: MyWatchListProps) => {
-  const { watchList } = useWatchList();
-
-  const isEmpty = !watchList.length;
+export default function SectionList<T>({
+  title,
+  items,
+  layout = "carousel",
+  viewAllHref,
+  emptyState,
+  renderItem,
+  getKey,
+}: SectionListProps<T>) {
+  const isEmpty = !items || items.length === 0;
   const isGrid = layout === "grid";
 
   if (isEmpty) {
     return (
       <div className="mb-4">
         <h2 className="text-2xl text-white font-bold leading-normal mb-2">
-          My Watchlist
+          {title}
         </h2>
         <div className="flex items-stretch gap-4 overflow-auto py-4">
-          <div className="flex flex-col justify-center items-center rounded-2xl bg-gray-800/60 border-2 border-dashed border-gray-600 text-gray-300 w-48 min-h-[12rem] flex-shrink-0 p-4">
-            <p className="text-center text-sm font-medium">
-              Add titles to your watchlist
-            </p>
-          </div>
+          {emptyState}
         </div>
       </div>
     );
@@ -37,12 +44,12 @@ const MyWatchList = ({ layout = "carousel" }: MyWatchListProps) => {
     <div className="mb-4">
       <div className="flex items-baseline mb-4">
         <h2 className="text-2xl text-white font-bold leading-normal">
-          My Watchlist
+          {title}
         </h2>
 
-        {!isGrid && (
+        {!isGrid && viewAllHref && (
           <Link
-            href="/all-watchlist"
+            href={viewAllHref}
             className="text-sm text-gray-300 hover:text-white ml-3"
           >
             (View All)
@@ -57,15 +64,12 @@ const MyWatchList = ({ layout = "carousel" }: MyWatchListProps) => {
             : "flex items-stretch gap-4 overflow-auto py-4"
         }
       >
-        {watchList.map((show) => (
-          <li key={show.id} className="h-auto flex-shrink-0 mb-8">
-            {/* Reuse the same card; no stars because no rateShow prop */}
-            <MyShowCard show={show} />
+        {items.map((item) => (
+          <li key={getKey(item)} className="h-auto flex-shrink-0 mb-8">
+            {renderItem(item)}
           </li>
         ))}
       </ul>
     </div>
   );
-};
-
-export default MyWatchList;
+}

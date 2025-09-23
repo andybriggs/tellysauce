@@ -8,8 +8,8 @@ import Search from "./components/Search";
 import SearchResults from "./components/SearchResults";
 import RecommendShows from "./components/RecommendShows";
 import { useRouter } from "next/navigation";
-import MyWatchList from "./components/MyWatchList";
-import MyRatedShows from "./components/MyRatedShows";
+import Watchlist from "./components/Watchlist";
+import RatedShows from "./components/RatedShows";
 
 export default function Home() {
   const { state, dispatch, fetchAutoCompleteResults } = useStreamingSearch();
@@ -78,8 +78,8 @@ export default function Home() {
       </section>
 
       <div className="max-w-screen-lg mx-auto p-8">
-        <MyRatedShows />
-        <MyWatchList />
+        <RatedShows />
+        <Watchlist />
         <RecommendShows />
       </div>
     </>

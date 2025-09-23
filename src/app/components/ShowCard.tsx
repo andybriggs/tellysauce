@@ -1,4 +1,3 @@
-// app/components/MyShowCard.tsx
 import Image from "next/image";
 import { Show } from "../types";
 import StarRating from "./StarRating";
@@ -9,7 +8,7 @@ type Props = {
   rateShow?: (id: number, rating: number) => void; // ⬅️ optional
 };
 
-const MyShowCard = ({ show, rateShow }: Props) => {
+const ShowCard = ({ show, rateShow }: Props) => {
   const { image, name, id } = show;
   const showStars = typeof rateShow === "function";
 
@@ -50,4 +49,4 @@ const MyShowCard = ({ show, rateShow }: Props) => {
   );
 };
 
-export default MyShowCard;
+export default ShowCard;

@@ -165,16 +165,6 @@ export default async function TitlePage({ params }: PageProps) {
               endYear={data.end_year ?? undefined}
               type={data.type}
               usRating={data.us_rating ?? undefined}
-              userRating={
-                typeof data.user_rating === "number"
-                  ? data.user_rating
-                  : undefined
-              }
-              criticScore={
-                typeof data.critic_score === "number"
-                  ? data.critic_score
-                  : undefined
-              }
               language={data.original_language ?? undefined}
             />
           </div>

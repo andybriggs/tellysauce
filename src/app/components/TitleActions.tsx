@@ -2,12 +2,12 @@
 "use client";
 
 import StarRating from "@/app/components/StarRating";
-import { useMyRatedShows } from "@/app/hooks/useMyRatedShows";
+import { useRatedShows } from "@/app/hooks/useRatedShows";
 import type { Show } from "@/app/types";
 import WatchlistButton from "./WatchlistButton";
 
 export default function TitleActions({ show }: { show: Omit<Show, "rating"> }) {
-  const { hasMounted, getRating, rateShowAuto } = useMyRatedShows();
+  const { hasMounted, getRating, rateShowAuto } = useRatedShows();
 
   // until mounted we treat as unrated to avoid flicker; or hide the cluster entirely
   const rating = hasMounted ? getRating(show.id) : 0;

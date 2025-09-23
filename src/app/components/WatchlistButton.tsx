@@ -1,6 +1,6 @@
-// app/components/WatchlistButton.tsx
 "use client";
 
+import { BookmarkIcon } from "@heroicons/react/24/solid";
 import { useWatchList } from "../hooks/useWatchList";
 import type { Show } from "../types";
 
@@ -16,7 +16,7 @@ export default function WatchlistButton({ show, className }: Props) {
   const hasValidId = typeof show?.id === "number";
   const saved = hasMounted && hasValidId ? isSaved(show!.id) : false;
 
-  const label = saved ? "In watchlist" : "Add to watchlist";
+  const label = saved ? "Remove from watchlist" : "Add to watchlist";
   const title = saved
     ? "Remove from watchlist"
     : hasValidId
@@ -35,7 +35,7 @@ export default function WatchlistButton({ show, className }: Props) {
         toggle(show);
       }}
       className={[
-        "inline-flex items-center gap-2 rounded-xl ring-1 px-4 py-2 transition",
+        "inline-flex items-center gap-2 rounded-xl ring-1 px-4 py-2 transition mt-4 sm:mt-0 mr-auto sm:mr-0",
         saved
           ? "bg-emerald-500/20 text-emerald-100 ring-emerald-400/30 hover:bg-emerald-500/25"
           : "bg-white/10 text-white ring-white/15 hover:bg-white/20",
@@ -44,21 +44,8 @@ export default function WatchlistButton({ show, className }: Props) {
       ].join(" ")}
       title={title}
     >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 24 24"
-        fill={saved ? "currentColor" : "none"}
-        stroke="currentColor"
-        strokeWidth="1.5"
-        className="h-5 w-5"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M17.25 21 12 17.25 6.75 21V4.5A2.25 2.25 0 0 1 9 2.25h6A2.25 2.25 0 0 1 17.25 4.5V21z"
-        />
-      </svg>
-      <span className="hidden sm:inline">{label}</span>
+      <BookmarkIcon className="h-4" />
+      <span>{label}</span>
     </button>
   );
 }
