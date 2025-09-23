@@ -6,10 +6,10 @@ import { useStreamingSearch } from "./hooks/useStreamingSearch";
 import Hero from "./components/Hero";
 import Search from "./components/Search";
 import SearchResults from "./components/SearchResults";
-import MyRatedShows from "./components/MyRatedShows";
 import RecommendShows from "./components/RecommendShows";
 import { useRouter } from "next/navigation";
 import MyWatchList from "./components/MyWatchList";
+import MyRatedShows from "./components/MyRatedShows";
 
 export default function Home() {
   const { state, dispatch, fetchAutoCompleteResults } = useStreamingSearch();
@@ -47,8 +47,16 @@ export default function Home() {
 
   return (
     <>
-      <section className="w-full bg-amber-50 relative z-10">
-        <div className="relative px-6 py-20 text-center isolate sm:px-16 sm:shadow-sm dark:bg-transparent">
+      <section className="relative w-full z-10">
+        <div
+          className="
+      absolute inset-0
+      bg-[url('/bg1.png')] bg-repeat
+      bg-[length:220px_220px] sm:bg-[length:240px_240px] md:bg-[length:280px_280px]
+    "
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-pink-500 to-orange-400 opacity-80" />
+        <div className="relative px-6 py-20 text-center isolate sm:px-16 ">
           <Hero />
           <div className="max-w-2xl mx-auto relative overflow-visible">
             <Search
