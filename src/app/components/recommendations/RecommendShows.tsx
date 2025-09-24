@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useMemo } from "react";
 import { useWatchList } from "@/app/hooks/useWatchList";
 import { useGeminiRecommendations } from "@/app/hooks/useRecommendations";
 import EmptyRecommendations from "./EmptyRecommendations";
@@ -16,10 +15,6 @@ export default function RecommendShows() {
 
   const { recommendations, isLoading, getRecommendations } =
     useGeminiRecommendations();
-  const router = useRouter();
-
-  // optional local opening indicator if you want to reflect a "pending open"
-  const [opening, setOpening] = useState<string | null>(null);
 
   const hasShows = useMemo(() => ratedShows?.length > 0, [ratedShows?.length]);
 
@@ -31,28 +26,6 @@ export default function RecommendShows() {
     const watchListTitles = watchList?.map((title) => title.name) ?? [];
     getRecommendations(showList, watchListTitles);
   }, [getRecommendations, ratedShows, watchList]);
-
-  const openTitleByName = useCallback(
-    async (title: string) => {
-      try {
-        setOpening((prev) => prev ?? title);
-        const res = await fetch(
-          `/api/resolve-title?q=${encodeURIComponent(title)}`,
-          { cache: "no-store" }
-        );
-        if (!res.ok) throw new Error(`Resolve failed with ${res.status}`);
-        const { id } = await res.json();
-        if (id) router.push(`/title/${id}`);
-        else alert(`Couldn't resolve Watchmode ID for “${title}”.`);
-      } catch (e) {
-        console.error(e);
-        alert("Sorry—something went wrong opening that title.");
-      } finally {
-        setOpening(null);
-      }
-    },
-    [router]
-  );
 
   if (!hasShows) return <EmptyRecommendations />;
 
@@ -68,14 +41,7 @@ export default function RecommendShows() {
       {isLoading ? (
         <RecommendationSkeletonGrid count={6} />
       ) : (
-        <RecommendationsGrid items={recommendations} onOpen={openTitleByName} />
-      )}
-
-      {/* Example: you could show which title is opening */}
-      {opening && (
-        <p className="sr-only" aria-live="polite">
-          Opening {opening}…
-        </p>
+        <RecommendationsGrid items={recommendations} />
       )}
     </section>
   );

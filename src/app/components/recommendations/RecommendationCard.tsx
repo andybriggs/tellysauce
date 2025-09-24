@@ -2,20 +2,18 @@
 
 import { Recommendation } from "@/app/types";
 import { SparklesIcon } from "@heroicons/react/24/solid";
+import Link from "next/link";
 import { memo } from "react";
 
 type Props = {
   rec: Recommendation;
-  onOpen: () => void;
 };
 
-function Card({ rec, onOpen }: Props) {
+function Card({ rec }: Props) {
   return (
-    <li className="list-none">
-      <button
-        type="button"
-        onClick={onOpen}
-        className="w-full text-left relative overflow-hidden rounded-3xl p-6 md:p-8 cursor-pointer bg-white/10 backdrop-blur-md ring-1 ring-white/15 shadow-[0_8px_30px_rgb(0,0,0,0.25)] hover:bg-white/[.12] hover:ring-white/20 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60"
+    <li className="w-full text-left relative overflow-hidden rounded-3xl p-6 md:p-8 cursor-pointer bg-white/10 backdrop-blur-md ring-1 ring-white/15 shadow-[0_8px_30px_rgb(0,0,0,0.25)] hover:bg-white/[.12] hover:ring-white/20 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60">
+      <Link
+        href={`/open/title?q=${encodeURIComponent(rec.title)}`}
         aria-label={`Open ${rec.title}`}
       >
         <span className="absolute top-3 right-3 inline-flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white ring-1 ring-white/15 whitespace-nowrap">
@@ -59,7 +57,7 @@ function Card({ rec, onOpen }: Props) {
             </p>
           </div>
         )}
-      </button>
+      </Link>
     </li>
   );
 }

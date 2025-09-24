@@ -6,7 +6,7 @@ import { useStreamingSearch } from "./hooks/useStreamingSearch";
 import Hero from "./components/Hero";
 import Search from "./components/Search";
 import SearchResults from "./components/SearchResults";
-import RecommendShows from "./components/RecommendShows";
+import RecommendShows from "./components/recommendations/RecommendShows";
 import Watchlist from "./components/Watchlist";
 import RatedShows from "./components/RatedShows";
 
