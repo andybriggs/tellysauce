@@ -1,3 +1,4 @@
+import { PlayCircleIcon } from "@heroicons/react/24/solid";
 import Link from "next/link";
 
 interface ExternalLinksProps {
@@ -25,14 +26,7 @@ export default function ExternalLinks({
           rel="noopener noreferrer"
           className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2 text-white backdrop-blur transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-            className="h-5 w-5"
-          >
-            <path d="M4.5 5.653c0-1.426 1.537-2.33 2.78-1.61l11.54 6.347c1.296.712 1.296 2.508 0 3.22L7.28 19.957c-1.243.72-2.78-.185-2.78-1.61V5.653z" />
-          </svg>
+          <PlayCircleIcon className="h-6 w-6" />
           Watch trailer
         </Link>
       )}
