@@ -3,6 +3,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { Show } from "../types";
+import {
+  readVersioned,
+  writeVersioned,
+  parseEventValue,
+} from "../lib/versionedStorage";
 
 const STORAGE_KEY = "myRatedShows";
 const WATCHLIST_KEY = "watchList";
@@ -11,7 +16,7 @@ function clampRating(r: number) {
   return Math.max(0, Math.min(5, r));
 }
 
-function parseShows(raw: string | null): Show[] {
+function parseShowsLegacy(raw: string | null): Show[] {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
@@ -31,7 +36,6 @@ function notifySameTabStorage(
   oldValue: string | null,
   newValue: string | null
 ) {
-  // Defer to next macrotask to avoid "setState while rendering a different component"
   setTimeout(() => {
     try {
       window.dispatchEvent(
@@ -44,7 +48,7 @@ function notifySameTabStorage(
         })
       );
     } catch {
-      // noop — we don't want UX to break if this throws
+      // noop
     }
   }, 0);
 }
@@ -55,20 +59,26 @@ function removeFromWatchList(id: number) {
     const raw = localStorage.getItem(WATCHLIST_KEY);
     if (!raw) return;
 
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return;
+    // Only operate on *current-version* value
+    const current = (() => {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.v) return parsed.data as unknown[];
+      } catch {}
+      return null;
+    })();
+    if (!Array.isArray(current)) return;
 
-    const next = parsed.filter(
+    const next = current.filter(
       (s: unknown) =>
         typeof s === "object" &&
         s !== null &&
         (s as Record<string, unknown>).id !== id
     );
 
-    if (next.length !== parsed.length) {
-      const newValue = JSON.stringify(next);
+    if (next.length !== current.length) {
+      const newValue = JSON.stringify({ v: "2", data: next }); // or use APP_CACHE_VERSION if imported here
       localStorage.setItem(WATCHLIST_KEY, newValue);
-      // Notify same-tab listeners after commit
       notifySameTabStorage(WATCHLIST_KEY, raw, newValue);
     }
   } catch {
@@ -80,15 +90,24 @@ export function useRatedShows() {
   const [hasMounted, setHasMounted] = useState(false);
   const [ratedShows, setRatedShows] = useState<Show[]>([]);
 
-  useEffect(() => {
-    setHasMounted(true);
-  }, []);
+  useEffect(() => setHasMounted(true), []);
 
   useEffect(() => {
-    if (hasMounted) {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      setRatedShows(parseShows(stored));
+    if (!hasMounted) return;
+
+    let data = readVersioned<Show[]>(STORAGE_KEY, []);
+
+    // Optional: one-time upgrade from legacy unversioned payload
+    if (data.length === 0) {
+      const legacyRaw = localStorage.getItem(STORAGE_KEY);
+      const legacy = parseShowsLegacy(legacyRaw);
+      if (legacy.length) {
+        data = legacy;
+        writeVersioned(STORAGE_KEY, data);
+      }
     }
+
+    setRatedShows(data);
   }, [hasMounted]);
 
   useEffect(() => {
@@ -96,7 +115,7 @@ export function useRatedShows() {
 
     const handleStorage = (e: StorageEvent) => {
       if (e.key === STORAGE_KEY) {
-        setRatedShows(parseShows(e.newValue));
+        setRatedShows(parseEventValue<Show[]>(e.newValue, []));
       }
     };
 
@@ -110,35 +129,14 @@ export function useRatedShows() {
     [ratedShows]
   );
 
-  const addShow = useCallback((show: Omit<Show, "rating">) => {
-    setRatedShows((prev) => {
-      if (prev.some((s) => s.id === show.id)) return prev;
-      const newShow: Show = { ...show, rating: 0 };
-      const next = [...prev, newShow];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
-  }, []);
-
-  const removeShow = useCallback((id: number) => {
-    setRatedShows((prev) => {
-      const next = prev.filter((s) => s.id !== id);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
-  }, []);
-
   /** Legacy: update rating only if the show already exists */
   const rateShow = useCallback((id: number, rating: number) => {
     setRatedShows((prev) => {
       const next = prev.map((s) =>
         s.id === id ? { ...s, rating: clampRating(rating) } : s
       );
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-
-      // ensure it's no longer on the watchlist whenever a rating happens
+      writeVersioned(STORAGE_KEY, next);
       removeFromWatchList(id);
-
       return next;
     });
   }, []);
@@ -163,8 +161,7 @@ export function useRatedShows() {
           ? prev.map((s) => (s.id === id ? { ...s, rating: r } : s))
           : [...prev, { ...meta, rating: r } as Show];
 
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-
+        writeVersioned(STORAGE_KEY, next);
         removeFromWatchList(id);
 
         return next;
@@ -176,8 +173,6 @@ export function useRatedShows() {
   return {
     hasMounted,
     ratedShows,
-    addShow,
-    removeShow,
     rateShow,
     isSaved,
     getRating,

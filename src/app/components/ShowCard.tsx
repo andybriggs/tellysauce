@@ -9,15 +9,15 @@ type Props = {
 };
 
 const ShowCard = ({ show, rateShow }: Props) => {
-  const { image, name, id } = show;
+  const { poster, name, id, type } = show;
   const showStars = typeof rateShow === "function";
 
   return (
-    <Link href={`/title/${id}`} className="block flex-none">
+    <Link href={`/title/${type}/${id}`} className="block flex-none">
       <div className="relative w-48 h-64 flex-none rounded-xl shadow-md overflow-hidden snap-start select-none">
-        {image ? (
+        {poster ? (
           <Image
-            src={image}
+            src={poster}
             alt={name}
             fill
             className="object-cover transition-transform duration-300 will-change-transform hover:scale-105"

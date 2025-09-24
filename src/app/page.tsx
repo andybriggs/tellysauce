@@ -7,14 +7,11 @@ import Hero from "./components/Hero";
 import Search from "./components/Search";
 import SearchResults from "./components/SearchResults";
 import RecommendShows from "./components/RecommendShows";
-import { useRouter } from "next/navigation";
 import Watchlist from "./components/Watchlist";
 import RatedShows from "./components/RatedShows";
 
 export default function Home() {
   const { state, dispatch, fetchAutoCompleteResults } = useStreamingSearch();
-
-  const router = useRouter();
 
   const { searchQuery, autoCompleteResults, isLoading } = state;
 
@@ -34,11 +31,6 @@ export default function Home() {
     const query = e.target.value;
     dispatch({ type: "SET_QUERY", payload: query });
     debouncedSubmit(query);
-  };
-
-  const handleSelectResult = (e: React.MouseEvent<HTMLElement>, id: number) => {
-    e.preventDefault();
-    router.push(`/title/${id}`);
   };
 
   const handleClearSearch = () => {
@@ -68,10 +60,7 @@ export default function Home() {
               handleClearSearch={handleClearSearch}
             />
             {searchQuery && !isLoading && (
-              <SearchResults
-                data={autoCompleteResults}
-                handleSelectResult={handleSelectResult}
-              />
+              <SearchResults data={autoCompleteResults} />
             )}
           </div>
         </div>

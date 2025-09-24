@@ -1,14 +1,16 @@
 export type AutoCompleteResult = {
   id: number;
   name: string;
-  image_url: string;
-  type: string;
+  type: "movie" | "tv";
+  year?: number;
+  poster?: string | null;
+  backdrop?: string | null;
 };
 
 export type Show = {
   id: number;
   name: string;
-  image: string | null;
+  poster: string | null;
   type: string | undefined;
   rating: number;
   description: string | null;

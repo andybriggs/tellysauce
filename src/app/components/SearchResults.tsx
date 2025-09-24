@@ -2,10 +2,10 @@ import { useState } from "react";
 import { AutoCompleteResult } from "@/app/types";
 import Image from "next/image";
 import clsx from "clsx";
+import Link from "next/link";
 
 type Props = {
   data: AutoCompleteResult[];
-  handleSelectResult: (e: React.MouseEvent<HTMLElement>, id: number) => void;
 };
 
 const Shimmer = () => (
@@ -22,12 +22,12 @@ const Shimmer = () => (
   </div>
 );
 
-const SearchResults = ({ data, handleSelectResult }: Props) => {
+const SearchResults = ({ data }: Props) => {
   return (
     <div className="absolute w-full pointer-events-auto rounded-lg bg-white text-[0.8125rem]/5 text-slate-700 ring-1 shadow-xl shadow-black/5 ring-slate-700/10 mx-auto">
       <div className="px-3.5 py-3">
         {data.length > 0 ? (
-          data.map((result) => <ResultItem key={result.id} result={result} handleSelectResult={handleSelectResult} />)
+          data.map((result) => <ResultItem key={result.id} result={result} />)
         ) : (
           <p>No results</p>
         )}
@@ -36,34 +36,30 @@ const SearchResults = ({ data, handleSelectResult }: Props) => {
   );
 };
 
-const ResultItem = ({
-  result,
-  handleSelectResult,
-}: {
-  result: AutoCompleteResult;
-  handleSelectResult: (e: React.MouseEvent<HTMLElement>, id: number) => void;
-}) => {
+const ResultItem = ({ result }: { result: AutoCompleteResult }) => {
   const [loaded, setLoaded] = useState(false);
 
   return (
-    <div
-      onClick={(e) => handleSelectResult(e, result.id)}
+    <Link
+      href={`/title/${result.type}/${result.id}`}
       className="flex items-center rounded-md p-1.5 hover:bg-indigo-600 hover:text-white cursor-pointer"
     >
       {!loaded && <Shimmer />}
-      <Image
-        src={result.image_url}
-        alt={result.name}
-        width={48}
-        height={48}
-        className={clsx(
-          "inline-block align-middle rounded shadow mr-4 transition-opacity duration-300",
-          loaded ? "opacity-100" : "opacity-0 absolute"
-        )}
-        onLoadingComplete={() => setLoaded(true)}
-      />
+      {result.poster && (
+        <Image
+          src={result.poster}
+          alt={result.name}
+          width={48}
+          height={48}
+          className={clsx(
+            "inline-block align-middle rounded shadow mr-4 transition-opacity duration-300",
+            loaded ? "opacity-100" : "opacity-0 absolute"
+          )}
+          onLoadingComplete={() => setLoaded(true)}
+        />
+      )}
       {result.name}
-    </div>
+    </Link>
   );
 };
 

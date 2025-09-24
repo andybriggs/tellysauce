@@ -5,7 +5,6 @@ import { useWatchList } from "../hooks/useWatchList";
 import type { Show } from "../types";
 
 type Props = {
-  // pass the same fields you store in rated titles (minus rating)
   show?: Omit<Show, "rating">;
   className?: string;
 };

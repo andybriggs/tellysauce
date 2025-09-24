@@ -20,7 +20,7 @@ export default function TitleActions({ show }: { show: Omit<Show, "rating"> }) {
           show={{
             id: show.id,
             name: show.name,
-            image: show.image,
+            poster: show.poster,
             type: show.type,
             description: show.description,
           }}
