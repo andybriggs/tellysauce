@@ -30,7 +30,7 @@ export default function RecommendShows() {
   if (!hasShows) return <EmptyRecommendations />;
 
   return (
-    <section className="mt-6 rounded-3xl p-6 sm:p-8 md:p-10 bg-gradient-to-br from-cyan-900 via-fuchsia-900 to-slate-900 ring-1 ring-white/10">
+    <section className="mt-6 rounded-3xl p-6 sm:p-8 md:p-10  bg-gradient-to-r from-pink-500 to-orange-400 opacity-80 ring-1 ring-white/10">
       <RecommendationsHeader
         onClick={handleClick}
         isLoading={isLoading}
