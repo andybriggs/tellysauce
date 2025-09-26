@@ -11,6 +11,8 @@ import ExternalLinks from "@/app/components/ExternalLinks";
 import WhereToWatch from "@/app/components/WhereToWatch";
 import TagsList from "@/app/components/TagsList";
 import TitleActions from "@/app/components/TitleActions";
+import Container from "@/app/components/Container";
+import RecommendShows from "@/app/components/recommendations/RecommendShows";
 
 export const revalidate = 3600;
 
@@ -48,6 +50,7 @@ export interface TitleSource {
   name: string;
   type: "sub" | "rent" | "buy" | "free" | "ads";
   region: string;
+  icon?: string | null; // added to match mapping
   ios_url?: string | null;
   android_url?: string | null;
   web_url?: string | null;
@@ -118,18 +121,24 @@ type TMDBTV = TMDBCommon &
     networks?: TMDBNetwork[];
   };
 
+// --- Providers (DRY) ---
+type TMDBProviderItem = {
+  provider_id: number;
+  provider_name: string;
+  logo_path?: string | null; // include logo_path from TMDB
+};
+
+type TMDBProviderGroup = {
+  link?: string;
+  flatrate?: TMDBProviderItem[];
+  rent?: TMDBProviderItem[];
+  buy?: TMDBProviderItem[];
+  free?: TMDBProviderItem[];
+  ads?: TMDBProviderItem[];
+};
+
 type TMDBProvidersResponse = {
-  results?: Record<
-    string,
-    {
-      link?: string;
-      flatrate?: Array<{ provider_id: number; provider_name: string }>;
-      rent?: Array<{ provider_id: number; provider_name: string }>;
-      buy?: Array<{ provider_id: number; provider_name: string }>;
-      free?: Array<{ provider_id: number; provider_name: string }>;
-      ads?: Array<{ provider_id: number; provider_name: string }>;
-    }
-  >;
+  results?: Record<string, TMDBProviderGroup>;
 };
 
 // ----- helpers -----
@@ -275,7 +284,7 @@ async function fetchTitleSources(
 
   const buckets: Array<{
     type: TitleSource["type"];
-    list?: Array<{ provider_id: number; provider_name: string }>;
+    list?: TMDBProviderItem[];
   }> = [
     { type: "sub", list: regional.flatrate },
     { type: "rent", list: regional.rent },
@@ -290,11 +299,12 @@ async function fetchTitleSources(
     (list ?? []).map((p) => ({
       source_id: p.provider_id,
       name: p.provider_name,
+      icon: p.logo_path ?? null,
       type,
       region,
       ios_url: null,
       android_url: null,
-      web_url: link, // TMDB gives a region deeplink
+      web_url: link,
       format: null,
       price: null,
       seasons: undefined,
@@ -361,43 +371,55 @@ export default async function TitlePage({ params }: PageProps) {
   } as const;
 
   return (
-    <main className="relative min-h-[60vh] w-full">
+    <main className="relative min-h-[60vh] w-full pb-8">
       <Backdrop backdropUrl={backdrop} />
 
-      <section className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-4 py-10 md:grid-cols-[220px,1fr] md:py-14 lg:grid-cols-[260px,1fr]">
-        <div className="col-span-full">
+      <Container>
+        <div className="col-span-full my-8">
           <BackLink href="/" label="Back" />
         </div>
 
-        <PosterCard posterUrl={poster} title={title} />
+        <div className="grid grid-cols-5 gap-8">
+          <aside>
+            <PosterCard posterUrl={poster} title={title} />
+          </aside>
 
-        <div className="space-y-6">
-          <div className="space-y-3">
-            <TitleHeader
-              title={title}
-              actionSlot={<TitleActions show={showToSave} />}
-            />
-            <MetaPills
-              year={data.year}
-              endYear={data.end_year ?? undefined}
-              type={data.type}
-              usRating={data.us_rating ?? undefined}
-              language={data.original_language ?? undefined}
-            />
-          </div>
+          <main className="col-span-3">
+            <div className="space-y-6">
+              <div className="space-y-3">
+                <TitleHeader
+                  title={title}
+                  actionSlot={<TitleActions show={showToSave} />}
+                />
+                <MetaPills
+                  year={data.year}
+                  endYear={data.end_year ?? undefined}
+                  type={data.type}
+                  usRating={data.us_rating ?? undefined}
+                  language={data.original_language ?? undefined}
+                />
+              </div>
 
-          <Overview text={data.plot_overview} />
-          <TagsList genres={data.genre_names} networks={data.network_names} />
-          <ExternalLinks
-            trailerUrl={data.trailer ?? undefined}
-            imdbId={data.imdb_id ?? undefined}
-            tmdbType={data.tmdb_type ?? undefined}
-            tmdbId={data.tmdb_id ?? undefined}
-          />
+              <Overview text={data.plot_overview} />
+              <TagsList
+                genres={data.genre_names}
+                networks={data.network_names}
+              />
+              <ExternalLinks
+                trailerUrl={data.trailer ?? undefined}
+                imdbId={data.imdb_id ?? undefined}
+                tmdbType={data.tmdb_type ?? undefined}
+                tmdbId={data.tmdb_id ?? undefined}
+              />
+            </div>
+          </main>
+
+          <aside>
+            <WhereToWatch sources={sources} />
+          </aside>
         </div>
-      </section>
-
-      <WhereToWatch sources={sources} regionLabel="GB" />
+        <RecommendShows />
+      </Container>
     </main>
   );
 }
