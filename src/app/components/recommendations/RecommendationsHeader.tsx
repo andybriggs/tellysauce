@@ -8,14 +8,21 @@ type Props = {
   isLoading: boolean;
   canRun: boolean;
   hasResults: boolean;
+  label: string | undefined;
 };
 
-function Header({ onClick, isLoading, canRun, hasResults }: Props) {
+function Header({
+  onClick,
+  isLoading,
+  canRun,
+  hasResults,
+  label = "Smart picks for you",
+}: Props) {
   return (
     <div className="flex items-center justify-between gap-3">
       <div>
         <h2 className="text-white text-3xl md:text-4xl font-semibold tracking-tight">
-          Smart picks for you
+          {label}
         </h2>
         <p className="mt-1 text-white/60 text-sm md:text-base">
           Based on your rated shows

@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+// app/api/recommend/route.ts
 import { NextRequest } from "next/server";
 import { GoogleGenAI, Type } from "@google/genai";
 
@@ -10,6 +11,15 @@ type Rec = {
   description: string;
   reason: string;
   tags: string[];
+};
+
+type SeedInput = {
+  title: string;
+  overview?: string;
+  genres?: string[];
+  year?: number;
+  type?: "movie" | "tv";
+  external?: { tmdbId?: number; imdbId?: string | null };
 };
 
 function slugTitle(raw: string) {
@@ -67,9 +77,16 @@ function parseLines(raw: string): string[] {
     .filter((l) => l && !/^<<<END>>>$/.test(l));
 }
 
+function brief(str?: string | null, max = 240) {
+  if (!str) return "";
+  const s = String(str).trim();
+  return s.length > max ? s.slice(0, max - 1) + "…" : s;
+}
+
 async function structureToJson(
   ai: GoogleGenAI,
-  groundedText: string
+  groundedText: string,
+  targetCount: number
 ): Promise<Rec[]> {
   const structuringRes = await ai.models.generateContent({
     model: process.env.GEMINI_MODEL_STRUCT || "gemini-2.5-flash-lite",
@@ -81,7 +98,7 @@ Rules:
 - Each item: { "title", "description", "reason", "tags": [strings] }.
 - Keep descriptions concise; normalize tags to short labels (genres/language/year).
 - Return exactly ${Math.min(
-      8,
+      targetCount,
       groundedText.split("\n").filter(Boolean).length
     )} items.
 
@@ -136,12 +153,253 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { titles, watchList } = await req.json();
+    const body = await req.json();
+
+    // Two modes:
+    // - "profile": original behavior using user's rated titles (body.titles)
+    // - "seed": new behavior using a single seed title (body.seed)
+    const mode: "profile" | "seed" = body?.mode === "seed" ? "seed" : "profile";
+
+    // Target count (defaults: 3 for seed, 8 for profile). Clamp 1..12.
+    const targetCount =
+      typeof body?.count === "number" && body.count > 0
+        ? Math.min(12, Math.max(1, Math.floor(body.count)))
+        : mode === "seed"
+        ? 3
+        : 8;
+
+    const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_GEMINI_API_KEY! });
+
+    // ---- Common: watchlist to avoid ----
+    const watchList = Array.isArray(body?.watchList) ? body.watchList : [];
+    const watchListLines =
+      Array.isArray(watchList) && watchList.length > 0
+        ? watchList.map((w: any) => `- ${w?.title ?? w?.name ?? w}`).join("\n")
+        : "(none provided)";
+
+    // ---------------------------- SEED MODE ----------------------------
+    if (mode === "seed") {
+      const seed: SeedInput | undefined = body?.seed;
+      if (!seed?.title) {
+        return Response.json({ error: "Seed title missing" }, { status: 400 });
+      }
+
+      // Build forbidden set from watchlist + the seed itself
+      const forbidden = makeForbiddenSet([...(watchList ?? [])]);
+      forbidden.add(slugTitle(seed.title));
+
+      const seedPrompt = `
+You are a TV/film expert.
+
+SEED TITLE:
+- Title: ${seed.title}
+- Type: ${seed.type ?? "unknown"}
+- Year: ${seed.year ?? "?"}
+- Genres: ${(seed.genres ?? []).join(", ") || "(unknown)"}
+- Overview: ${brief(seed.overview) || "(none)"}
+
+User watchlist (titles to avoid):
+${watchListLines}
+
+Task:
+- Propose EXACTLY ${targetCount} *new* titles strongly related to the SEED by theme, tone, audience, craft, or creators.
+- Avoid the same cinematic universe direct duplicates and avoid the SEED itself.
+- Consider recency and critical reception (use web search).
+- Output ONE line per item, NO preamble/numbering/URLs.
+- END output with: <<<END>>>
+
+FORMAT:
+Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
+`;
+
+      const groundedRes = await ai.models.generateContent({
+        model: process.env.GEMINI_MODEL_GROUNDED || "gemini-2.5-flash",
+        contents: [{ role: "user", parts: [{ text: seedPrompt }] }],
+        config: {
+          tools: [{ googleSearch: {} }],
+          responseModalities: ["TEXT"],
+          thinkingConfig: { thinkingBudget: 0 },
+          maxOutputTokens: 600,
+          temperature: 0.6,
+          stopSequences: ["<<<END>>>"],
+          candidateCount: 1,
+        },
+      });
+
+      const parts = (groundedRes as any)?.candidates?.[0]?.content?.parts ?? [];
+      const raw = parts
+        .map((p: any) => (typeof p.text === "string" ? p.text : ""))
+        .join("")
+        .trim();
+      const endIdx = raw.indexOf("<<<END>>>");
+      const groundedAll = (endIdx >= 0 ? raw.slice(0, endIdx) : raw).trim();
+
+      if (!groundedAll) {
+        const finish =
+          (groundedRes as any)?.candidates?.[0]?.finishReason ?? null;
+        const block = (groundedRes as any)?.promptFeedback?.blockReason ?? null;
+        console.error("GROUNDING DEBUG (seed):", {
+          finishReason: finish,
+          blockReason: block,
+          partsCount: parts.length,
+        });
+        return Response.json(
+          {
+            error: "Seeded generation failed (empty response)",
+            finishReason: finish,
+            blockReason: block,
+          },
+          { status: 502 }
+        );
+      }
+
+      const filteredLines = uniqueAllowedLines(
+        parseLines(groundedAll),
+        forbidden
+      );
+      const kept = filteredLines.slice(0, targetCount);
+      let attempts = 0;
+
+      while (kept.length < targetCount && attempts < 3) {
+        attempts++;
+        const haveSlugs = new Set(
+          kept.map((l) => slugTitle(l.split("|")[0].trim()))
+        );
+        const expandedForbidden = new Set([...forbidden, ...haveSlugs]);
+
+        const repairPrompt = `
+We need ${targetCount - kept.length} NEW titles similar to "${seed.title}".
+Forbidden slugs (normalized):
+${Array.from(expandedForbidden).join(", ")}
+
+Rules:
+- No duplicates (also not the seed).
+- Output ONE line per item, same format.
+- END with <<<END>>>
+
+FORMAT:
+Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
+`;
+        const repairRes = await ai.models.generateContent({
+          model: process.env.GEMINI_MODEL_GROUNDED || "gemini-2.5-flash",
+          contents: [{ role: "user", parts: [{ text: repairPrompt }] }],
+          config: {
+            tools: [{ googleSearch: {} }],
+            responseModalities: ["TEXT"],
+            maxOutputTokens: 300,
+            temperature: 0.7,
+            stopSequences: ["<<<END>>>"],
+            candidateCount: 1,
+          },
+        });
+
+        const rparts =
+          (repairRes as any)?.candidates?.[0]?.content?.parts ?? [];
+        const rraw = rparts
+          .map((p: any) => p.text ?? "")
+          .join("")
+          .trim();
+        const rendIdx = rraw.indexOf("<<<END>>>");
+        const repairText = (
+          rendIdx >= 0 ? rraw.slice(0, rendIdx) : rraw
+        ).trim();
+
+        const newLines = uniqueAllowedLines(
+          parseLines(repairText),
+          expandedForbidden
+        );
+        const keptSlugs = new Set(
+          kept.map((l) => slugTitle(l.split("|")[0].trim()))
+        );
+        for (const nl of newLines) {
+          const s = slugTitle(nl.split("|")[0].trim());
+          if (!keptSlugs.has(s)) {
+            kept.push(nl);
+            keptSlugs.add(s);
+            if (kept.length === targetCount) break;
+          }
+        }
+      }
+
+      const groundedText = kept.slice(0, targetCount).join("\n");
+      let recommendations: Rec[] = await structureToJson(
+        ai,
+        groundedText,
+        targetCount
+      );
+
+      // Final safety net: remove collisions, de-dupe, top-up if needed
+      const finalSeen = new Set<string>();
+      recommendations = recommendations.filter((r) => {
+        const s = slugTitle(r.title);
+        if (!s || forbidden.has(s) || finalSeen.has(s)) return false;
+        finalSeen.add(s);
+        return true;
+      });
+
+      if (recommendations.length < targetCount) {
+        const needed = targetCount - recommendations.length;
+        const strictTopUp = await ai.models.generateContent({
+          model: process.env.GEMINI_MODEL_STRUCT || "gemini-2.5-flash-lite",
+          contents: `
+Suggest ${needed} NEW titles as JSON ONLY, similar to "${seed.title}".
+Forbidden slugs:
+${Array.from(new Set([...forbidden, ...finalSeen])).join(", ")}
+
+Each item: { "title", "description", "reason", "tags": [strings] }.
+Concise. No duplicates. No forbidden items.
+`,
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  description: { type: Type.STRING },
+                  reason: { type: Type.STRING },
+                  tags: { type: Type.ARRAY, items: { type: Type.STRING } },
+                },
+                required: ["title", "description", "reason", "tags"],
+                additionalProperties: false,
+              },
+            },
+            temperature: 0.4,
+            maxOutputTokens: 400,
+          },
+        });
+
+        const topTxt = (strictTopUp as any)?.text ?? "[]";
+        let top: Rec[] = [];
+        try {
+          top = JSON.parse(topTxt);
+        } catch {
+          top = [];
+        }
+
+        for (const r of top) {
+          const s = slugTitle(r.title);
+          if (!s || finalSeen.has(s) || forbidden.has(s)) continue;
+          finalSeen.add(s);
+          recommendations.push({
+            title: String(r.title).trim(),
+            description: String(r.description ?? "").trim(),
+            reason: String(r.reason ?? "").trim(),
+            tags: Array.isArray(r.tags) ? r.tags.map(String) : [],
+          });
+          if (recommendations.length === targetCount) break;
+        }
+      }
+
+      return Response.json({ recommendations });
+    }
+
+    // ---------------------------- PROFILE MODE (ORIGINAL) ----------------------------
+    const titles = Array.isArray(body?.titles) ? body.titles : [];
     if (!Array.isArray(titles) || titles.length === 0) {
       return Response.json({ error: "No titles provided" }, { status: 400 });
     }
-
-    const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_GEMINI_API_KEY! });
 
     // Build forbidden set from ALL favorites + ALL watchlist
     const forbidden = makeForbiddenSet([
@@ -155,11 +413,6 @@ export async function POST(req: NextRequest) {
       rating: s?.rating ?? s?.score ?? s?.userRating ?? null,
     }));
 
-    const watchListLines =
-      Array.isArray(watchList) && watchList.length > 0
-        ? watchList.map((w: any) => `- ${w?.title ?? w?.name ?? w}`).join("\n")
-        : "(none provided)";
-
     // ---------- PASS 1: Grounded (tools ON, JSON mode OFF) ----------
     const groundedPrompt = `
 You are a TV/film expert.
@@ -171,7 +424,7 @@ User watchlist (titles to avoid):
 ${watchListLines}
 
 Task:
-- Propose EXACTLY 8 new titles.
+- Propose EXACTLY ${targetCount} new titles.
 - DO NOT include titles that are already in the users favourite titles list OR watchlist.
 - Weight toward higher-rated favorites.
 - Use web search to check for latest titles and reviews.
@@ -208,7 +461,7 @@ Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
       const finish =
         (groundedRes as any)?.candidates?.[0]?.finishReason ?? null;
       const block = (groundedRes as any)?.promptFeedback?.blockReason ?? null;
-      console.error("GROUNDING DEBUG:", {
+      console.error("GROUNDING DEBUG (profile):", {
         finishReason: finish,
         blockReason: block,
         partsCount: parts.length,
@@ -230,10 +483,10 @@ Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
     );
 
     // If not enough lines survive, attempt up to 3 quick “repair” passes
-    const kept = filteredLines.slice(0, 8);
+    const kept = filteredLines.slice(0, targetCount);
     let attempts = 0;
 
-    while (kept.length < 8 && attempts < 3) {
+    while (kept.length < targetCount && attempts < 3) {
       attempts++;
       const haveSlugs = new Set(
         kept.map((l) => slugTitle(l.split("|")[0].trim()))
@@ -247,7 +500,7 @@ Forbidden slugs (normalized):
 ${Array.from(expandedForbidden).join(", ")}
 
 Task:
-- Propose ${8 - kept.length} ADDITIONAL titles only.
+- Propose ${targetCount - kept.length} ADDITIONAL titles only.
 - No duplicates of each other or of prior suggestions.
 - Output ONE line per item, same format as before.
 - END with <<<END>>>
@@ -290,16 +543,20 @@ Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
         if (!keptSlugs.has(s)) {
           kept.push(nl);
           keptSlugs.add(s);
-          if (kept.length === 8) break;
+          if (kept.length === targetCount) break;
         }
       }
     }
 
-    // Structure whatever we have (up to 8)
-    const groundedText = kept.slice(0, 8).join("\n");
-    let recommendations: Rec[] = await structureToJson(ai, groundedText);
+    // Structure whatever we have
+    const groundedText = kept.slice(0, targetCount).join("\n");
+    let recommendations: Rec[] = await structureToJson(
+      ai,
+      groundedText,
+      targetCount
+    );
 
-    // Final safety net: remove any items that still collide, de-dupe, and top up via another repair if needed
+    // Final safety net: remove collisions, de-dupe, and top up via another repair if needed
     const finalSeen = new Set<string>();
     recommendations = recommendations.filter((r) => {
       const s = slugTitle(r.title);
@@ -308,9 +565,9 @@ Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
       return true;
     });
 
-    if (recommendations.length < 8) {
+    if (recommendations.length < targetCount) {
       // last quick top-up with a strict JSON request
-      const needed = 8 - recommendations.length;
+      const needed = targetCount - recommendations.length;
       const strictTopUp = await ai.models.generateContent({
         model: process.env.GEMINI_MODEL_STRUCT || "gemini-2.5-flash-lite",
         contents: `
@@ -361,7 +618,7 @@ Keep it concise. No duplicates. No forbidden items.
           reason: String(r.reason ?? "").trim(),
           tags: Array.isArray(r.tags) ? r.tags.map(String) : [],
         });
-        if (recommendations.length === 8) break;
+        if (recommendations.length === targetCount) break;
       }
     }
 

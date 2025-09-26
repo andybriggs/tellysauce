@@ -50,7 +50,7 @@ export interface TitleSource {
   name: string;
   type: "sub" | "rent" | "buy" | "free" | "ads";
   region: string;
-  icon?: string | null; // added to match mapping
+  icon: string; // required string
   ios_url?: string | null;
   android_url?: string | null;
   web_url?: string | null;
@@ -146,6 +146,9 @@ const TMDB_HEADERS = () => ({
   Accept: "application/json",
   Authorization: `Bearer ${process.env.TMDB_ACCESS_TOKEN ?? ""}`,
 });
+
+const tmdbProviderLogo = (path?: string | null): string =>
+  path ? `https://image.tmdb.org/t/p/w45${path}` : "";
 
 const tmdbImg = {
   posterMedium: (p?: string | null) =>
@@ -299,7 +302,7 @@ async function fetchTitleSources(
     (list ?? []).map((p) => ({
       source_id: p.provider_id,
       name: p.provider_name,
-      icon: p.logo_path ?? null,
+      icon: tmdbProviderLogo(p.logo_path),
       type,
       region,
       ios_url: null,
@@ -370,6 +373,22 @@ export default async function TitlePage({ params }: PageProps) {
     description: data.plot_overview ?? null,
   } as const;
 
+  const seed = {
+    title,
+    overview: data.plot_overview ?? undefined,
+    genres: data.genre_names ?? undefined,
+    year: data.year ?? undefined,
+    type: data.type ?? undefined,
+    external: {
+      tmdbId: data.tmdb_id ?? undefined,
+      imdbId: data.imdb_id ?? undefined,
+    },
+  } as const;
+
+  const recCacheKey = `cachedRecommendations:seed:${data.type}:${
+    data.tmdb_id ?? data.id
+  }`;
+
   return (
     <main className="relative min-h-[60vh] w-full pb-8">
       <Backdrop backdropUrl={backdrop} />
@@ -379,12 +398,15 @@ export default async function TitlePage({ params }: PageProps) {
           <BackLink href="/" label="Back" />
         </div>
 
-        <div className="grid grid-cols-5 gap-8">
-          <aside>
+        {/* Tablet: two columns (1:3). Desktop: three columns (1:3:1). Mobile: stacked. */}
+        <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-8">
+          {/* Column 1: Poster */}
+          <aside className="md:col-span-1 lg:col-span-1 mx-auto md:mx-0 w-full max-w-xs">
             <PosterCard posterUrl={poster} title={title} />
           </aside>
 
-          <main className="col-span-3">
+          {/* Column 2: Main content */}
+          <main className="md:col-span-3 lg:col-span-3">
             <div className="space-y-6">
               <div className="space-y-3">
                 <TitleHeader
@@ -414,11 +436,19 @@ export default async function TitlePage({ params }: PageProps) {
             </div>
           </main>
 
-          <aside>
+          {/* Column 3: Providers — stacked below on md, side column on lg */}
+          <aside className="md:col-span-4 lg:col-span-1">
             <WhereToWatch sources={sources} />
           </aside>
         </div>
-        <RecommendShows />
+
+        <div className="mt-8">
+          <RecommendShows
+            seed={seed}
+            cacheKey={recCacheKey}
+            buttonLabel="More like this"
+          />
+        </div>
       </Container>
     </main>
   );

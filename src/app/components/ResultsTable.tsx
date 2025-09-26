@@ -1,6 +1,5 @@
 import { StreamingSource } from "@/app/types";
 import Image from "next/image";
-import { STREAMING_SOURCES } from "../contants";
 
 type Props = {
   data: StreamingSource[];

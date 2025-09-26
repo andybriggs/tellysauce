@@ -20,6 +20,7 @@ export type StreamingSource = {
   name: string;
   region: string;
   type: string;
+  icon: string;
 };
 
 export type Recommendation = {
