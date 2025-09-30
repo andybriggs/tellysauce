@@ -27,7 +27,6 @@ export function useGeminiRecommendations(cacheKey?: string) {
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // avoid setting state after unmount
   const mountedRef = useRef(true);
   useEffect(
     () => () => {
@@ -36,12 +35,10 @@ export function useGeminiRecommendations(cacheKey?: string) {
     []
   );
 
-  // load cache for this key
   useEffect(() => {
     setRecommendations(readVersioned<Recommendation[]>(key, []));
   }, [key]);
 
-  // keep tabs in sync for this key
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key === key) {
@@ -52,7 +49,6 @@ export function useGeminiRecommendations(cacheKey?: string) {
     return () => window.removeEventListener("storage", onStorage);
   }, [key]);
 
-  /** Shared requester with reactive auth on 401 */
   const requestRecommendations = async (payload: unknown) => {
     try {
       setIsLoading(true);
@@ -64,8 +60,10 @@ export function useGeminiRecommendations(cacheKey?: string) {
       });
 
       if (res.status === 401) {
-        await signIn("google", { callbackUrl: window.location.href });
-        return;
+        const callbackUrl =
+          typeof window !== "undefined" ? window.location.href : "/";
+        signIn("google", { callbackUrl });
+        return null;
       }
 
       if (!res.ok) {
@@ -88,7 +86,6 @@ export function useGeminiRecommendations(cacheKey?: string) {
     }
   };
 
-  // PROFILE mode (existing)
   const getFromProfile = async (
     showList: { name: string; rating: number }[],
     watchList: string[]
@@ -101,7 +98,6 @@ export function useGeminiRecommendations(cacheKey?: string) {
     });
   };
 
-  // SEED mode (new)
   const getFromSeed = async (seed: Seed, watchList?: string[]) => {
     if (!seed?.title) return;
     await requestRecommendations({
@@ -111,10 +107,5 @@ export function useGeminiRecommendations(cacheKey?: string) {
     });
   };
 
-  return {
-    recommendations,
-    isLoading,
-    getFromProfile,
-    getFromSeed,
-  };
+  return { recommendations, isLoading, getFromProfile, getFromSeed };
 }

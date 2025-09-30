@@ -9,6 +9,8 @@ import Search from "@/components/Search";
 import SearchResults from "@/components/SearchResults";
 import Watchlist from "@/components/Watchlist";
 import { useStreamingSearch } from "@/hooks/useStreamingSearch";
+import AuthButton from "@/components/AuthButton";
+import Container from "@/components/Container";
 
 export default function Home() {
   const { state, dispatch, fetchAutoCompleteResults } = useStreamingSearch();
@@ -48,6 +50,11 @@ export default function Home() {
     "
         />
         <div className="absolute inset-0 bg-gradient-to-r from-pink-500 to-orange-400 opacity-80" />
+        <Container>
+          <div className="flex p-4 justify-end relative z-11">
+            <AuthButton />
+          </div>
+        </Container>
         <div className="relative px-6 py-20 text-center isolate sm:px-16 ">
           <Hero />
           <div className="max-w-2xl mx-auto relative overflow-visible">
