@@ -1,6 +1,6 @@
 "use client";
 
-import { Recommendation } from "@/app/types";
+import { Recommendation } from "@/types";
 import RecommendationCard from "./RecommendationCard";
 
 type Props = {

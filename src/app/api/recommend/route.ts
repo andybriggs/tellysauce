@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// app/api/recommend/route.ts
 import { NextRequest } from "next/server";
 import { GoogleGenAI, Type } from "@google/genai";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -145,6 +146,10 @@ ${groundedText}
 }
 
 export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     if (!process.env.GOOGLE_GEMINI_API_KEY) {
       return Response.json(

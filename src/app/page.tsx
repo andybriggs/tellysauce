@@ -1,14 +1,14 @@
 "use client";
 
-import { useMemo, useEffect } from "react";
 import { debounce } from "lodash";
-import { useStreamingSearch } from "./hooks/useStreamingSearch";
-import Hero from "./components/Hero";
-import Search from "./components/Search";
-import SearchResults from "./components/SearchResults";
-import RecommendShows from "./components/recommendations/RecommendShows";
-import Watchlist from "./components/Watchlist";
-import RatedShows from "./components/RatedShows";
+import { useEffect, useMemo } from "react";
+import Hero from "@/components/Hero";
+import RatedShows from "@/components/RatedShows";
+import RecommendShows from "@/components/recommendations/RecommendShows";
+import Search from "@/components/Search";
+import SearchResults from "@/components/SearchResults";
+import Watchlist from "@/components/Watchlist";
+import { useStreamingSearch } from "@/hooks/useStreamingSearch";
 
 export default function Home() {
   const { state, dispatch, fetchAutoCompleteResults } = useStreamingSearch();

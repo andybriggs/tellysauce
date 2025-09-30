@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useMemo, useEffect } from "react";
-import { useWatchList } from "@/app/hooks/useWatchList";
-import { useGeminiRecommendations } from "@/app/hooks/useRecommendations";
+import { useWatchList } from "@/hooks/useWatchList";
+import { useGeminiRecommendations } from "@/hooks/useRecommendations";
 import EmptyRecommendations from "./EmptyRecommendations";
 import RecommendationsHeader from "./RecommendationsHeader";
 import RecommendationSkeletonGrid from "./RecommendationSkeletonGrid";
 import RecommendationsGrid from "./RecommendationsGrid";
-import { useRatedShows } from "@/app/hooks/useRatedShows";
+import { useRatedShows } from "@/hooks/useRatedShows";
 
 type Seed = {
   title: string;
@@ -36,17 +36,15 @@ export default function RecommendShows({
   autoRun?: boolean;
   buttonLabel?: string;
 }) {
-  // -------- hooks (must be unconditional) --------
-  const { ratedShows } = useRatedShows(); // typed Show[] from your hook
-  const { watchList } = useWatchList(); // assume {id,name}[]
+  const { ratedShows } = useRatedShows();
+  const { watchList } = useWatchList();
   const { recommendations, isLoading, getFromProfile, getFromSeed } =
     useGeminiRecommendations(cacheKey);
 
   const isSeedMode = !!seed;
 
-  // Is this title already rated or on the watchlist? (for seed/title pages)
   const isCurrentTitleKnown = useMemo(() => {
-    if (!isSeedMode) return true; // homepage/profile flow unaffected
+    if (!isSeedMode) return true;
 
     const tmdbId = seed?.external?.tmdbId;
     const name = seed?.title ?? "";
@@ -68,7 +66,6 @@ export default function RecommendShows({
     return ratedHit || watchHit;
   }, [isSeedMode, seed, ratedShows, watchList]);
 
-  // PROFILE mode requires some rated shows; seed mode can always run (user clicks)
   const hasShows = useMemo(
     () => (isSeedMode ? true : (ratedShows?.length ?? 0) > 0),
     [isSeedMode, ratedShows?.length]
@@ -101,19 +98,14 @@ export default function RecommendShows({
     }
   }, [seed, getFromSeed, getFromProfile, ratedShows, watchList]);
 
-  // Still opt-in; will only run if you pass autoRun
   useEffect(() => {
     if (autoRun && seed && !recommendations?.length && !isLoading) {
       handleClick();
     }
   }, [autoRun, seed, recommendations?.length, isLoading, handleClick]);
 
-  // -------- render decisions (AFTER hooks) --------
-
-  // In seed mode: hide entirely if user hasn't rated/added this title yet
   if (isSeedMode && !isCurrentTitleKnown) return null;
 
-  // In profile mode: keep your original empty state when no rated shows
   if (!hasShows && !isSeedMode) return <EmptyRecommendations />;
 
   return (

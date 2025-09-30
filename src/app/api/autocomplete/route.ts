@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { AutoCompleteResult } from "@/app/types";
+import type { AutoCompleteResult } from "@/types";
 
 export const runtime = "nodejs";
 

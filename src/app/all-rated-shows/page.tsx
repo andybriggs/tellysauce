@@ -1,6 +1,6 @@
-import RatedShows from "../components/RatedShows";
-import Container from "../components/Container";
-import BackLink from "../components/BackLink";
+import RatedShows from "@/components/RatedShows";
+import Container from "@/components/Container";
+import BackLink from "@/components/BackLink";
 
 export default function AllRatedShowsPage() {
   return (

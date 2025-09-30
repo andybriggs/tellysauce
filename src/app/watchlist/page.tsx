@@ -1,6 +1,6 @@
-import Container from "../components/Container";
-import BackLink from "../components/BackLink";
-import Watchlist from "../components/Watchlist";
+import Container from "@/components/Container";
+import BackLink from "@/components/BackLink";
+import Watchlist from "@/components/Watchlist";
 
 export default function WatchlistPage() {
   return (

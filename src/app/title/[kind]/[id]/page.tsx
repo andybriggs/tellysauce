@@ -1,18 +1,18 @@
 // app/title/[kind]/[id]/page.tsx
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import Backdrop from "@/app/components/Backdrop";
-import BackLink from "@/app/components/BackLink";
-import PosterCard from "@/app/components/PosterCard";
-import TitleHeader from "@/app/components/TitleHeader";
-import MetaPills from "@/app/components/MetaPills";
-import Overview from "@/app/components/Overview";
-import ExternalLinks from "@/app/components/ExternalLinks";
-import WhereToWatch from "@/app/components/WhereToWatch";
-import TagsList from "@/app/components/TagsList";
-import TitleActions from "@/app/components/TitleActions";
-import Container from "@/app/components/Container";
-import RecommendShows from "@/app/components/recommendations/RecommendShows";
+import Backdrop from "@/components/Backdrop";
+import BackLink from "@/components/BackLink";
+import PosterCard from "@/components/PosterCard";
+import TitleHeader from "@/components/TitleHeader";
+import MetaPills from "@/components/MetaPills";
+import Overview from "@/components/Overview";
+import ExternalLinks from "@/components/ExternalLinks";
+import WhereToWatch from "@/components/WhereToWatch";
+import TagsList from "@/components/TagsList";
+import TitleActions from "@/components/TitleActions";
+import Container from "@/components/Container";
+import RecommendShows from "@/components/recommendations/RecommendShows";
 
 export const revalidate = 3600;
 

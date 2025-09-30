@@ -1,8 +1,8 @@
 "use client";
 
 import { BookmarkIcon } from "@heroicons/react/24/solid";
-import { useWatchList } from "../hooks/useWatchList";
-import type { Show } from "../types";
+import { useWatchList } from "@/hooks/useWatchList";
+import type { Show } from "@/types/";
 
 type Props = {
   show?: Omit<Show, "rating">;

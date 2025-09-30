@@ -1,9 +1,9 @@
 // app/components/TitleActions.tsx
 "use client";
 
-import StarRating from "@/app/components/StarRating";
-import { useRatedShows } from "@/app/hooks/useRatedShows";
-import type { Show } from "@/app/types";
+import StarRating from "@/components/StarRating";
+import { useRatedShows } from "@/hooks/useRatedShows";
+import type { Show } from "@/types";
 import WatchlistButton from "./WatchlistButton";
 
 export default function TitleActions({ show }: { show: Omit<Show, "rating"> }) {

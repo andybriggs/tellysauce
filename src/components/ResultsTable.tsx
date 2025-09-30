@@ -1,4 +1,4 @@
-import { StreamingSource } from "@/app/types";
+import { StreamingSource } from "@/types";
 import Image from "next/image";
 
 type Props = {

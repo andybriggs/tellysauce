@@ -1,4 +1,4 @@
-import { AutoCompleteResult } from "@/app/types";
+import { AutoCompleteResult } from "@/types";
 import { initialState } from "./useStreamingSearch";
 
 export type StreamingSearchState = {

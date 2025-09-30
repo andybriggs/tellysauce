@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { Show } from "../types";
+import { Show } from "@/types/";
 import StarRating from "./StarRating";
 import Link from "next/link";
 

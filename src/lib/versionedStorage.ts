@@ -1,12 +1,9 @@
-// app/lib/versionedStorage.ts
+"use client";
+
 export type CacheEnvelope<T> = { v: string; data: T };
 
-// 🔧 Bump this any time your cache shape changes.
-// You can also set this via NEXT_PUBLIC_CACHE_VERSION if you prefer.
 export const APP_CACHE_VERSION = process.env.NEXT_PUBLIC_CACHE_VERSION ?? "2";
 
-// Read a versioned value. If the shape or version doesn't match, it's treated as a miss.
-// By default, we DESTROY old cache on mismatch (as requested) and return fallback.
 export function readVersioned<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);

@@ -1,3 +1,4 @@
+// components/Watchlist.tsx
 "use client";
 
 import { Layout } from "./ShowList";
@@ -5,35 +6,35 @@ import Section from "./Section";
 import EmptyStateCard from "./EmptyStateCard";
 import ShowList from "./ShowList";
 import ShowCard from "./ShowCard";
-import { useRatedShows } from "../hooks/useRatedShows";
+import { useWatchList } from "@/hooks/useWatchList";
 
-export default function RatedShows({
+export default function Watchlist({
   layout = "carousel",
 }: {
   layout?: Layout;
 }) {
-  const { ratedShows, rateShow } = useRatedShows();
+  const { watchList } = useWatchList();
   const isGrid = layout === "grid";
 
   return (
     <Section
-      title="My Rated Shows"
-      isEmpty={!ratedShows?.length}
+      title="My Watchlist"
+      isEmpty={!watchList.length}
       showViewAll={!isGrid}
-      viewAllHref="/all-rated-shows"
+      viewAllHref="/watchlist"
       emptyContent={
         <EmptyStateCard>
           <p className="text-center text-sm font-medium">
-            Search and rate some titles
+            Add titles to your watchlist
           </p>
         </EmptyStateCard>
       }
     >
       <ShowList
-        items={ratedShows}
+        items={watchList}
         layout={layout}
         getKey={(s) => s.id}
-        renderItem={(s) => <ShowCard show={s} rateShow={rateShow} />}
+        renderItem={(s) => <ShowCard show={s} />}
       />
     </Section>
   );

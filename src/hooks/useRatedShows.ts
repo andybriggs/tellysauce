@@ -7,7 +7,7 @@ import {
   readVersioned,
   writeVersioned,
   parseEventValue,
-} from "../lib/versionedStorage";
+} from "@/lib/versionedStorage";
 
 const STORAGE_KEY = "myRatedShows";
 const WATCHLIST_KEY = "watchList";

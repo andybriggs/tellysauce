@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AutoCompleteResult } from "@/app/types";
+import { AutoCompleteResult } from "@/types";
 import Image from "next/image";
 import clsx from "clsx";
 import Link from "next/link";

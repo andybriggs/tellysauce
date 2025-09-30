@@ -1,6 +1,6 @@
 "use client";
 
-import { Recommendation } from "@/app/types";
+import { Recommendation } from "@/types";
 import { SparklesIcon } from "@heroicons/react/24/solid";
 import Link from "next/link";
 import { memo } from "react";

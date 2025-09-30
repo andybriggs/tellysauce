@@ -1,5 +1,5 @@
-import ResultsTable from "@/app/components/ResultsTable";
-import { StreamingSource } from "../types";
+import ResultsTable from "@/components/ResultsTable";
+import { StreamingSource } from "@/types/";
 
 interface WhereToWatchProps {
   sources: StreamingSource[];
