@@ -9,8 +9,8 @@ interface SectionListProps<T> {
   title: string;
   items: T[];
   layout?: Layout;
-  viewAllHref?: string; // only shows when layout !== "grid"
-  emptyState: ReactNode; // what to render when items is empty
+  viewAllHref?: string;
+  emptyState: ReactNode;
   renderItem: (item: T) => ReactNode;
   getKey: (item: T) => string | number;
 }

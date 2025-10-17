@@ -4,11 +4,11 @@ import { initialState } from "./useStreamingSearch";
 export type StreamingSearchState = {
   searchQuery: string;
   autoCompleteResults: AutoCompleteResult[];
-  showName: string;
-  showId?: number;
-  showType?: string;
+  titleName: string;
+  titleId?: number;
+  titleType?: string;
   isLoading: boolean;
-  isShowAdded: boolean;
+  isTitleAdded: boolean;
 };
 
 export type StreamingSearchAction =
@@ -36,11 +36,11 @@ export function streamingSearchReducer(
         ...initialState,
       };
     case "MARK_ADDED":
-      return { ...state, isShowAdded: true };
+      return { ...state, isTitleAdded: true };
     case "RESET_ADDED":
-      return { ...state, isShowAdded: false };
+      return { ...state, isTitleAdded: false };
     case "SET_ADDED_STATE":
-      return { ...state, isShowAdded: action.payload };
+      return { ...state, isTitleAdded: action.payload };
     default:
       return state;
   }

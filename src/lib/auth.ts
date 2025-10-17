@@ -58,9 +58,6 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       if (token?.uid) {
-        // If you want stronger typing, add a NextAuth module augmentation later
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-expect-error
         session.user.id = token.uid as string;
       }
       return session;

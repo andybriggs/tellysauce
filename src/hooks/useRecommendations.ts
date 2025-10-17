@@ -87,13 +87,13 @@ export function useGeminiRecommendations(cacheKey?: string) {
   };
 
   const getFromProfile = async (
-    showList: { name: string; rating: number }[],
+    titleList: { name: string; rating: number }[],
     watchList: string[]
   ) => {
-    if (!showList.length) return;
+    if (!titleList.length) return;
     await requestRecommendations({
       mode: "profile",
-      titles: showList,
+      titles: titleList,
       watchList,
     });
   };

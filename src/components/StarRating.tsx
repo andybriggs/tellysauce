@@ -5,12 +5,14 @@ import clsx from "clsx";
 
 const StarRating = ({
   rating,
-  showId,
-  rateShow,
+  titleId,
+  titleType,
+  rateTitle,
 }: {
   rating: number;
-  showId: number;
-  rateShow: (id: number, rating: number) => void;
+  titleId: number;
+  titleType: "tv" | "movie";
+  rateTitle: (id: number, mediaType: "tv" | "movie", rating: number) => void;
 }) => {
   const getStarIcon = (index: number) =>
     index < rating ? (
@@ -29,7 +31,7 @@ const StarRating = ({
             <button
               onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                 e.preventDefault();
-                rateShow(showId, index + 1);
+                rateTitle(titleId, titleType, index + 1);
               }}
               aria-label={`Rate ${index + 1} star${index === 0 ? "" : "s"}`}
             >

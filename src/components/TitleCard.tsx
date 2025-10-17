@@ -1,16 +1,20 @@
 import Image from "next/image";
-import { Show } from "@/types/";
+import { Title } from "@/types/";
 import StarRating from "./StarRating";
 import Link from "next/link";
 
 type Props = {
-  show: Show;
-  rateShow?: (id: number, rating: number) => void;
+  title: Title;
+  rateTitle?: (
+    id: number,
+    mediaType: "tv" | "movie",
+    rating: number
+  ) => Promise<void>;
 };
 
-const ShowCard = ({ show, rateShow }: Props) => {
-  const { poster, name, id, type } = show;
-  const showStars = typeof rateShow === "function";
+const TitleCard = ({ title, rateTitle }: Props) => {
+  const { poster, name, id, type } = title;
+  const titleStars = typeof rateTitle === "function";
 
   return (
     <Link href={`/title/${type}/${id}`} className="block flex-none">
@@ -38,9 +42,14 @@ const ShowCard = ({ show, rateShow }: Props) => {
           </span>
         </div>
 
-        {showStars && (
+        {titleStars && (
           <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
-            <StarRating showId={id} rating={show.rating} rateShow={rateShow!} />
+            <StarRating
+              titleId={id}
+              titleType={type as "tv" | "movie"}
+              rating={title.rating}
+              rateTitle={rateTitle}
+            />
           </div>
         )}
       </div>
@@ -48,4 +57,4 @@ const ShowCard = ({ show, rateShow }: Props) => {
   );
 };
 
-export default ShowCard;
+export default TitleCard;

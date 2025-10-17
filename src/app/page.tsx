@@ -3,8 +3,8 @@
 import { debounce } from "lodash";
 import { useEffect, useMemo } from "react";
 import Hero from "@/components/Hero";
-import RatedShows from "@/components/RatedShows";
-import RecommendShows from "@/components/recommendations/RecommendShows";
+import RatedTitles from "@/components/RatedTitles";
+import RecommendTitles from "@/components/recommendations/RecommendTitles";
 import Search from "@/components/Search";
 import SearchResults from "@/components/SearchResults";
 import Watchlist from "@/components/Watchlist";
@@ -74,9 +74,9 @@ export default function Home() {
       </section>
 
       <div className="max-w-screen-lg mx-auto p-8">
-        <RatedShows />
+        <RatedTitles />
         <Watchlist />
-        <RecommendShows />
+        <RecommendTitles />
       </div>
     </>
   );

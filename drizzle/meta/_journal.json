@@ -1,13 +1,5 @@
 {
-  "version": "7",
+  "version": "5",
   "dialect": "postgresql",
-  "entries": [
-    {
-      "idx": 0,
-      "version": "7",
-      "when": 1759349373512,
-      "tag": "0000_modern_brood",
-      "breakpoints": true
-    }
-  ]
+  "entries": []
 }

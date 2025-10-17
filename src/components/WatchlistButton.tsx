@@ -2,25 +2,25 @@
 
 import { BookmarkIcon } from "@heroicons/react/24/solid";
 import { useWatchList } from "@/hooks/useWatchList";
-import type { Show } from "@/types/";
+import type { Title } from "@/types/";
 
 type Props = {
-  show?: Omit<Show, "rating">;
+  title?: Omit<Title, "rating">;
   className?: string;
 };
 
-export default function WatchlistButton({ show, className }: Props) {
+export default function WatchlistButton({ title, className }: Props) {
   const { hasMounted, isSaved, toggle } = useWatchList();
 
-  const hasValidId = typeof show?.id === "number";
-  const saved = hasMounted && hasValidId ? isSaved(show!.id) : false;
+  const hasValidId = typeof title?.id === "number";
+  const saved = hasMounted && hasValidId ? isSaved(title.id) : false;
 
   const label = saved ? "Remove from watchlist" : "Add to watchlist";
-  const title = saved
+  const htmlTitle = saved
     ? "Remove from watchlist"
     : hasValidId
     ? "Add to watchlist"
-    : "Show not available";
+    : "Title not available";
 
   return (
     <button
@@ -29,9 +29,9 @@ export default function WatchlistButton({ show, className }: Props) {
       disabled={!hasValidId}
       onClick={(e) => {
         e.preventDefault();
-        if (!show || !hasValidId) return;
+        if (!title || !hasValidId) return;
         // store same shape as rated titles (rating will be set to 0 in hook)
-        toggle(show);
+        toggle(title);
       }}
       className={[
         "inline-flex items-center gap-2 rounded-xl ring-1 px-4 py-2 transition mt-4 sm:mt-0 mr-auto sm:mr-0",
@@ -41,7 +41,7 @@ export default function WatchlistButton({ show, className }: Props) {
         !hasValidId ? "opacity-50 cursor-not-allowed" : "",
         className ?? "",
       ].join(" ")}
-      title={title}
+      title={htmlTitle}
     >
       <BookmarkIcon className="h-4" />
       <span>{label}</span>

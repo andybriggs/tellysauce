@@ -1,11 +1,11 @@
-// components/ShowList.tsx
+// components/TitleList.tsx
 "use client";
 
 import { ReactNode } from "react";
 
 export type Layout = "carousel" | "grid";
 
-export interface ShowListProps<T> {
+export interface TitleListProps<T> {
   items: T[];
   layout?: Layout;
   renderItem: (item: T) => ReactNode;
@@ -13,12 +13,12 @@ export interface ShowListProps<T> {
 }
 
 // Note the `<T,>` generic on the arrow function to avoid JSX parsing issues.
-const ShowList = <T,>({
+const TitleList = <T,>({
   items,
   layout = "carousel",
   renderItem,
   getKey,
-}: ShowListProps<T>) => {
+}: TitleListProps<T>) => {
   const isGrid = layout === "grid";
   const listClass = isGrid
     ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 py-4"
@@ -35,4 +35,4 @@ const ShowList = <T,>({
   );
 };
 
-export default ShowList;
+export default TitleList;

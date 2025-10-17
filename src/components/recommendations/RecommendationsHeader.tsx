@@ -25,7 +25,7 @@ function Header({
           {label}
         </h2>
         <p className="mt-1 text-white/60 text-sm md:text-base">
-          Based on your rated shows
+          Based on your rated titles
         </p>
       </div>
 

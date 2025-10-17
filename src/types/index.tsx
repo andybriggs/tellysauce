@@ -7,14 +7,17 @@ export type AutoCompleteResult = {
   backdrop?: string | null;
 };
 
-export type Show = {
+export type Title = {
   id: number;
   name: string;
   poster: string | null;
   type: string | undefined;
   rating: number;
   description: string | null;
+  year?: number;
 };
+
+export type TitleMeta = Omit<Title, "rating">;
 
 export type StreamingSource = {
   name: string;

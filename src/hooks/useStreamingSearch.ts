@@ -7,11 +7,11 @@ import {
 export const initialState: StreamingSearchState = {
   searchQuery: "",
   autoCompleteResults: [],
-  showId: undefined,
-  showName: "",
-  showType: undefined,
+  titleId: undefined,
+  titleName: "",
+  titleType: undefined,
   isLoading: false,
-  isShowAdded: false,
+  isTitleAdded: false,
 };
 
 export function useStreamingSearch() {

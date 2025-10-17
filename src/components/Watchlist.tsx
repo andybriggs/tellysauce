@@ -1,11 +1,10 @@
-// components/Watchlist.tsx
 "use client";
 
-import { Layout } from "./ShowList";
+import { Layout } from "./TitleList";
 import Section from "./Section";
 import EmptyStateCard from "./EmptyStateCard";
-import ShowList from "./ShowList";
-import ShowCard from "./ShowCard";
+import TitleList from "./TitleList";
+import TitleCard from "./TitleCard";
 import { useWatchList } from "@/hooks/useWatchList";
 
 export default function Watchlist({
@@ -30,11 +29,11 @@ export default function Watchlist({
         </EmptyStateCard>
       }
     >
-      <ShowList
+      <TitleList
         items={watchList}
         layout={layout}
-        getKey={(s) => s.id}
-        renderItem={(s) => <ShowCard show={s} />}
+        getKey={(t) => t.id}
+        renderItem={(t) => <TitleCard title={t} />}
       />
     </Section>
   );

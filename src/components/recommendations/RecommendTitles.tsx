@@ -7,7 +7,7 @@ import EmptyRecommendations from "./EmptyRecommendations";
 import RecommendationsHeader from "./RecommendationsHeader";
 import RecommendationSkeletonGrid from "./RecommendationSkeletonGrid";
 import RecommendationsGrid from "./RecommendationsGrid";
-import { useRatedShows } from "@/hooks/useRatedShows";
+import { useRatedTitles } from "@/hooks/useRatedTitles";
 
 type Seed = {
   title: string;
@@ -25,7 +25,7 @@ function isIdName(v: unknown): v is IdName {
   return typeof v === "object" && v !== null;
 }
 
-export default function RecommendShows({
+export default function RecommendTitles({
   seed,
   cacheKey,
   autoRun = false,
@@ -36,7 +36,7 @@ export default function RecommendShows({
   autoRun?: boolean;
   buttonLabel?: string;
 }) {
-  const { ratedShows } = useRatedShows();
+  const { ratedTitles } = useRatedTitles();
   const { watchList } = useWatchList();
   const { recommendations, isLoading, getFromProfile, getFromSeed } =
     useGeminiRecommendations(cacheKey);
@@ -50,8 +50,8 @@ export default function RecommendShows({
     const name = seed?.title ?? "";
 
     const ratedHit =
-      Array.isArray(ratedShows) &&
-      ratedShows.some((s) =>
+      Array.isArray(ratedTitles) &&
+      ratedTitles.some((s) =>
         typeof tmdbId === "number" ? s.id === tmdbId : s.name === name
       );
 
@@ -64,11 +64,11 @@ export default function RecommendShows({
       );
 
     return ratedHit || watchHit;
-  }, [isSeedMode, seed, ratedShows, watchList]);
+  }, [isSeedMode, seed, ratedTitles, watchList]);
 
-  const hasShows = useMemo(
-    () => (isSeedMode ? true : (ratedShows?.length ?? 0) > 0),
-    [isSeedMode, ratedShows?.length]
+  const hasTitles = useMemo(
+    () => (isSeedMode ? true : (ratedTitles?.length ?? 0) > 0),
+    [isSeedMode, ratedTitles?.length]
   );
 
   const handleClick = useCallback(() => {
@@ -82,8 +82,8 @@ export default function RecommendShows({
         [];
       getFromSeed(seed, watchListTitles as string[]);
     } else {
-      const showList =
-        (ratedShows ?? []).map((s) => ({
+      const titleList =
+        (ratedTitles ?? []).map((s) => ({
           name: s.name,
           rating: s.rating,
         })) || [];
@@ -94,9 +94,9 @@ export default function RecommendShows({
             .map((w) => w.name)
             .filter(Boolean)) ||
         [];
-      getFromProfile(showList, watchListTitles as string[]);
+      getFromProfile(titleList, watchListTitles as string[]);
     }
-  }, [seed, getFromSeed, getFromProfile, ratedShows, watchList]);
+  }, [seed, getFromSeed, getFromProfile, ratedTitles, watchList]);
 
   useEffect(() => {
     if (autoRun && seed && !recommendations?.length && !isLoading) {
@@ -106,14 +106,14 @@ export default function RecommendShows({
 
   if (isSeedMode && !isCurrentTitleKnown) return null;
 
-  if (!hasShows && !isSeedMode) return <EmptyRecommendations />;
+  if (!hasTitles && !isSeedMode) return <EmptyRecommendations />;
 
   return (
     <section className="mt-6 rounded-3xl p-6 sm:p-8 md:p-10 bg-gradient-to-r from-pink-500 to-orange-400 opacity-80 ring-1 ring-white/10">
       <RecommendationsHeader
         onClick={handleClick}
         isLoading={isLoading}
-        canRun={hasShows}
+        canRun={hasTitles}
         hasResults={recommendations?.length > 0}
         label={buttonLabel ?? (seed ? "Find similar titles" : undefined)}
       />

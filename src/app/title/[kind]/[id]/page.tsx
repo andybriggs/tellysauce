@@ -12,7 +12,7 @@ import WhereToWatch from "@/components/WhereToWatch";
 import TagsList from "@/components/TagsList";
 import TitleActions from "@/components/TitleActions";
 import Container from "@/components/Container";
-import RecommendShows from "@/components/recommendations/RecommendShows";
+import RecommendTitles from "@/components/recommendations/RecommendTitles";
 
 export const revalidate = 3600;
 
@@ -364,7 +364,7 @@ export default async function TitlePage({ params }: PageProps) {
     data.posterLarge || data.posterMedium || data.poster || undefined;
   const backdrop = data.backdrop || undefined;
 
-  const showToSave = {
+  const titleToSave = {
     id: data.id,
     name: title,
     poster: poster ?? null,
@@ -411,7 +411,7 @@ export default async function TitlePage({ params }: PageProps) {
               <div className="space-y-3">
                 <TitleHeader
                   title={title}
-                  actionSlot={<TitleActions show={showToSave} />}
+                  actionSlot={<TitleActions title={titleToSave} />}
                 />
                 <MetaPills
                   year={data.year}
@@ -443,7 +443,7 @@ export default async function TitlePage({ params }: PageProps) {
         </div>
 
         <div className="mt-8">
-          <RecommendShows
+          <RecommendTitles
             seed={seed}
             cacheKey={recCacheKey}
             buttonLabel="More like this"

@@ -1,144 +1,94 @@
 "use client";
+import useSWR from "swr";
+import { useCallback } from "react";
+import type { Title, TitleMeta } from "@/types";
 
-import { useCallback, useEffect, useState } from "react";
-import type { Show } from "../types";
-import {
-  readVersioned,
-  writeVersioned,
-  parseEventValue,
-} from "@/lib/versionedStorage";
+const fetcher = (url: string) =>
+  fetch(url).then((r) => {
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  });
 
-const STORAGE_KEY = "watchList";
-
-type ShowInput = Omit<Show, "rating"> | Show;
-
-function clampRating(r: number) {
-  return Math.max(0, Math.min(5, r));
-}
-
-function normalizeToShow(u: unknown): Show | null {
-  if (typeof u !== "object" || u === null) return null;
-  const o = u as Record<string, unknown>;
-  if (typeof o.id !== "number") return null;
-
-  const id = o.id;
-  const name = typeof o.name === "string" ? o.name : "";
-  const poster =
-    typeof o.poster === "string" || o.poster === null
-      ? (o.poster as string | null)
-      : null;
-  const type = typeof o.type === "string" ? (o.type as string) : undefined;
-  const description =
-    typeof o.description === "string" || o.description === null
-      ? (o.description as string | null)
-      : null;
-
-  const rating = typeof o.rating === "number" ? clampRating(o.rating) : 0;
-
-  return { id, name, poster, type, description, rating };
-}
-
-function parseShowsLegacy(raw: string | null): Show[] {
-  if (!raw) return [];
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .map((item: unknown) => normalizeToShow(item))
-      .filter((s): s is Show => s !== null);
-  } catch {
-    return [];
-  }
-}
-
-/** Ensure we always store a proper Show (rating defaults to 0 if missing) */
-function toShow(input: ShowInput): Show {
-  const rating =
-    "rating" in input && typeof input.rating === "number"
-      ? clampRating(input.rating)
-      : 0;
-
-  return {
-    id: input.id,
-    name: input.name,
-    poster: input.poster ?? null,
-    type: input.type,
-    description: input.description ?? null,
-    rating,
-  };
-}
+type TitleInput = TitleMeta | Title;
 
 export function useWatchList() {
-  const [hasMounted, setHasMounted] = useState(false);
-  const [watchList, setWatchList] = useState<Show[]>([]);
-
-  useEffect(() => setHasMounted(true), []);
-
-  useEffect(() => {
-    if (!hasMounted) return;
-
-    // Try to read versioned payload. If not versioned or mismatched, this returns [].
-    let data = readVersioned<Show[]>(STORAGE_KEY, []);
-
-    // Optional: one-time upgrade path from your legacy unversioned array.
-    // If you want to *destroy* instead of upgrading, delete this block.
-    if (data.length === 0) {
-      const legacyRaw = localStorage.getItem(STORAGE_KEY);
-      const legacy = parseShowsLegacy(legacyRaw);
-      if (legacy.length) {
-        data = legacy;
-        writeVersioned(STORAGE_KEY, data);
-      }
-    }
-
-    setWatchList(data);
-  }, [hasMounted]);
-
-  // cross-tab sync (only accept current-version envelopes)
-  useEffect(() => {
-    if (!hasMounted) return;
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY) {
-        setWatchList(parseEventValue<Show[]>(e.newValue, []));
-      }
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, [hasMounted]);
-
-  const isSaved = useCallback(
-    (id?: number) =>
-      typeof id === "number" ? watchList.some((s) => s.id === id) : false,
-    [watchList]
+  const { data, error, isLoading, mutate } = useSWR<Title[]>(
+    "/api/watchlist",
+    fetcher
   );
 
-  const add = useCallback((show: ShowInput) => {
-    setWatchList((prev) => {
-      if (prev.some((s) => s.id === show.id)) return prev;
-      const next = [...prev, toShow(show)];
-      writeVersioned(STORAGE_KEY, next);
-      return next;
-    });
-  }, []);
+  // Safer: check by id + type (TMDB ids aren't globally unique across tv/movie)
+  const isSaved = useCallback(
+    (id?: number, type?: "tv" | "movie") => {
+      const list = data ?? [];
+      if (typeof id !== "number") return false;
 
-  const remove = useCallback((id: number) => {
-    setWatchList((prev) => {
-      const next = prev.filter((s) => s.id !== id);
-      writeVersioned(STORAGE_KEY, next);
-      return next;
-    });
-  }, []);
+      if (type) {
+        return list.some((s) => s.id === id && s.type === type);
+      }
+      return list.some((s) => s.id === id);
+    },
+    [data]
+  );
 
-  const toggle = useCallback((show: ShowInput) => {
-    setWatchList((prev) => {
-      const exists = prev.some((s) => s.id === show.id);
-      const next = exists
-        ? prev.filter((s) => s.id !== show.id)
-        : [...prev, toShow(show)];
-      writeVersioned(STORAGE_KEY, next);
-      return next;
-    });
-  }, []);
+  // Flexible 'add': supports add(id, type) OR add(titleObj)
+  const add = useCallback(
+    async (input: number | TitleInput, mediaType?: "tv" | "movie") => {
+      let tmdbId: number;
+      let mt: "tv" | "movie";
 
-  return { hasMounted, watchList, isSaved, add, remove, toggle };
+      if (typeof input === "number") {
+        if (!mediaType)
+          throw new Error("mediaType required when calling add(id, mediaType)");
+        tmdbId = input;
+        mt = mediaType;
+      } else {
+        tmdbId = input.id;
+        mt = input.type as "tv" | "movie";
+      }
+
+      await fetch("/api/watchlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tmdbId, mediaType: mt }),
+      });
+      mutate();
+    },
+    [mutate]
+  );
+
+  const remove = useCallback(
+    async (id: number, type: "tv" | "movie") => {
+      await fetch("/api/watchlist", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tmdbId: id, mediaType: type }),
+      });
+      mutate();
+    },
+    [mutate]
+  );
+
+  const toggle = useCallback(
+    async (title: TitleInput) => {
+      if (isSaved(title.id, title.type as "tv" | "movie")) {
+        await remove(title.id, title.type as "tv" | "movie");
+      } else {
+        // now valid: add accepts a Title/TitleMeta object
+        await add(title);
+      }
+    },
+    [add, remove, isSaved]
+  );
+
+  return {
+    hasMounted: true,
+    watchList: data ?? [],
+    isSaved,
+    add, // can use add(id, type) or add(titleObj)
+    remove,
+    toggle,
+    isLoading,
+    error,
+  };
 }
