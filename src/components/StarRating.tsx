@@ -14,7 +14,8 @@ const StarRating = ({
   titleId: number;
   titleType: "tv" | "movie";
 }) => {
-  const { isLoading, rateTitle } = useRatedTitles();
+  const { isSubmittingId, rateTitle } = useRatedTitles();
+  const isLoading = isSubmittingId(titleId);
 
   const getStarIcon = (index: number) =>
     index < rating ? (

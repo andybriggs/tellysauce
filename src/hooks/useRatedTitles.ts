@@ -10,13 +10,18 @@ const fetcher = (url: string) =>
     return r.json();
   });
 
-export function useRatedTitles() {
-  const [isSubmitting, setIsSubmitting] = useState(false);
+const clamp = (n: number) => Math.max(1, Math.min(5, Math.round(n)));
 
-  const { data, error, isLoading, mutate, isValidating } = useSWR<Title[]>(
-    "/api/rated",
-    fetcher
-  );
+export function useRatedTitles() {
+  const [submittingIds, setSubmittingIds] = useState<Set<number>>(new Set());
+
+  const {
+    data,
+    error,
+    isLoading: swrLoading,
+    isValidating,
+    mutate,
+  } = useSWR<Title[]>("/api/rated", fetcher);
 
   const isSaved = useCallback(
     (id?: number) =>
@@ -29,22 +34,44 @@ export function useRatedTitles() {
     [data]
   );
 
+  const isSubmittingId = useCallback(
+    (id: number) => submittingIds.has(id),
+    [submittingIds]
+  );
+
   const rateTitle = useCallback(
     async (tmdbId: number, mediaType: "tv" | "movie", rating: number) => {
-      setIsSubmitting(true);
+      setSubmittingIds((prev) => {
+        const next = new Set(prev);
+        next.add(tmdbId);
+        return next;
+      });
+
       try {
         await fetch("/api/rated", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tmdbId, mediaType, rating }),
+          body: JSON.stringify({
+            tmdbId,
+            mediaType,
+            rating: clamp(rating),
+          }),
         });
-        await mutate(); // revalidate data
+
+        await mutate();
       } finally {
-        setIsSubmitting(false);
+        setSubmittingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(tmdbId);
+          return next;
+        });
       }
     },
     [mutate]
   );
+
+  const isSubmittingAny = submittingIds.size > 0;
+  const isLoading = swrLoading || isValidating || isSubmittingAny;
 
   return {
     hasMounted: true,
@@ -52,7 +79,8 @@ export function useRatedTitles() {
     rateTitle,
     isSaved,
     getRating,
-    isLoading: isLoading || isValidating || isSubmitting,
+    isLoading,
     error,
+    isSubmittingId,
   };
 }
