@@ -48,7 +48,6 @@ const TitleCard = ({ title, rateTitle }: Props) => {
               titleId={id}
               titleType={type as "tv" | "movie"}
               rating={title.rating}
-              rateTitle={rateTitle}
             />
           </div>
         )}

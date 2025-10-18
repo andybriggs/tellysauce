@@ -10,13 +10,12 @@ export default function TitleActions({
 }: {
   title: Omit<Title, "rating">;
 }) {
-  const { hasMounted, getRating, rateTitle } = useRatedTitles();
+  const { hasMounted, getRating } = useRatedTitles();
 
   const rating = hasMounted ? getRating(title.id) : 0;
 
   return (
     <div className="flex flex-col items-stretch sm:flex-row sm:items-center gap-4">
-      {/* Only title watchlist button if NOT rated */}
       {rating === 0 && (
         <WatchlistButton
           title={{
@@ -33,7 +32,6 @@ export default function TitleActions({
         rating={rating}
         titleId={title.id}
         titleType={title.type as "tv" | "movie"}
-        rateTitle={rateTitle}
       />
     </div>
   );

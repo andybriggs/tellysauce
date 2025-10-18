@@ -1,6 +1,7 @@
 "use client";
+
 import useSWR from "swr";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import type { Title } from "@/types";
 
 const fetcher = (url: string) =>
@@ -9,10 +10,10 @@ const fetcher = (url: string) =>
     return r.json();
   });
 
-const clamp = (n: number) => Math.max(1, Math.min(5, Math.round(n)));
-
 export function useRatedTitles() {
-  const { data, error, isLoading, mutate } = useSWR<Title[]>(
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { data, error, isLoading, mutate, isValidating } = useSWR<Title[]>(
     "/api/rated",
     fetcher
   );
@@ -30,12 +31,17 @@ export function useRatedTitles() {
 
   const rateTitle = useCallback(
     async (tmdbId: number, mediaType: "tv" | "movie", rating: number) => {
-      await fetch("/api/rated", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tmdbId, mediaType, rating: clamp(rating) }),
-      });
-      mutate();
+      setIsSubmitting(true);
+      try {
+        await fetch("/api/rated", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tmdbId, mediaType, rating }),
+        });
+        await mutate(); // revalidate data
+      } finally {
+        setIsSubmitting(false);
+      }
     },
     [mutate]
   );
@@ -46,7 +52,7 @@ export function useRatedTitles() {
     rateTitle,
     isSaved,
     getRating,
-    isLoading,
+    isLoading: isLoading || isValidating || isSubmitting,
     error,
   };
 }
