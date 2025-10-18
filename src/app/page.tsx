@@ -74,8 +74,8 @@ export default function Home() {
       </section>
 
       <div className="max-w-screen-lg mx-auto p-8">
-        <RatedTitles />
         <Watchlist />
+        <RatedTitles />
         <RecommendTitles />
       </div>
     </>
