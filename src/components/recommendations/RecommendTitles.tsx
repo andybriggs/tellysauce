@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useEffect } from "react";
+import { useCallback, useMemo, useEffect, useState } from "react";
 import { useWatchList } from "@/hooks/useWatchList";
-import { useGeminiRecommendations } from "@/hooks/useRecommendations";
 import EmptyRecommendations from "./EmptyRecommendations";
 import RecommendationsHeader from "./RecommendationsHeader";
 import RecommendationSkeletonGrid from "./RecommendationSkeletonGrid";
@@ -20,14 +19,47 @@ type Seed = {
 
 type IdName = { id?: number; name?: string };
 
-// narrow unknowns safely
+type Recommendation = {
+  title: string;
+  description: string;
+  reason: string;
+  tags: string[];
+};
+
 function isIdName(v: unknown): v is IdName {
   return typeof v === "object" && v !== null;
 }
 
+function slugTitle(raw: string) {
+  if (!raw) return "";
+  let s = raw.replace(/\(\s*\d{4}\s*\)/g, "").replace(/\b\d{4}\b/g, "");
+  s = s.split(":")[0].split(" - ")[0];
+  s = s
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\b(the|a|an)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return s;
+}
+
+function buildKey(seed?: Seed) {
+  if (!seed) {
+    const v = process.env.NEXT_PUBLIC_CACHE_VERSION ?? "3";
+    return `profile:${v}`;
+  }
+  const t = seed.type ?? "unknown";
+  const tmdb = seed.external?.tmdbId;
+  if (tmdb) return `seed:${t}:${tmdb}`;
+  return `seed:${t}:${slugTitle(seed.title)}`;
+}
+
 export default function RecommendTitles({
   seed,
-  cacheKey,
+  cacheKey, // ignored now; we compute key deterministically to match backend
   autoRun = false,
   buttonLabel,
 }: {
@@ -38,10 +70,12 @@ export default function RecommendTitles({
 }) {
   const { ratedTitles } = useRatedTitles();
   const { watchList } = useWatchList();
-  const { recommendations, isLoading, getFromProfile, getFromSeed } =
-    useGeminiRecommendations(cacheKey);
+
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   const isSeedMode = !!seed;
+  const key = useMemo(() => buildKey(seed), [seed]);
 
   const isCurrentTitleKnown = useMemo(() => {
     if (!isSeedMode) return true;
@@ -71,32 +105,100 @@ export default function RecommendTitles({
     [isSeedMode, ratedTitles?.length]
   );
 
-  const handleClick = useCallback(() => {
-    if (seed) {
-      const watchListTitles =
-        (Array.isArray(watchList) &&
-          watchList
-            .filter(isIdName)
-            .map((w) => w.name)
-            .filter(Boolean)) ||
-        [];
-      getFromSeed(seed, watchListTitles as string[]);
-    } else {
-      const titleList =
-        (ratedTitles ?? []).map((s) => ({
-          name: s.name,
-          rating: s.rating,
-        })) || [];
-      const watchListTitles =
-        (Array.isArray(watchList) &&
-          watchList
-            .filter(isIdName)
-            .map((w) => w.name)
-            .filter(Boolean)) ||
-        [];
-      getFromProfile(titleList, watchListTitles as string[]);
+  // Read any existing persisted set on mount/seed change
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/recommendations?key=${encodeURIComponent(key)}`,
+          {
+            method: "GET",
+          }
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && Array.isArray(data?.items)) {
+          setRecommendations(
+            data.items.map((i: any) => ({
+              title: i.title,
+              description: i.description ?? "",
+              reason: i.reason ?? "",
+              tags: Array.isArray(i.tags) ? i.tags : [],
+            }))
+          );
+        }
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [key]);
+
+  const handleClick = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      if (seed) {
+        const watchListTitles =
+          (Array.isArray(watchList) &&
+            watchList
+              .filter(isIdName)
+              .map((w) => w.name)
+              .filter(Boolean)) ||
+          [];
+        const res = await fetch("/api/recommend", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mode: "seed",
+            seed,
+            watchList: watchListTitles,
+          }),
+        });
+        if (!res.ok) {
+          // (optionally surface error to UI)
+          return;
+        }
+        const data = await res.json();
+        const recs: Recommendation[] = Array.isArray(data?.recommendations)
+          ? data.recommendations
+          : [];
+        setRecommendations(recs);
+      } else {
+        const titleList =
+          (ratedTitles ?? []).map((s) => ({
+            name: s.name,
+            rating: s.rating,
+          })) || [];
+        const watchListTitles =
+          (Array.isArray(watchList) &&
+            watchList
+              .filter(isIdName)
+              .map((w) => w.name)
+              .filter(Boolean)) ||
+          [];
+        const res = await fetch("/api/recommend", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mode: "profile",
+            titles: titleList,
+            watchList: watchListTitles,
+          }),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const recs: Recommendation[] = Array.isArray(data?.recommendations)
+          ? data.recommendations
+          : [];
+        setRecommendations(recs);
+      }
+    } finally {
+      setIsLoading(false);
     }
-  }, [seed, getFromSeed, getFromProfile, ratedTitles, watchList]);
+  }, [seed, ratedTitles, watchList]);
 
   useEffect(() => {
     if (autoRun && seed && !recommendations?.length && !isLoading) {
@@ -105,7 +207,6 @@ export default function RecommendTitles({
   }, [autoRun, seed, recommendations?.length, isLoading, handleClick]);
 
   if (isSeedMode && !isCurrentTitleKnown) return null;
-
   if (!hasTitles && !isSeedMode) return <EmptyRecommendations />;
 
   return (

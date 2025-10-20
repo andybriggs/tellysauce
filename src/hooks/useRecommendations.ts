@@ -78,6 +78,8 @@ export function useGeminiRecommendations(cacheKey?: string) {
         ? data.recommendations
         : [];
 
+      console.log("RECS", recs);
+
       if (!mountedRef.current) return;
       setRecommendations(recs);
       writeVersioned(key, recs);

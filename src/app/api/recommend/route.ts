@@ -4,6 +4,10 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
+import { db } from "@/db";
+import { sql } from "drizzle-orm";
+import { randomUUID } from "crypto";
+
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
@@ -22,6 +26,79 @@ type SeedInput = {
   type?: "movie" | "tv";
   external?: { tmdbId?: number; imdbId?: string | null };
 };
+
+function buildRecKey(payload: any) {
+  const mode: "profile" | "seed" =
+    payload?.mode === "seed" ? "seed" : "profile";
+  if (mode === "profile") {
+    const v = process.env.NEXT_PUBLIC_CACHE_VERSION ?? "3";
+    return `profile:${v}`;
+  }
+  const t = payload?.seed?.type ?? "unknown";
+  const tmdb = payload?.seed?.external?.tmdbId;
+  if (tmdb) return `seed:${t}:${tmdb}`;
+  const slug = slugTitle(String(payload?.seed?.title ?? ""));
+  return `seed:${t}:${slug || "unknown"}`;
+}
+
+const ensureTablesOnce = (async () => {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS recommendation_sets (
+      id              text PRIMARY KEY,
+      user_id         text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      key             text NOT NULL,
+      user_key        text NOT NULL UNIQUE, -- user_key = user_id || ':' || key
+      origin          text NOT NULL,        -- "PROFILE" | "SEED" | "CUSTOM_LIST"
+      source          text NOT NULL DEFAULT 'GEMINI',
+      input_snapshot  jsonb NOT NULL,
+
+      seed_media_type text,
+      seed_tmdb_id    integer,
+      seed_imdb_id    text,
+      seed_title      text,
+
+      cache_version   text NOT NULL DEFAULT '1',
+      created_at      timestamptz NOT NULL DEFAULT now(),
+      updated_at      timestamptz NOT NULL DEFAULT now(),
+      expires_at      timestamptz,
+      is_stale        boolean NOT NULL DEFAULT false
+    );
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS recommendation_items (
+      id                   text PRIMARY KEY,
+      set_id               text NOT NULL REFERENCES recommendation_sets(id) ON DELETE CASCADE,
+      rank                 integer NOT NULL,
+
+      title                text NOT NULL,
+      description          text,
+      reason               text,
+      tags                 text[],
+
+      suggested_media_type text,
+      suggested_tmdb_id    integer,
+      suggested_imdb_id    text,
+
+      raw_json             jsonb NOT NULL,
+
+      created_at           timestamptz NOT NULL DEFAULT now(),
+      updated_at           timestamptz NOT NULL DEFAULT now()
+    );
+  `);
+
+  await db.execute(sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'recommendation_items_set_rank_idx'
+      ) THEN
+        CREATE INDEX recommendation_items_set_rank_idx ON recommendation_items (set_id, rank);
+      END IF;
+    END
+    $$;
+  `);
+})();
 
 function slugTitle(raw: string) {
   if (!raw) return "";
@@ -145,11 +222,113 @@ ${groundedText}
     .filter((r) => r.title);
 }
 
+async function upsertRecommendationSet(params: {
+  userId: string;
+  key: string;
+  origin: "PROFILE" | "SEED" | "CUSTOM_LIST";
+  source?: string;
+  inputSnapshot: any;
+  seedMediaType?: string | null;
+  seedTmdbId?: number | null;
+  seedImdbId?: string | null;
+  seedTitle?: string | null;
+  cacheVersion?: string;
+  expiresAt?: Date | null;
+}) {
+  const {
+    userId,
+    key,
+    origin,
+    source = "GEMINI",
+    inputSnapshot,
+    seedMediaType = null,
+    seedTmdbId = null,
+    seedImdbId = null,
+    seedTitle = null,
+    cacheVersion = process.env.NEXT_PUBLIC_CACHE_VERSION ?? "3",
+    expiresAt = null,
+  } = params;
+
+  const userKey = `${userId}:${key}`;
+  const now = new Date();
+  const id = randomUUID();
+
+  const result = await db.execute(sql`
+    INSERT INTO recommendation_sets (
+      id, user_id, key, user_key, origin, source, input_snapshot,
+      seed_media_type, seed_tmdb_id, seed_imdb_id, seed_title,
+      cache_version, created_at, updated_at, expires_at, is_stale
+    )
+    VALUES (
+      ${id}, ${userId}, ${key}, ${userKey}, ${origin}, ${source},
+      ${JSON.stringify(inputSnapshot)}::jsonb,
+      ${seedMediaType}, ${seedTmdbId}, ${seedImdbId}, ${seedTitle},
+      ${cacheVersion}, ${now}, ${now}, ${expiresAt}, false
+    )
+    ON CONFLICT (user_key)
+    DO UPDATE SET
+      input_snapshot = ${JSON.stringify(inputSnapshot)}::jsonb,
+      seed_media_type = EXCLUDED.seed_media_type,
+      seed_tmdb_id = EXCLUDED.seed_tmdb_id,
+      seed_imdb_id = EXCLUDED.seed_imdb_id,
+      seed_title = EXCLUDED.seed_title,
+      cache_version = EXCLUDED.cache_version,
+      updated_at = EXCLUDED.updated_at,
+      expires_at = EXCLUDED.expires_at,
+      is_stale = false
+    RETURNING id;
+  `);
+
+  const setId: string = (result as any).rows?.[0]?.id ?? id;
+  return { setId, userKey };
+}
+
+async function replaceRecommendationItems(setId: string, items: Rec[]) {
+  const now = new Date();
+
+  // Remove any previous items for this set
+  await db.execute(
+    sql`DELETE FROM recommendation_items WHERE set_id = ${setId};`
+  );
+
+  // Insert new items
+  for (let i = 0; i < items.length; i++) {
+    const r = items[i];
+
+    // Safely pass tags as JSON, convert to text[] in SQL
+    const tagsJson = JSON.stringify(Array.isArray(r.tags) ? r.tags : []);
+
+    await db.execute(sql`
+      INSERT INTO recommendation_items (
+        id, set_id, rank, title, description, reason, tags, raw_json, created_at, updated_at
+      )
+      VALUES (
+        ${randomUUID()},         -- id
+        ${setId},                -- set_id
+        ${i},                    -- rank
+        ${r.title},              -- title
+        ${r.description ?? null},-- description
+        ${r.reason ?? null},     -- reason
+        (
+          SELECT COALESCE(array_agg(value::text), ARRAY[]::text[])
+          FROM jsonb_array_elements_text(${tagsJson}::jsonb)
+        ),                       -- tags (text[])
+        ${JSON.stringify(r)}::jsonb,  -- raw_json
+        ${now},                  -- created_at
+        ${now}                   -- updated_at
+      );
+    `);
+  }
+}
+
 export async function POST(req: NextRequest) {
+  await ensureTablesOnce; // make sure tables exist
+
   const session = await getServerSession(authOptions);
-  if (!session) {
+  if (!session?.user?.id) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+
   try {
     if (!process.env.GOOGLE_GEMINI_API_KEY) {
       return Response.json(
@@ -161,8 +340,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     // Two modes:
-    // - "profile": original behavior using user's rated titles (body.titles)
-    // - "seed": new behavior using a single seed title (body.seed)
     const mode: "profile" | "seed" = body?.mode === "seed" ? "seed" : "profile";
 
     // Target count (defaults: 3 for seed, 8 for profile). Clamp 1..12.
@@ -397,10 +574,26 @@ Concise. No duplicates. No forbidden items.
         }
       }
 
-      return Response.json({ recommendations });
+      // ---------- persist ----------
+      const key = buildRecKey({ mode, seed });
+      const { setId } = await upsertRecommendationSet({
+        userId: session.user.id as string,
+        key,
+        origin: "SEED",
+        inputSnapshot: body,
+        seedMediaType: seed.type ?? null,
+        seedTmdbId: seed.external?.tmdbId ?? null,
+        seedImdbId: seed.external?.imdbId ?? null,
+        seedTitle: seed.title ?? null,
+        cacheVersion: process.env.NEXT_PUBLIC_CACHE_VERSION ?? "3",
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      });
+      await replaceRecommendationItems(setId, recommendations);
+
+      return Response.json({ recommendations, key, setId });
     }
 
-    // ---------------------------- PROFILE MODE (ORIGINAL) ----------------------------
+    // ---------------------------- PROFILE MODE ----------------------------
     const titles = Array.isArray(body?.titles) ? body.titles : [];
     if (!Array.isArray(titles) || titles.length === 0) {
       return Response.json({ error: "No titles provided" }, { status: 400 });
@@ -412,13 +605,12 @@ Concise. No duplicates. No forbidden items.
       ...(watchList ?? []),
     ]);
 
-    // Keep the compact list (only for preference weighting), but do NOT rely on it to exclude
+    // Keep the compact list (only for preference weighting)
     const compact = titles.slice(0, 12).map((s: any) => ({
       title: s?.title ?? s?.name ?? String(s),
       rating: s?.rating ?? s?.score ?? s?.userRating ?? null,
     }));
 
-    // ---------- PASS 1: Grounded (tools ON, JSON mode OFF) ----------
     const groundedPrompt = `
 You are a TV/film expert.
 
@@ -496,7 +688,6 @@ Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
       const haveSlugs = new Set(
         kept.map((l) => slugTitle(l.split("|")[0].trim()))
       );
-      // Expand forbidden with what we already kept (to force new ones)
       const expandedForbidden = new Set([...forbidden, ...haveSlugs]);
       const repairPrompt = `
 You previously proposed some titles. I need NEW ones that are not in this forbidden list.
@@ -539,7 +730,6 @@ Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
         parseLines(repairText),
         expandedForbidden
       );
-      // also protect against duping with kept
       const keptSlugs = new Set(
         kept.map((l) => slugTitle(l.split("|")[0].trim()))
       );
@@ -553,7 +743,6 @@ Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
       }
     }
 
-    // Structure whatever we have
     const groundedText = kept.slice(0, targetCount).join("\n");
     let recommendations: Rec[] = await structureToJson(
       ai,
@@ -571,7 +760,6 @@ Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
     });
 
     if (recommendations.length < targetCount) {
-      // last quick top-up with a strict JSON request
       const needed = targetCount - recommendations.length;
       const strictTopUp = await ai.models.generateContent({
         model: process.env.GEMINI_MODEL_STRUCT || "gemini-2.5-flash-lite",
@@ -627,7 +815,19 @@ Keep it concise. No duplicates. No forbidden items.
       }
     }
 
-    return Response.json({ recommendations });
+    // ---------- persist ----------
+    const key = buildRecKey({ mode });
+    const { setId } = await upsertRecommendationSet({
+      userId: session.user.id as string,
+      key,
+      origin: "PROFILE",
+      inputSnapshot: body,
+      cacheVersion: process.env.NEXT_PUBLIC_CACHE_VERSION ?? "3",
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
+    await replaceRecommendationItems(setId, recommendations);
+
+    return Response.json({ recommendations, key, setId });
   } catch (err) {
     console.error("Recommend route error:", err);
     return Response.json(
