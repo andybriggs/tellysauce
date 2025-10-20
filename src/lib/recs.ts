@@ -1,4 +1,10 @@
-// @/lib/recs.ts
+import { SeedInput } from "@/types";
+
+type BuildProfileKey = { mode: "profile"; version?: string };
+type BuildSeedKey = { mode: "seed"; seed: SeedInput };
+
+export type BuildRecKeyArgs = BuildProfileKey | BuildSeedKey;
+
 export function slugTitle(raw: string) {
   if (!raw) return "";
   let s = raw.replace(/\(\s*\d{4}\s*\)/g, "").replace(/\b\d{4}\b/g, "");
@@ -15,16 +21,15 @@ export function slugTitle(raw: string) {
   return s;
 }
 
-export function buildRecKey(payload: any) {
-  const mode: "profile" | "seed" =
-    payload?.mode === "seed" ? "seed" : "profile";
-  if (mode === "profile") {
-    const v = process.env.NEXT_PUBLIC_CACHE_VERSION ?? "3";
+export function buildRecKey(payload: BuildRecKeyArgs): string {
+  if (payload.mode === "profile") {
+    const v = payload.version ?? process.env.NEXT_PUBLIC_CACHE_VERSION ?? "3";
     return `profile:${v}`;
   }
-  const t = payload?.seed?.type ?? "unknown";
-  const tmdb = payload?.seed?.external?.tmdbId;
-  if (tmdb) return `seed:${t}:${tmdb}`;
-  const slug = slugTitle(String(payload?.seed?.title ?? ""));
+
+  const t = payload.seed.type ?? "unknown";
+  const tmdb = payload.seed.external?.tmdbId;
+  if (typeof tmdb === "number") return `seed:${t}:${tmdb}`;
+  const slug = slugTitle(payload.seed.title);
   return `seed:${t}:${slug || "unknown"}`;
 }

@@ -42,7 +42,6 @@ export const authOptions: NextAuthOptions = {
   },
 
   callbacks: {
-    // Keep your existing redirect logic
     async redirect({ url, baseUrl }) {
       if (url.startsWith("/")) return `${baseUrl}${url}`;
       try {

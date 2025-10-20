@@ -16,10 +16,9 @@ function yearFrom(dateStr?: string | null) {
   return Number.isFinite(y) ? y : null;
 }
 
-/** Build URL + headers for TMDB using either v4 token or v3 api key. */
 function tmdbRequest(endpoint: string) {
-  const v4 = process.env.TMDB_ACCESS_TOKEN; // ← your existing token (preferred)
-  const v3 = process.env.TMDB_API_KEY; // ← optional fallback
+  const v4 = process.env.TMDB_ACCESS_TOKEN;
+  const v3 = process.env.TMDB_API_KEY;
 
   if (!v4 && !v3) {
     throw new Error(
@@ -28,7 +27,6 @@ function tmdbRequest(endpoint: string) {
   }
 
   if (v4) {
-    // v4 Bearer token (recommended)
     return {
       url: `${TMDB_BASE}/${endpoint}?language=en-US`,
       headers: {
@@ -38,7 +36,6 @@ function tmdbRequest(endpoint: string) {
     };
   }
 
-  // v3 api_key in query string
   return {
     url: `${TMDB_BASE}/${endpoint}?language=en-US&api_key=${encodeURIComponent(
       v3!
@@ -47,7 +44,6 @@ function tmdbRequest(endpoint: string) {
   };
 }
 
-/** Fetch minimal title data from TMDB (works for tv or movie). */
 export async function fetchTMDBTitle(
   tmdbId: number,
   mediaType: MediaType

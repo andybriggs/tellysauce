@@ -43,7 +43,6 @@ export async function ensureTitle(tmdbId: number, mediaType: MediaType) {
     })
     .onConflictDoNothing();
 
-  // return row
   const [row] = await db
     .select()
     .from(titles)
@@ -116,7 +115,7 @@ export async function rateTitle(
 export async function getWatchlist(userId: string) {
   const rows = await db
     .select({
-      id: titles.tmdbId, // <— this maps tmdb_id → id for the client
+      id: titles.tmdbId,
       type: titles.mediaType,
       name: titles.title,
       poster: titles.poster,

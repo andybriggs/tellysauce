@@ -1,4 +1,3 @@
-// hooks/useRecommendations.ts
 "use client";
 
 import { useEffect, useRef, useState } from "react";

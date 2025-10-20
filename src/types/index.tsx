@@ -32,3 +32,12 @@ export type Recommendation = {
   description?: string;
   reason?: string;
 };
+
+export type SeedInput = {
+  title: string;
+  overview?: string;
+  genres?: string[];
+  year?: number;
+  type?: "movie" | "tv";
+  external?: { tmdbId?: number; imdbId?: string | null };
+};

@@ -1,4 +1,3 @@
-// app/open/title/page.tsx
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -33,7 +32,6 @@ export default async function OpenTitlePage({
   // Guard: need at least q or imdbId
   if (!q && !imdbId) redirect("/");
 
-  // Build absolute URL to your resolver API
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
   const proto =

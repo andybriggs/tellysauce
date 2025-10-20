@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest } from "next/server";
 import { GoogleGenAI, Type } from "@google/genai";
 import { getServerSession } from "next-auth";
@@ -7,39 +6,64 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import { buildRecKey } from "@/lib/recs";
+import { SeedInput } from "@/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-type Rec = {
+/** ------------------------------------------------------------------ */
+/** Types                                                              */
+/** ------------------------------------------------------------------ */
+
+export type Rec = {
   title: string;
   description: string;
   reason: string;
   tags: string[];
 };
 
-type SeedInput = {
-  title: string;
-  overview?: string;
-  genres?: string[];
-  year?: number;
-  type?: "movie" | "tv";
-  external?: { tmdbId?: number; imdbId?: string | null };
+type TitleInput = {
+  title?: string;
+  name?: string;
+  rating?: number;
+  score?: number;
+  userRating?: number;
 };
 
-function buildRecKey(payload: any) {
-  const mode: "profile" | "seed" =
-    payload?.mode === "seed" ? "seed" : "profile";
-  if (mode === "profile") {
-    const v = process.env.NEXT_PUBLIC_CACHE_VERSION ?? "3";
-    return `profile:${v}`;
-  }
-  const t = payload?.seed?.type ?? "unknown";
-  const tmdb = payload?.seed?.external?.tmdbId;
-  if (tmdb) return `seed:${t}:${tmdb}`;
-  const slug = slugTitle(String(payload?.seed?.title ?? ""));
-  return `seed:${t}:${slug || "unknown"}`;
-}
+type WatchListItem = string | { title?: string; name?: string };
+
+type ProfilePayload = {
+  mode?: "profile";
+  titles: TitleInput[];
+  watchList?: WatchListItem[];
+  count?: number;
+};
+
+type SeedPayload = {
+  mode: "seed";
+  seed: SeedInput;
+  watchList?: WatchListItem[];
+  count?: number;
+};
+
+type RecommendBody = ProfilePayload | SeedPayload;
+
+type ModelPart = { text?: string };
+type ModelContent = { parts?: ModelPart[] };
+type ModelCandidate = {
+  content?: ModelContent;
+  finishReason?: string | null;
+};
+type ModelResponse = {
+  candidates?: ModelCandidate[];
+  promptFeedback?: { blockReason?: string | null };
+  text?: string; // some Gemini SDK responses surface .text on structuring runs
+};
+
+/** ------------------------------------------------------------------ */
+/** One-time table bootstrap (no migrations required)                  */
+/** ------------------------------------------------------------------ */
 
 const ensureTablesOnce = (async () => {
   await db.execute(sql`
@@ -100,6 +124,88 @@ const ensureTablesOnce = (async () => {
   `);
 })();
 
+/** ------------------------------------------------------------------ */
+/** Utility + type guards                                              */
+/** ------------------------------------------------------------------ */
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
+function toStringSafe(v: unknown): string {
+  return typeof v === "string" ? v : String(v ?? "");
+}
+
+function isRecLike(v: unknown): v is Rec {
+  if (!isRecord(v)) return false;
+  const t = v.title;
+  const d = v.description;
+  const r = v.reason;
+  const g = v.tags;
+  return (
+    typeof t === "string" &&
+    typeof d === "string" &&
+    typeof r === "string" &&
+    Array.isArray(g) &&
+    g.every((x) => typeof x === "string")
+  );
+}
+
+function parseJsonArrayOfRecs(raw: string): Rec[] {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed
+        .map((it) => {
+          if (isRecLike(it)) return it;
+          if (isRecord(it)) {
+            const title = toStringSafe(it.title).trim();
+            if (!title) return null;
+            const description = toStringSafe(it.description ?? "").trim();
+            const reason = toStringSafe(it.reason ?? "").trim();
+            const tagsRaw =
+              isRecord(it) && Array.isArray(it.tags) ? it.tags : [];
+            const tags = tagsRaw.map((t) => toStringSafe(t));
+            return { title, description, reason, tags } as Rec;
+          }
+          return null;
+        })
+        .filter((x): x is Rec => Boolean(x));
+    }
+  } catch {
+    // fall through
+  }
+  return [];
+}
+
+function extractModelText(res: unknown): {
+  text: string;
+  finishReason: string | null;
+  blockReason: string | null;
+  partsCount: number;
+} {
+  const mr = (isRecord(res) ? (res as ModelResponse) : undefined) ?? undefined;
+  // structuring calls sometimes expose `.text`
+  if (mr?.text && typeof mr.text === "string") {
+    return {
+      text: mr.text,
+      finishReason: null,
+      blockReason: null,
+      partsCount: 0,
+    };
+  }
+
+  const cand = mr?.candidates?.[0];
+  const parts = cand?.content?.parts ?? [];
+  const pieces = parts
+    .map((p) => (p && typeof p.text === "string" ? p.text : ""))
+    .filter(Boolean);
+  const text = pieces.join("");
+  const finishReason = cand?.finishReason ?? null;
+  const blockReason = mr?.promptFeedback?.blockReason ?? null;
+  return { text, finishReason, blockReason, partsCount: parts.length };
+}
+
 function slugTitle(raw: string) {
   if (!raw) return "";
   // remove year in parens or at end
@@ -119,12 +225,21 @@ function slugTitle(raw: string) {
   return s;
 }
 
-function makeForbiddenSet(input: any[]): Set<string> {
+function makeForbiddenSet(input: unknown[]): Set<string> {
   const set = new Set<string>();
   for (const item of input ?? []) {
-    const t =
-      item?.title ?? item?.name ?? (typeof item === "string" ? item : "") ?? "";
-    const slug = slugTitle(String(t));
+    let t = "";
+    if (typeof item === "string") {
+      t = item;
+    } else if (isRecord(item)) {
+      const maybeTitle = item.title;
+      const maybeName = item.name;
+      t =
+        (typeof maybeTitle === "string" && maybeTitle) ||
+        (typeof maybeName === "string" && maybeName) ||
+        "";
+    }
+    const slug = slugTitle(toStringSafe(t));
     if (slug) set.add(slug);
     // also add a couple of relaxed variants to be safer
     if (slug.includes("season"))
@@ -161,12 +276,16 @@ function brief(str?: string | null, max = 240) {
   return s.length > max ? s.slice(0, max - 1) + "…" : s;
 }
 
+/** ------------------------------------------------------------------ */
+/** Model → JSON structuring                                            */
+/** ------------------------------------------------------------------ */
+
 async function structureToJson(
   ai: GoogleGenAI,
   groundedText: string,
   targetCount: number
 ): Promise<Rec[]> {
-  const structuringRes = await ai.models.generateContent({
+  const structuringRes: unknown = await ai.models.generateContent({
     model: process.env.GEMINI_MODEL_STRUCT || "gemini-2.5-flash-lite",
     contents: `
 Turn the following lines into STRICT JSON.
@@ -204,30 +323,21 @@ ${groundedText}
     },
   });
 
-  const txt = (structuringRes as any)?.text ?? "[]";
-  let parsed: any;
-  try {
-    parsed = JSON.parse(txt);
-  } catch {
-    parsed = [];
-  }
-  // sanitize fields minimally
-  return (Array.isArray(parsed) ? parsed : [])
-    .map((r) => ({
-      title: String(r?.title ?? "").trim(),
-      description: String(r?.description ?? "").trim(),
-      reason: String(r?.reason ?? "").trim(),
-      tags: Array.isArray(r?.tags) ? r.tags.map((t: any) => String(t)) : [],
-    }))
-    .filter((r) => r.title);
+  const { text } = extractModelText(structuringRes);
+  const parsed = parseJsonArrayOfRecs(text || "[]");
+  return parsed.filter((r) => r.title);
 }
+
+/** ------------------------------------------------------------------ */
+/** Persistence (raw SQL; typed inputs)                                 */
+/** ------------------------------------------------------------------ */
 
 async function upsertRecommendationSet(params: {
   userId: string;
   key: string;
   origin: "PROFILE" | "SEED" | "CUSTOM_LIST";
   source?: string;
-  inputSnapshot: any;
+  inputSnapshot: unknown;
   seedMediaType?: string | null;
   seedTmdbId?: number | null;
   seedImdbId?: string | null;
@@ -279,7 +389,9 @@ async function upsertRecommendationSet(params: {
     RETURNING id;
   `);
 
-  const setId: string = (result as any).rows?.[0]?.id ?? id;
+  const rows =
+    (result as unknown as { rows?: Array<{ id?: string }> }).rows ?? [];
+  const setId: string = rows[0]?.id ?? id;
   return { setId, userKey };
 }
 
@@ -321,6 +433,10 @@ async function replaceRecommendationItems(setId: string, items: Rec[]) {
   }
 }
 
+/** ------------------------------------------------------------------ */
+/** Main handler                                                        */
+/** ------------------------------------------------------------------ */
+
 export async function POST(req: NextRequest) {
   await ensureTablesOnce; // make sure tables exist
 
@@ -337,37 +453,46 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const body = await req.json();
+    const bodyUnknown: unknown = await req.json();
+    const body = bodyUnknown as RecommendBody;
 
     // Two modes:
-    const mode: "profile" | "seed" = body?.mode === "seed" ? "seed" : "profile";
+    const mode: "profile" | "seed" =
+      isRecord(body) && body.mode === "seed" ? "seed" : "profile";
 
     // Target count (defaults: 3 for seed, 8 for profile). Clamp 1..12.
-    const targetCount =
-      typeof body?.count === "number" && body.count > 0
+    const desired =
+      isRecord(body) && typeof body.count === "number" && body.count > 0
         ? Math.min(12, Math.max(1, Math.floor(body.count)))
-        : mode === "seed"
-        ? 3
-        : 8;
+        : null;
+    const targetCount = desired ?? (mode === "seed" ? 3 : 8);
 
     const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_GEMINI_API_KEY! });
 
     // ---- Common: watchlist to avoid ----
-    const watchList = Array.isArray(body?.watchList) ? body.watchList : [];
+    const watchList: WatchListItem[] =
+      isRecord(body) && Array.isArray(body.watchList) ? body.watchList : [];
     const watchListLines =
-      Array.isArray(watchList) && watchList.length > 0
-        ? watchList.map((w: any) => `- ${w?.title ?? w?.name ?? w}`).join("\n")
+      watchList.length > 0
+        ? watchList
+            .map((w) => {
+              if (typeof w === "string") return `- ${w}`;
+              const title = typeof w.title === "string" ? w.title : "";
+              const name = typeof w.name === "string" ? w.name : "";
+              return `- ${title || name}`;
+            })
+            .join("\n")
         : "(none provided)";
 
     // ---------------------------- SEED MODE ----------------------------
     if (mode === "seed") {
-      const seed: SeedInput | undefined = body?.seed;
+      const seed: SeedInput | undefined = (body as SeedPayload).seed;
       if (!seed?.title) {
         return Response.json({ error: "Seed title missing" }, { status: 400 });
       }
 
       // Build forbidden set from watchlist + the seed itself
-      const forbidden = makeForbiddenSet([...(watchList ?? [])]);
+      const forbidden = makeForbiddenSet([...(watchList as unknown[])]);
       forbidden.add(slugTitle(seed.title));
 
       const seedPrompt = `
@@ -394,7 +519,7 @@ FORMAT:
 Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
 `;
 
-      const groundedRes = await ai.models.generateContent({
+      const groundedRes: unknown = await ai.models.generateContent({
         model: process.env.GEMINI_MODEL_GROUNDED || "gemini-2.5-flash",
         contents: [{ role: "user", parts: [{ text: seedPrompt }] }],
         config: {
@@ -408,28 +533,29 @@ Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
         },
       });
 
-      const parts = (groundedRes as any)?.candidates?.[0]?.content?.parts ?? [];
-      const raw = parts
-        .map((p: any) => (typeof p.text === "string" ? p.text : ""))
-        .join("")
-        .trim();
-      const endIdx = raw.indexOf("<<<END>>>");
-      const groundedAll = (endIdx >= 0 ? raw.slice(0, endIdx) : raw).trim();
+      const {
+        text: seedText,
+        finishReason,
+        blockReason,
+        partsCount,
+      } = extractModelText(groundedRes);
+      const endIdx = seedText.indexOf("<<<END>>>");
+      const groundedAll = (
+        endIdx >= 0 ? seedText.slice(0, endIdx) : seedText
+      ).trim();
 
       if (!groundedAll) {
-        const finish =
-          (groundedRes as any)?.candidates?.[0]?.finishReason ?? null;
-        const block = (groundedRes as any)?.promptFeedback?.blockReason ?? null;
+        // eslint-disable-next-line no-console
         console.error("GROUNDING DEBUG (seed):", {
-          finishReason: finish,
-          blockReason: block,
-          partsCount: parts.length,
+          finishReason,
+          blockReason,
+          partsCount,
         });
         return Response.json(
           {
             error: "Seeded generation failed (empty response)",
-            finishReason: finish,
-            blockReason: block,
+            finishReason,
+            blockReason,
           },
           { status: 502 }
         );
@@ -447,7 +573,7 @@ Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
         const haveSlugs = new Set(
           kept.map((l) => slugTitle(l.split("|")[0].trim()))
         );
-        const expandedForbidden = new Set([...forbidden, ...haveSlugs]);
+        const expandedForbidden = new Set<string>([...forbidden, ...haveSlugs]);
 
         const repairPrompt = `
 We need ${targetCount - kept.length} NEW titles similar to "${seed.title}".
@@ -462,7 +588,7 @@ Rules:
 FORMAT:
 Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
 `;
-        const repairRes = await ai.models.generateContent({
+        const repairRes: unknown = await ai.models.generateContent({
           model: process.env.GEMINI_MODEL_GROUNDED || "gemini-2.5-flash",
           contents: [{ role: "user", parts: [{ text: repairPrompt }] }],
           config: {
@@ -475,15 +601,10 @@ Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
           },
         });
 
-        const rparts =
-          (repairRes as any)?.candidates?.[0]?.content?.parts ?? [];
-        const rraw = rparts
-          .map((p: any) => p.text ?? "")
-          .join("")
-          .trim();
-        const rendIdx = rraw.indexOf("<<<END>>>");
+        const { text: repairRaw } = extractModelText(repairRes);
+        const rendIdx = repairRaw.indexOf("<<<END>>>");
         const repairText = (
-          rendIdx >= 0 ? rraw.slice(0, rendIdx) : rraw
+          rendIdx >= 0 ? repairRaw.slice(0, rendIdx) : repairRaw
         ).trim();
 
         const newLines = uniqueAllowedLines(
@@ -521,12 +642,12 @@ Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
 
       if (recommendations.length < targetCount) {
         const needed = targetCount - recommendations.length;
-        const strictTopUp = await ai.models.generateContent({
+        const strictTopUpRes: unknown = await ai.models.generateContent({
           model: process.env.GEMINI_MODEL_STRUCT || "gemini-2.5-flash-lite",
           contents: `
 Suggest ${needed} NEW titles as JSON ONLY, similar to "${seed.title}".
 Forbidden slugs:
-${Array.from(new Set([...forbidden, ...finalSeen])).join(", ")}
+${Array.from(new Set<string>([...forbidden, ...finalSeen])).join(", ")}
 
 Each item: { "title", "description", "reason", "tags": [strings] }.
 Concise. No duplicates. No forbidden items.
@@ -552,35 +673,29 @@ Concise. No duplicates. No forbidden items.
           },
         });
 
-        const topTxt = (strictTopUp as any)?.text ?? "[]";
-        let top: Rec[] = [];
-        try {
-          top = JSON.parse(topTxt);
-        } catch {
-          top = [];
-        }
+        const { text: topTxt } = extractModelText(strictTopUpRes);
+        const top: Rec[] = parseJsonArrayOfRecs(topTxt || "[]");
 
         for (const r of top) {
           const s = slugTitle(r.title);
           if (!s || finalSeen.has(s) || forbidden.has(s)) continue;
           finalSeen.add(s);
           recommendations.push({
-            title: String(r.title).trim(),
-            description: String(r.description ?? "").trim(),
-            reason: String(r.reason ?? "").trim(),
-            tags: Array.isArray(r.tags) ? r.tags.map(String) : [],
+            title: r.title.trim(),
+            description: (r.description ?? "").trim(),
+            reason: (r.reason ?? "").trim(),
+            tags: Array.isArray(r.tags) ? r.tags.map((t) => String(t)) : [],
           });
           if (recommendations.length === targetCount) break;
         }
       }
 
-      // ---------- persist ----------
       const key = buildRecKey({ mode, seed });
       const { setId } = await upsertRecommendationSet({
         userId: session.user.id as string,
         key,
         origin: "SEED",
-        inputSnapshot: body,
+        inputSnapshot: bodyUnknown,
         seedMediaType: seed.type ?? null,
         seedTmdbId: seed.external?.tmdbId ?? null,
         seedImdbId: seed.external?.imdbId ?? null,
@@ -594,28 +709,42 @@ Concise. No duplicates. No forbidden items.
     }
 
     // ---------------------------- PROFILE MODE ----------------------------
-    const titles = Array.isArray(body?.titles) ? body.titles : [];
-    if (!Array.isArray(titles) || titles.length === 0) {
+    const titles: TitleInput[] =
+      isRecord(body) && Array.isArray((body as ProfilePayload).titles)
+        ? (body as ProfilePayload).titles
+        : [];
+    if (titles.length === 0) {
       return Response.json({ error: "No titles provided" }, { status: 400 });
     }
 
-    // Build forbidden set from ALL favorites + ALL watchlist
     const forbidden = makeForbiddenSet([
-      ...(titles ?? []),
-      ...(watchList ?? []),
+      ...(titles as unknown[]),
+      ...(watchList as unknown[]),
     ]);
 
     // Keep the compact list (only for preference weighting)
-    const compact = titles.slice(0, 12).map((s: any) => ({
-      title: s?.title ?? s?.name ?? String(s),
-      rating: s?.rating ?? s?.score ?? s?.userRating ?? null,
+    const compact = titles.slice(0, 12).map((s) => ({
+      title:
+        typeof s.title === "string"
+          ? s.title
+          : typeof s.name === "string"
+          ? s.name
+          : String(s.title ?? s.name ?? ""),
+      rating:
+        typeof s.rating === "number"
+          ? s.rating
+          : typeof s.score === "number"
+          ? s.score
+          : typeof s.userRating === "number"
+          ? s.userRating
+          : null,
     }));
 
     const groundedPrompt = `
 You are a TV/film expert.
 
 User favorites (title::rating), one per line:
-${compact.map((s: any) => `${s.title}::${s.rating ?? ""}`).join("\n")}
+${compact.map((s) => `${s.title}::${s.rating ?? ""}`).join("\n")}
 
 User watchlist (titles to avoid):
 ${watchListLines}
@@ -632,7 +761,7 @@ FORMAT:
 Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
 `;
 
-    const groundedRes = await ai.models.generateContent({
+    const groundedRes: unknown = await ai.models.generateContent({
       model: process.env.GEMINI_MODEL_GROUNDED || "gemini-2.5-flash",
       contents: [{ role: "user", parts: [{ text: groundedPrompt }] }],
       config: {
@@ -646,28 +775,29 @@ Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
       },
     });
 
-    const parts = (groundedRes as any)?.candidates?.[0]?.content?.parts ?? [];
-    const raw = parts
-      .map((p: any) => (typeof p.text === "string" ? p.text : ""))
-      .join("")
-      .trim();
-    const endIdx = raw.indexOf("<<<END>>>");
-    const groundedAll = (endIdx >= 0 ? raw.slice(0, endIdx) : raw).trim();
+    const {
+      text: rawProfile,
+      finishReason,
+      blockReason,
+      partsCount,
+    } = extractModelText(groundedRes);
+    const endIdx = rawProfile.indexOf("<<<END>>>");
+    const groundedAll = (
+      endIdx >= 0 ? rawProfile.slice(0, endIdx) : rawProfile
+    ).trim();
 
     if (!groundedAll) {
-      const finish =
-        (groundedRes as any)?.candidates?.[0]?.finishReason ?? null;
-      const block = (groundedRes as any)?.promptFeedback?.blockReason ?? null;
+      // eslint-disable-next-line no-console
       console.error("GROUNDING DEBUG (profile):", {
-        finishReason: finish,
-        blockReason: block,
-        partsCount: parts.length,
+        finishReason,
+        blockReason,
+        partsCount,
       });
       return Response.json(
         {
           error: "Grounded generation failed (empty response)",
-          finishReason: finish,
-          blockReason: block,
+          finishReason,
+          blockReason,
         },
         { status: 502 }
       );
@@ -688,7 +818,7 @@ Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
       const haveSlugs = new Set(
         kept.map((l) => slugTitle(l.split("|")[0].trim()))
       );
-      const expandedForbidden = new Set([...forbidden, ...haveSlugs]);
+      const expandedForbidden = new Set<string>([...forbidden, ...haveSlugs]);
       const repairPrompt = `
 You previously proposed some titles. I need NEW ones that are not in this forbidden list.
 
@@ -705,7 +835,7 @@ FORMAT:
 Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
 `;
 
-      const repairRes = await ai.models.generateContent({
+      const repairRes: unknown = await ai.models.generateContent({
         model: process.env.GEMINI_MODEL_GROUNDED || "gemini-2.5-flash",
         contents: [{ role: "user", parts: [{ text: repairPrompt }] }],
         config: {
@@ -718,11 +848,7 @@ Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
         },
       });
 
-      const rparts = (repairRes as any)?.candidates?.[0]?.content?.parts ?? [];
-      const rraw = rparts
-        .map((p: any) => p.text ?? "")
-        .join("")
-        .trim();
+      const { text: rraw } = extractModelText(repairRes);
       const rendIdx = rraw.indexOf("<<<END>>>");
       const repairText = (rendIdx >= 0 ? rraw.slice(0, rendIdx) : rraw).trim();
 
@@ -743,6 +869,7 @@ Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
       }
     }
 
+    // Structure whatever we have
     const groundedText = kept.slice(0, targetCount).join("\n");
     let recommendations: Rec[] = await structureToJson(
       ai,
@@ -761,13 +888,13 @@ Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
 
     if (recommendations.length < targetCount) {
       const needed = targetCount - recommendations.length;
-      const strictTopUp = await ai.models.generateContent({
+      const strictTopUpRes: unknown = await ai.models.generateContent({
         model: process.env.GEMINI_MODEL_STRUCT || "gemini-2.5-flash-lite",
         contents: `
 Suggest ${needed} NEW titles as JSON ONLY that are NOT in this forbidden list.
 
 Forbidden slugs:
-${Array.from(new Set([...forbidden, ...finalSeen])).join(", ")}
+${Array.from(new Set<string>([...forbidden, ...finalSeen])).join(", ")}
 
 Each item: { "title", "description", "reason", "tags": [strings] }.
 Keep it concise. No duplicates. No forbidden items.
@@ -793,35 +920,29 @@ Keep it concise. No duplicates. No forbidden items.
         },
       });
 
-      const topTxt = (strictTopUp as any)?.text ?? "[]";
-      let top: Rec[] = [];
-      try {
-        top = JSON.parse(topTxt);
-      } catch {
-        top = [];
-      }
+      const { text: topTxt } = extractModelText(strictTopUpRes);
+      const top = parseJsonArrayOfRecs(topTxt || "[]");
 
       for (const r of top) {
         const s = slugTitle(r.title);
         if (!s || finalSeen.has(s) || forbidden.has(s)) continue;
         finalSeen.add(s);
         recommendations.push({
-          title: String(r.title).trim(),
-          description: String(r.description ?? "").trim(),
-          reason: String(r.reason ?? "").trim(),
-          tags: Array.isArray(r.tags) ? r.tags.map(String) : [],
+          title: r.title.trim(),
+          description: (r.description ?? "").trim(),
+          reason: (r.reason ?? "").trim(),
+          tags: Array.isArray(r.tags) ? r.tags.map((t) => String(t)) : [],
         });
         if (recommendations.length === targetCount) break;
       }
     }
 
-    // ---------- persist ----------
     const key = buildRecKey({ mode });
     const { setId } = await upsertRecommendationSet({
       userId: session.user.id as string,
       key,
       origin: "PROFILE",
-      inputSnapshot: body,
+      inputSnapshot: bodyUnknown,
       cacheVersion: process.env.NEXT_PUBLIC_CACHE_VERSION ?? "3",
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     });
@@ -829,6 +950,7 @@ Keep it concise. No duplicates. No forbidden items.
 
     return Response.json({ recommendations, key, setId });
   } catch (err) {
+    // eslint-disable-next-line no-console
     console.error("Recommend route error:", err);
     return Response.json(
       { error: "Failed to fetch recommendations" },

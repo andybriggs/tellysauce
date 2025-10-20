@@ -1,4 +1,3 @@
-// app/title/[kind]/[id]/page.tsx
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Backdrop from "@/components/Backdrop";
@@ -16,7 +15,6 @@ import RecommendTitles from "@/components/recommendations/RecommendTitles";
 
 export const revalidate = 3600;
 
-// ----- Local types -----
 export type MediaKind = "movie" | "tv";
 
 export interface TitleDetails {
@@ -60,7 +58,6 @@ export interface TitleSource {
   episodes?: unknown;
 }
 
-// ----- Minimal TMDB types we use -----
 type TMDBGenre = { id: number; name: string };
 type TMDBNetwork = { id: number; name: string };
 
@@ -121,7 +118,6 @@ type TMDBTV = TMDBCommon &
     networks?: TMDBNetwork[];
   };
 
-// --- Providers (DRY) ---
 type TMDBProviderItem = {
   provider_id: number;
   provider_name: string;
@@ -141,7 +137,6 @@ type TMDBProvidersResponse = {
   results?: Record<string, TMDBProviderGroup>;
 };
 
-// ----- helpers -----
 const TMDB_HEADERS = () => ({
   Accept: "application/json",
   Authorization: `Bearer ${process.env.TMDB_ACCESS_TOKEN ?? ""}`,
@@ -172,7 +167,6 @@ function extractTrailer(videos?: { results?: TMDBVideo[] }): string | null {
   return pick?.key ? `https://www.youtube.com/watch?v=${pick.key}` : null;
 }
 
-// ----- mapping -----
 function mapMovie(m: TMDBMovie): TitleDetails {
   const year = m.release_date ? Number(m.release_date.slice(0, 4)) : undefined;
   return {
@@ -235,7 +229,6 @@ function mapTV(tv: TMDBTV): TitleDetails {
   };
 }
 
-// ----- fetchers (make these file-local; do NOT export) -----
 async function fetchTitleDetails(
   kind: MediaKind,
   id: string
@@ -316,14 +309,13 @@ async function fetchTitleSources(
   );
 }
 
-// ----- Next.js page -----
 type PageParams = { kind: MediaKind; id: string };
 type PageProps = { params: Promise<PageParams> };
 
 export async function generateMetadata({
   params,
 }: PageProps): Promise<Metadata> {
-  const { id, kind } = await params; // <- await
+  const { id, kind } = await params;
   const data = await fetchTitleDetails(kind, id);
   if (!data) return { title: "Title not found" };
 
@@ -350,7 +342,7 @@ export async function generateMetadata({
 }
 
 export default async function TitlePage({ params }: PageProps) {
-  const { id, kind } = await params; // <- await
+  const { id, kind } = await params;
 
   const [data, sources] = await Promise.all([
     fetchTitleDetails(kind, id),

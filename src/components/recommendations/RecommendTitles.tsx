@@ -59,6 +59,7 @@ function buildKey(seed?: Seed) {
 
 export default function RecommendTitles({
   seed,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   cacheKey, // ignored now; we compute key deterministically to match backend
   autoRun = false,
   buttonLabel,
@@ -120,7 +121,7 @@ export default function RecommendTitles({
         const data = await res.json();
         if (!cancelled && Array.isArray(data?.items)) {
           setRecommendations(
-            data.items.map((i: any) => ({
+            data.items.map((i: Recommendation) => ({
               title: i.title,
               description: i.description ?? "",
               reason: i.reason ?? "",

@@ -1,4 +1,3 @@
-// app/api/resolve-title/route.ts
 import { NextResponse } from "next/server";
 
 type MediaKind = "movie" | "tv";
@@ -107,7 +106,7 @@ export async function GET(req: Request) {
   const q = qRaw;
   const parsedYear =
     parseYearFromString(qRaw) ?? (yearParam ? Number(yearParam) : undefined);
-  const keywords = buildKeywords(desc, tagsParam); // from your description + tags
+  const keywords = buildKeywords(desc, tagsParam);
 
   let pool: ResolveResultItem[] = [];
 

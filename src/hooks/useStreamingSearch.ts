@@ -37,7 +37,6 @@ export function useStreamingSearch() {
       );
 
       if (!res.ok) {
-        // Optional: you might want to surface error state in your reducer
         dispatch({ type: "SET_RESULTS", payload: [] });
         dispatch({ type: "SET_LOADING", payload: false });
         return;

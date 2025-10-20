@@ -1,4 +1,3 @@
-// components/Section.tsx
 "use client";
 import { ReactNode } from "react";
 import SectionHeader from "./SectionHeader";
