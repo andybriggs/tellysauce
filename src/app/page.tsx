@@ -11,9 +11,12 @@ import Watchlist from "@/components/Watchlist";
 import { useStreamingSearch } from "@/hooks/useStreamingSearch";
 import AuthButton from "@/components/AuthButton";
 import Container from "@/components/Container";
+import useIsLoggedIn from "@/hooks/useIsLoggedIn";
 
 export default function Home() {
   const { state, dispatch, fetchAutoCompleteResults } = useStreamingSearch();
+
+  const isLoggedIn = useIsLoggedIn();
 
   const { searchQuery, autoCompleteResults, isLoading } = state;
 
@@ -73,11 +76,31 @@ export default function Home() {
         </div>
       </section>
 
-      <div className="max-w-screen-lg mx-auto p-8">
-        <Watchlist />
-        <RatedTitles />
-        <RecommendTitles />
-      </div>
+      {isLoggedIn ? (
+        <div className="max-w-screen-lg mx-auto p-8">
+          <Watchlist />
+          <RatedTitles />
+          <RecommendTitles />
+        </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center min-h-[50vh] px-4">
+          <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 rounded-3xl p-[1px] shadow-2xl w-full max-w-md">
+            <div className="bg-gray-900 rounded-3xl p-8 flex flex-col items-center text-center">
+              <h1 className="text-3xl font-extrabold text-white mb-4">
+                Welcome!👋
+              </h1>
+              <p className="text-gray-300 mb-8">
+                Log in to access{" "}
+                <span className="text-indigo-400 font-semibold">
+                  AI-powered recommendations
+                </span>
+                , personalized watchlists, and all your rated shows.
+              </p>
+              <AuthButton />
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
