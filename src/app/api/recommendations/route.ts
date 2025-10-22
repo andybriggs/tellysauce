@@ -87,11 +87,51 @@ export async function GET(req: NextRequest) {
     return Response.json({ set: null, items: [] }, { status: 200 });
   }
 
-  const items = await db
-    .select()
+  // Helper to derive a year if not present in JSON
+  const extractYear = (s?: string | null) => {
+    if (!s) return null;
+    const m = s.match(/\b(19|20)\d{2}\b/);
+    return m ? Number(m[0]) : null;
+  };
+
+  // Select items and project year from raw_json ("year": number|null) -> integer
+  const rows = await db
+    .select({
+      id: recommendationItems.id,
+      setId: recommendationItems.setId,
+      rank: recommendationItems.rank,
+      title: recommendationItems.title,
+      description: recommendationItems.description,
+      reason: recommendationItems.reason,
+      tags: recommendationItems.tags,
+      suggestedMediaType: recommendationItems.suggestedMediaType,
+      suggestedTmdbId: recommendationItems.suggestedTmdbId,
+      suggestedImdbId: recommendationItems.suggestedImdbId,
+      rawJson: recommendationItems.rawJson,
+      createdAt: recommendationItems.createdAt,
+      updatedAt: recommendationItems.updatedAt,
+      // pull year out of raw_json; cast to int; returns null if absent
+      year: sql<
+        number | null
+      >`(${recommendationItems.rawJson} ->> 'year')::int`,
+    })
     .from(recommendationItems)
     .where(eq(recommendationItems.setId, setRow.id))
     .orderBy(recommendationItems.rank);
+
+  // Add a light fallback: if year is null, try to parse from title/tags/description
+  const items = rows.map((r) => {
+    const year =
+      (typeof r.year === "number" && Number.isFinite(r.year) ? r.year : null) ??
+      extractYear(r.title) ??
+      extractYear((r.tags ?? []).join(" ")) ??
+      extractYear(r.description);
+
+    return {
+      ...r,
+      year,
+    };
+  });
 
   return Response.json({ set: setRow, items }, { status: 200 });
 }

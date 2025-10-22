@@ -1,6 +1,32 @@
 import { NextResponse } from "next/server";
 import type { AutoCompleteResult } from "@/types";
 
+type TMDBBase = {
+  id: number;
+  poster_path?: string | null;
+  backdrop_path?: string | null;
+};
+
+type TMDBMovie = TMDBBase & {
+  media_type: "movie";
+  title?: string;
+  release_date?: string;
+};
+
+type TMDBTV = TMDBBase & {
+  media_type: "tv";
+  name?: string;
+  first_air_date?: string;
+};
+
+type TMDBPerson = { media_type: "person" };
+
+type TMDBMultiResult = TMDBMovie | TMDBTV | TMDBPerson;
+
+interface TMDBMultiSearchResponse {
+  results?: TMDBMultiResult[];
+}
+
 export const runtime = "nodejs";
 
 export async function GET(req: Request) {
@@ -42,33 +68,6 @@ export async function GET(req: Request) {
         { error: `TMDB error: ${upstream.status}`, details: text, results: [] },
         { status: upstream.status }
       );
-    }
-
-    /** ---- Types for TMDB multi search ---- */
-    type TMDBBase = {
-      id: number;
-      poster_path?: string | null;
-      backdrop_path?: string | null;
-    };
-
-    type TMDBMovie = TMDBBase & {
-      media_type: "movie";
-      title?: string;
-      release_date?: string;
-    };
-
-    type TMDBTV = TMDBBase & {
-      media_type: "tv";
-      name?: string;
-      first_air_date?: string;
-    };
-
-    type TMDBPerson = { media_type: "person" };
-
-    type TMDBMultiResult = TMDBMovie | TMDBTV | TMDBPerson;
-
-    interface TMDBMultiSearchResponse {
-      results?: TMDBMultiResult[];
     }
 
     const data: TMDBMultiSearchResponse = await upstream.json();

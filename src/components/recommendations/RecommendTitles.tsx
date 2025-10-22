@@ -8,6 +8,8 @@ import RecommendationSkeletonGrid from "./RecommendationSkeletonGrid";
 import RecommendationsGrid from "./RecommendationsGrid";
 import { useRatedTitles } from "@/hooks/useRatedTitles";
 
+/* ---------- Local types ---------- */
+
 type Seed = {
   title: string;
   overview?: string;
@@ -19,15 +21,54 @@ type Seed = {
 
 type IdName = { id?: number; name?: string };
 
-type Recommendation = {
+/** The shape your UI uses everywhere */
+export type Recommendation = {
   title: string;
   description: string;
   reason: string;
   tags: string[];
+  year?: number | null;
 };
 
+/** GET /api/recommendations response (only fields we read) */
+type RecommendationsGetResponse = {
+  set: unknown | null;
+  items: Array<{
+    title: string;
+    description?: string | null;
+    reason?: string | null;
+    tags?: string[] | null;
+    year?: number | null;
+  }>;
+};
+
+/** POST /api/recommend response (only fields we read) */
+type RecommendPostResponse = {
+  recommendations?: Array<{
+    title: string;
+    description?: string | null;
+    reason?: string | null;
+    tags?: unknown; // we’ll validate to string[]
+    year?: number | null;
+  }>;
+  key?: string;
+  setId?: string;
+};
+
+/* ---------- Type guards & utils ---------- */
+
 function isIdName(v: unknown): v is IdName {
-  return typeof v === "object" && v !== null;
+  if (typeof v !== "object" || v === null) return false;
+  const obj = v as Record<string, unknown>;
+  const hasName = typeof obj.name === "string";
+  const hasId = typeof obj.id === "number";
+  return hasName || hasId;
+}
+
+function toStringArray(v: unknown): string[] {
+  return Array.isArray(v)
+    ? v.filter((t): t is string => typeof t === "string")
+    : [];
 }
 
 function slugTitle(raw: string) {
@@ -57,10 +98,31 @@ function buildKey(seed?: Seed) {
   return `seed:${t}:${slugTitle(seed.title)}`;
 }
 
+// Small fallback if API forgot to include year
+function deriveYearFrom(text?: string | null): number | null {
+  if (!text) return null;
+  const m = text.match(/\b(19|20)\d{2}\b/);
+  return m ? Number(m[0]) : null;
+}
+
+// Minimal fetch helper with typing
+async function fetchJson<T>(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<T | null> {
+  const res = await fetch(input, init);
+  if (!res.ok) return null;
+  try {
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
+/* ---------- Component ---------- */
+
 export default function RecommendTitles({
   seed,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  cacheKey, // ignored now; we compute key deterministically to match backend
   autoRun = false,
   buttonLabel,
 }: {
@@ -69,6 +131,7 @@ export default function RecommendTitles({
   autoRun?: boolean;
   buttonLabel?: string;
 }) {
+  // Hooks: assume these are already typed in your project; we only use a subset.
   const { ratedTitles } = useRatedTitles();
   const { watchList } = useWatchList();
 
@@ -106,32 +169,34 @@ export default function RecommendTitles({
     [isSeedMode, ratedTitles?.length]
   );
 
-  // Read any existing persisted set on mount/seed change
+  // Load persisted recommendations (GET /api/recommendations)
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        const res = await fetch(
-          `/api/recommendations?key=${encodeURIComponent(key)}`,
-          {
-            method: "GET",
-          }
-        );
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!cancelled && Array.isArray(data?.items)) {
-          setRecommendations(
-            data.items.map((i: Recommendation) => ({
-              title: i.title,
-              description: i.description ?? "",
-              reason: i.reason ?? "",
-              tags: Array.isArray(i.tags) ? i.tags : [],
-            }))
-          );
-        }
-      } catch {
-        // ignore
-      }
+      const data = await fetchJson<RecommendationsGetResponse>(
+        `/api/recommendations?key=${encodeURIComponent(key)}`
+      );
+      if (!data || cancelled || !Array.isArray(data.items)) return;
+
+      const mapped: Recommendation[] = data.items.map((i) => {
+        const yearFromApi =
+          typeof i.year === "number" && Number.isFinite(i.year) ? i.year : null;
+        const year =
+          yearFromApi ??
+          deriveYearFrom(i.title) ??
+          deriveYearFrom((i.tags ?? []).join(" ")) ??
+          deriveYearFrom(i.description);
+
+        return {
+          title: i.title,
+          description: i.description ?? "",
+          reason: i.reason ?? "",
+          tags: toStringArray(i.tags),
+          year,
+        };
+      });
+
+      setRecommendations(mapped);
     })();
     return () => {
       cancelled = true;
@@ -149,7 +214,8 @@ export default function RecommendTitles({
               .map((w) => w.name)
               .filter(Boolean)) ||
           [];
-        const res = await fetch("/api/recommend", {
+
+        const data = await fetchJson<RecommendPostResponse>("/api/recommend", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -158,13 +224,25 @@ export default function RecommendTitles({
             watchList: watchListTitles,
           }),
         });
-        if (!res.ok) {
-          // (optionally surface error to UI)
-          return;
-        }
-        const data = await res.json();
-        const recs: Recommendation[] = Array.isArray(data?.recommendations)
-          ? data.recommendations
+        if (!data) return;
+
+        const recs: Recommendation[] = Array.isArray(data.recommendations)
+          ? data.recommendations.map((r) => {
+              const year =
+                typeof r.year === "number" && Number.isFinite(r.year)
+                  ? r.year
+                  : deriveYearFrom(r.title) ??
+                    deriveYearFrom(toStringArray(r.tags).join(" ")) ??
+                    deriveYearFrom(r.description ?? null);
+
+              return {
+                title: r.title,
+                description: r.description ?? "",
+                reason: r.reason ?? "",
+                tags: toStringArray(r.tags),
+                year,
+              };
+            })
           : [];
         setRecommendations(recs);
       } else {
@@ -173,6 +251,7 @@ export default function RecommendTitles({
             name: s.name,
             rating: s.rating,
           })) || [];
+
         const watchListTitles =
           (Array.isArray(watchList) &&
             watchList
@@ -180,7 +259,8 @@ export default function RecommendTitles({
               .map((w) => w.name)
               .filter(Boolean)) ||
           [];
-        const res = await fetch("/api/recommend", {
+
+        const data = await fetchJson<RecommendPostResponse>("/api/recommend", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -189,10 +269,25 @@ export default function RecommendTitles({
             watchList: watchListTitles,
           }),
         });
-        if (!res.ok) return;
-        const data = await res.json();
-        const recs: Recommendation[] = Array.isArray(data?.recommendations)
-          ? data.recommendations
+        if (!data) return;
+
+        const recs: Recommendation[] = Array.isArray(data.recommendations)
+          ? data.recommendations.map((r) => {
+              const year =
+                typeof r.year === "number" && Number.isFinite(r.year)
+                  ? r.year
+                  : deriveYearFrom(r.title) ??
+                    deriveYearFrom(toStringArray(r.tags).join(" ")) ??
+                    deriveYearFrom(r.description ?? null);
+
+              return {
+                title: r.title,
+                description: r.description ?? "",
+                reason: r.reason ?? "",
+                tags: toStringArray(r.tags),
+                year,
+              };
+            })
           : [];
         setRecommendations(recs);
       }
@@ -202,10 +297,10 @@ export default function RecommendTitles({
   }, [seed, ratedTitles, watchList]);
 
   useEffect(() => {
-    if (autoRun && seed && !recommendations?.length && !isLoading) {
+    if (autoRun && seed && !recommendations.length && !isLoading) {
       handleClick();
     }
-  }, [autoRun, seed, recommendations?.length, isLoading, handleClick]);
+  }, [autoRun, seed, recommendations.length, isLoading, handleClick]);
 
   if (isSeedMode && !isCurrentTitleKnown) return null;
   if (!hasTitles && !isSeedMode) return <EmptyRecommendations />;
@@ -216,7 +311,7 @@ export default function RecommendTitles({
         onClick={handleClick}
         isLoading={isLoading}
         canRun={hasTitles}
-        hasResults={recommendations?.length > 0}
+        hasResults={recommendations.length > 0}
         label={buttonLabel ?? (seed ? "Find similar titles" : undefined)}
       />
       {isLoading ? (

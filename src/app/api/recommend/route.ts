@@ -21,6 +21,7 @@ export type Rec = {
   description: string;
   reason: string;
   tags: string[];
+  year?: number | null;
 };
 
 type TitleInput = {
@@ -60,6 +61,9 @@ type ModelResponse = {
   promptFeedback?: { blockReason?: string | null };
   text?: string; // some Gemini SDK responses surface .text on structuring runs
 };
+
+// Minimal shape of a db.execute result we rely on
+type ExecResult = { rows?: Array<{ id?: string }> };
 
 /** ------------------------------------------------------------------ */
 /** One-time table bootstrap (no migrations required)                  */
@@ -136,19 +140,41 @@ function toStringSafe(v: unknown): string {
   return typeof v === "string" ? v : String(v ?? "");
 }
 
+function getOptionalYear(v: unknown): number | null | undefined {
+  if (!isRecord(v)) return undefined;
+  const y = (v as { year?: unknown }).year;
+  if (typeof y === "number" && Number.isFinite(y)) return Math.trunc(y);
+  if (y == null) return null;
+  return undefined;
+}
+
 function isRecLike(v: unknown): v is Rec {
   if (!isRecord(v)) return false;
   const t = v.title;
   const d = v.description;
   const r = v.reason;
   const g = v.tags;
+  const y = getOptionalYear(v);
+  const yearOk =
+    y === undefined ||
+    y === null ||
+    (typeof y === "number" && Number.isFinite(y));
   return (
     typeof t === "string" &&
     typeof d === "string" &&
     typeof r === "string" &&
     Array.isArray(g) &&
-    g.every((x) => typeof x === "string")
+    g.every((x) => typeof x === "string") &&
+    yearOk
   );
+}
+
+function parseYearLoose(s: string | null | undefined): number | null {
+  if (!s) return null;
+  const paren = s.match(/\((19|20)\d{2}\)/);
+  if (paren) return Number(paren[0].replace(/[()]/g, ""));
+  const any = s.match(/\b(19|20)\d{2}\b/);
+  return any ? Number(any[0]) : null;
 }
 
 function parseJsonArrayOfRecs(raw: string): Rec[] {
@@ -156,24 +182,36 @@ function parseJsonArrayOfRecs(raw: string): Rec[] {
     const parsed: unknown = JSON.parse(raw);
     if (Array.isArray(parsed)) {
       return parsed
-        .map((it) => {
-          if (isRecLike(it)) return it;
+        .map((it): Rec | null => {
+          if (isRecLike(it)) {
+            const y = getOptionalYear(it);
+            return { ...it, year: typeof y === "number" ? Math.trunc(y) : y };
+          }
           if (isRecord(it)) {
             const title = toStringSafe(it.title).trim();
             if (!title) return null;
             const description = toStringSafe(it.description ?? "").trim();
             const reason = toStringSafe(it.reason ?? "").trim();
-            const tagsRaw =
-              isRecord(it) && Array.isArray(it.tags) ? it.tags : [];
+            const tagsRaw = Array.isArray(it.tags) ? it.tags : [];
             const tags = tagsRaw.map((t) => toStringSafe(t));
-            return { title, description, reason, tags } as Rec;
+
+            // year: explicit field if valid, else parse from text/tags
+            const explicitY = getOptionalYear(it);
+            const year =
+              explicitY !== undefined
+                ? explicitY
+                : parseYearLoose(title) ??
+                  parseYearLoose(tags.join(" ")) ??
+                  null;
+
+            return { title, description, reason, tags, year };
           }
           return null;
         })
         .filter((x): x is Rec => Boolean(x));
     }
   } catch {
-    // fall through
+    /* ignore parse errors */
   }
   return [];
 }
@@ -185,7 +223,6 @@ function extractModelText(res: unknown): {
   partsCount: number;
 } {
   const mr = (isRecord(res) ? (res as ModelResponse) : undefined) ?? undefined;
-  // structuring calls sometimes expose `.text`
   if (mr?.text && typeof mr.text === "string") {
     return {
       text: mr.text,
@@ -194,7 +231,6 @@ function extractModelText(res: unknown): {
       partsCount: 0,
     };
   }
-
   const cand = mr?.candidates?.[0];
   const parts = cand?.content?.parts ?? [];
   const pieces = parts
@@ -208,18 +244,15 @@ function extractModelText(res: unknown): {
 
 function slugTitle(raw: string) {
   if (!raw) return "";
-  // remove year in parens or at end
   let s = raw.replace(/\(\s*\d{4}\s*\)/g, "").replace(/\b\d{4}\b/g, "");
-  // cut subtitles after ":" or "-" if present (keeps main name)
   s = s.split(":")[0].split(" - ")[0];
-  // normalize
   s = s
     .toLowerCase()
     .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "") // accents
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/&/g, "and")
     .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\b(the|a|an)\b/g, " ") // drop leading articles
+    .replace(/\b(the|a|an)\b/g, " ")
     .replace(/\s+/g, " ")
     .trim();
   return s;
@@ -241,7 +274,6 @@ function makeForbiddenSet(input: unknown[]): Set<string> {
     }
     const slug = slugTitle(toStringSafe(t));
     if (slug) set.add(slug);
-    // also add a couple of relaxed variants to be safer
     if (slug.includes("season"))
       set.add(slug.replace(/\bseason\s+\d+\b/, "").trim());
   }
@@ -277,7 +309,7 @@ function brief(str?: string | null, max = 240) {
 }
 
 /** ------------------------------------------------------------------ */
-/** Model → JSON structuring                                            */
+/** Model → JSON structuring (captures year)                            */
 /** ------------------------------------------------------------------ */
 
 async function structureToJson(
@@ -292,7 +324,9 @@ Turn the following lines into STRICT JSON.
 
 Rules:
 - Output ONLY JSON (no prose, no code fences).
-- Each item: { "title", "description", "reason", "tags": [strings] }.
+- Each item: { "title", "description", "reason", "tags": [strings], "year": number|null }.
+- If a 4-digit year appears in the line (e.g., "Title (2024)" or as a tag), set "year" to that integer.
+- If unknown, set "year": null. Do not guess.
 - Keep descriptions concise; normalize tags to short labels (genres/language/year).
 - Return exactly ${Math.min(
       targetCount,
@@ -313,8 +347,9 @@ ${groundedText}
             description: { type: Type.STRING },
             reason: { type: Type.STRING },
             tags: { type: Type.ARRAY, items: { type: Type.STRING } },
+            year: { type: Type.INTEGER, nullable: true },
           },
-          required: ["title", "description", "reason", "tags"],
+          required: ["title", "description", "reason", "tags", "year"],
           additionalProperties: false,
         },
       },
@@ -363,7 +398,7 @@ async function upsertRecommendationSet(params: {
   const now = new Date();
   const id = randomUUID();
 
-  const result = await db.execute(sql`
+  const result = (await db.execute(sql`
     INSERT INTO recommendation_sets (
       id, user_id, key, user_key, origin, source, input_snapshot,
       seed_media_type, seed_tmdb_id, seed_imdb_id, seed_title,
@@ -387,10 +422,9 @@ async function upsertRecommendationSet(params: {
       expires_at = EXCLUDED.expires_at,
       is_stale = false
     RETURNING id;
-  `);
+  `)) as unknown as ExecResult;
 
-  const rows =
-    (result as unknown as { rows?: Array<{ id?: string }> }).rows ?? [];
+  const rows = result.rows ?? [];
   const setId: string = rows[0]?.id ?? id;
   return { setId, userKey };
 }
@@ -398,16 +432,12 @@ async function upsertRecommendationSet(params: {
 async function replaceRecommendationItems(setId: string, items: Rec[]) {
   const now = new Date();
 
-  // Remove any previous items for this set
   await db.execute(
     sql`DELETE FROM recommendation_items WHERE set_id = ${setId};`
   );
 
-  // Insert new items
   for (let i = 0; i < items.length; i++) {
     const r = items[i];
-
-    // Safely pass tags as JSON, convert to text[] in SQL
     const tagsJson = JSON.stringify(Array.isArray(r.tags) ? r.tags : []);
 
     await db.execute(sql`
@@ -415,19 +445,19 @@ async function replaceRecommendationItems(setId: string, items: Rec[]) {
         id, set_id, rank, title, description, reason, tags, raw_json, created_at, updated_at
       )
       VALUES (
-        ${randomUUID()},         -- id
-        ${setId},                -- set_id
-        ${i},                    -- rank
-        ${r.title},              -- title
-        ${r.description ?? null},-- description
-        ${r.reason ?? null},     -- reason
+        ${randomUUID()},
+        ${setId},
+        ${i},
+        ${r.title},
+        ${r.description ?? null},
+        ${r.reason ?? null},
         (
           SELECT COALESCE(array_agg(value::text), ARRAY[]::text[])
           FROM jsonb_array_elements_text(${tagsJson}::jsonb)
-        ),                       -- tags (text[])
-        ${JSON.stringify(r)}::jsonb,  -- raw_json
-        ${now},                  -- created_at
-        ${now}                   -- updated_at
+        ),
+        ${JSON.stringify(r)}::jsonb,
+        ${now},
+        ${now}
       );
     `);
   }
@@ -438,7 +468,7 @@ async function replaceRecommendationItems(setId: string, items: Rec[]) {
 /** ------------------------------------------------------------------ */
 
 export async function POST(req: NextRequest) {
-  await ensureTablesOnce; // make sure tables exist
+  await ensureTablesOnce;
 
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
@@ -456,11 +486,9 @@ export async function POST(req: NextRequest) {
     const bodyUnknown: unknown = await req.json();
     const body = bodyUnknown as RecommendBody;
 
-    // Two modes:
     const mode: "profile" | "seed" =
       isRecord(body) && body.mode === "seed" ? "seed" : "profile";
 
-    // Target count (defaults: 3 for seed, 8 for profile). Clamp 1..12.
     const desired =
       isRecord(body) && typeof body.count === "number" && body.count > 0
         ? Math.min(12, Math.max(1, Math.floor(body.count)))
@@ -491,8 +519,7 @@ export async function POST(req: NextRequest) {
         return Response.json({ error: "Seed title missing" }, { status: 400 });
       }
 
-      // Build forbidden set from watchlist + the seed itself
-      const forbidden = makeForbiddenSet([...(watchList as unknown[])]);
+      const forbidden = makeForbiddenSet([...(watchList as unknown[])]); // ok: guard inside
       forbidden.add(slugTitle(seed.title));
 
       const seedPrompt = `
@@ -509,14 +536,16 @@ User watchlist (titles to avoid):
 ${watchListLines}
 
 Task:
-- Propose EXACTLY ${targetCount} *new* titles strongly related to the SEED by theme, tone, audience, craft, or creators.
+- Propose EXACTLY ${targetCount} titles strongly related to the SEED by theme, tone, audience, craft, or creators.
+- Prefer recent titles (past ~5 years) but older titles are allowed if a new title isn't a strong fit.
 - Avoid the same cinematic universe direct duplicates and avoid the SEED itself.
-- Consider recency and critical reception (use web search).
+- Use web search to check basic details when helpful.
 - Output ONE line per item, NO preamble/numbering/URLs.
+- If you know it, include the release year in parentheses right after the title (e.g., "Dune (2021)").
 - END output with: <<<END>>>
 
 FORMAT:
-Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
+Title (optional YYYY) | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
 `;
 
       const groundedRes: unknown = await ai.models.generateContent({
@@ -576,17 +605,21 @@ Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
         const expandedForbidden = new Set<string>([...forbidden, ...haveSlugs]);
 
         const repairPrompt = `
-We need ${targetCount - kept.length} NEW titles similar to "${seed.title}".
+We need ${targetCount - kept.length} additional titles similar to "${
+          seed.title
+        }".
 Forbidden slugs (normalized):
 ${Array.from(expandedForbidden).join(", ")}
 
 Rules:
+- Prefer recent titles, but older ones allowed if they fit best.
 - No duplicates (also not the seed).
 - Output ONE line per item, same format.
+- Include year in parentheses if you know it.
 - END with <<<END>>>
 
 FORMAT:
-Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
+Title (optional YYYY) | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
 `;
         const repairRes: unknown = await ai.models.generateContent({
           model: process.env.GEMINI_MODEL_GROUNDED || "gemini-2.5-flash",
@@ -645,12 +678,14 @@ Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
         const strictTopUpRes: unknown = await ai.models.generateContent({
           model: process.env.GEMINI_MODEL_STRUCT || "gemini-2.5-flash-lite",
           contents: `
-Suggest ${needed} NEW titles as JSON ONLY, similar to "${seed.title}".
+Suggest ${needed} titles as JSON ONLY, similar to "${seed.title}".
+Prefer recent titles, but older ones are allowed if more relevant.
 Forbidden slugs:
-${Array.from(new Set<string>([...forbidden, ...finalSeen])).join(", ")}
+${Array.from(new Set<string>([...finalSeen, ...forbidden])).join(", ")}
 
-Each item: { "title", "description", "reason", "tags": [strings] }.
-Concise. No duplicates. No forbidden items.
+Each item: { "title", "description", "reason", "tags": [strings], "year": number|null }.
+- If year is known, set it; otherwise null. Do not guess.
+- Concise. No duplicates. No forbidden items.
 `,
           config: {
             responseMimeType: "application/json",
@@ -663,8 +698,9 @@ Concise. No duplicates. No forbidden items.
                   description: { type: Type.STRING },
                   reason: { type: Type.STRING },
                   tags: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  year: { type: Type.INTEGER, nullable: true },
                 },
-                required: ["title", "description", "reason", "tags"],
+                required: ["title", "description", "reason", "tags", "year"],
                 additionalProperties: false,
               },
             },
@@ -685,6 +721,7 @@ Concise. No duplicates. No forbidden items.
             description: (r.description ?? "").trim(),
             reason: (r.reason ?? "").trim(),
             tags: Array.isArray(r.tags) ? r.tags.map((t) => String(t)) : [],
+            year: typeof r.year === "number" ? Math.trunc(r.year) : null,
           });
           if (recommendations.length === targetCount) break;
         }
@@ -722,7 +759,6 @@ Concise. No duplicates. No forbidden items.
       ...(watchList as unknown[]),
     ]);
 
-    // Keep the compact list (only for preference weighting)
     const compact = titles.slice(0, 12).map((s) => ({
       title:
         typeof s.title === "string"
@@ -750,15 +786,16 @@ User watchlist (titles to avoid):
 ${watchListLines}
 
 Task:
-- Propose EXACTLY ${targetCount} new titles.
-- DO NOT include titles that are already in the users favourite titles list OR watchlist.
-- Weight toward higher-rated favorites.
-- Use web search to check for latest titles and reviews.
+- Propose EXACTLY ${targetCount} titles that the user is likely to enjoy.
+- Prefer recent titles (past ~5 years), but older titles are allowed if they are a better fit.
+- DO NOT include titles that are already in the favorites list OR the watchlist.
+- Use web search to check basic details when helpful.
 - Output ONE line per item, NO preamble/numbering/URLs.
+- If you know it, include the release year in parentheses right after the title (e.g., "Past Lives (2023)").
 - END output with: <<<END>>>
 
 FORMAT:
-Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
+Title (optional YYYY) | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
 `;
 
     const groundedRes: unknown = await ai.models.generateContent({
@@ -803,13 +840,11 @@ Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
       );
     }
 
-    // Filter lines against forbidden + de-dupe
     const filteredLines = uniqueAllowedLines(
       parseLines(groundedAll),
       forbidden
     );
 
-    // If not enough lines survive, attempt up to 3 quick “repair” passes
     const kept = filteredLines.slice(0, targetCount);
     let attempts = 0;
 
@@ -820,19 +855,22 @@ Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
       );
       const expandedForbidden = new Set<string>([...forbidden, ...haveSlugs]);
       const repairPrompt = `
-You previously proposed some titles. I need NEW ones that are not in this forbidden list.
+We need ${
+        targetCount - kept.length
+      } additional titles, not in the forbidden list.
 
 Forbidden slugs (normalized):
 ${Array.from(expandedForbidden).join(", ")}
 
-Task:
-- Propose ${targetCount - kept.length} ADDITIONAL titles only.
-- No duplicates of each other or of prior suggestions.
+Rules:
+- Prefer recent titles, but older ones are allowed if they fit best.
+- No duplicates of each other or prior suggestions.
 - Output ONE line per item, same format as before.
+- Include year in parentheses if you know it.
 - END with <<<END>>>
 
 FORMAT:
-Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
+Title (optional YYYY) | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
 `;
 
       const repairRes: unknown = await ai.models.generateContent({
@@ -869,7 +907,6 @@ Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
       }
     }
 
-    // Structure whatever we have
     const groundedText = kept.slice(0, targetCount).join("\n");
     let recommendations: Rec[] = await structureToJson(
       ai,
@@ -877,7 +914,6 @@ Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
       targetCount
     );
 
-    // Final safety net: remove collisions, de-dupe, and top up via another repair if needed
     const finalSeen = new Set<string>();
     recommendations = recommendations.filter((r) => {
       const s = slugTitle(r.title);
@@ -891,13 +927,15 @@ Title | desc (<=10 words) | reason (<=5 words) | tag1, tag2, tag3, tag4
       const strictTopUpRes: unknown = await ai.models.generateContent({
         model: process.env.GEMINI_MODEL_STRUCT || "gemini-2.5-flash-lite",
         contents: `
-Suggest ${needed} NEW titles as JSON ONLY that are NOT in this forbidden list.
+Suggest ${needed} titles as JSON ONLY that are NOT in this forbidden list.
+Prefer recent titles, but older ones are allowed if most relevant.
 
 Forbidden slugs:
 ${Array.from(new Set<string>([...forbidden, ...finalSeen])).join(", ")}
 
-Each item: { "title", "description", "reason", "tags": [strings] }.
-Keep it concise. No duplicates. No forbidden items.
+Each item: { "title", "description", "reason", "tags": [strings], "year": number|null }.
+- If year is known, set it; otherwise null. Do not guess.
+- Concise. No duplicates. No forbidden items.
 `,
         config: {
           responseMimeType: "application/json",
@@ -910,8 +948,9 @@ Keep it concise. No duplicates. No forbidden items.
                 description: { type: Type.STRING },
                 reason: { type: Type.STRING },
                 tags: { type: Type.ARRAY, items: { type: Type.STRING } },
+                year: { type: Type.INTEGER, nullable: true },
               },
-              required: ["title", "description", "reason", "tags"],
+              required: ["title", "description", "reason", "tags", "year"],
               additionalProperties: false,
             },
           },
@@ -932,6 +971,7 @@ Keep it concise. No duplicates. No forbidden items.
           description: (r.description ?? "").trim(),
           reason: (r.reason ?? "").trim(),
           tags: Array.isArray(r.tags) ? r.tags.map((t) => String(t)) : [],
+          year: typeof r.year === "number" ? Math.trunc(r.year) : null,
         });
         if (recommendations.length === targetCount) break;
       }
