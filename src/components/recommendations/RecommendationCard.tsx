@@ -28,42 +28,31 @@ function Card({ rec }: Props) {
   const tags = Array.from(new Set(rec.tags ?? [])).slice(0, 4);
 
   return (
-    <li className="group relative w-full text-left">
+    <li className="relative text-left">
       <Link
         href={href}
         prefetch={false}
         aria-label={`Open ${rec.title}${year ? ` (${year})` : ""}`}
-        className="block overflow-hidden rounded-3xl ring-1 ring-white/10 bg-white/5 backdrop-blur-md
-                   transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/20 hover:ring-white/20
-                   focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60"
+        className="block h-[460px] overflow-hidden rounded-3xl ring-1 ring-white/10 bg-white/5 backdrop-blur-md
+           transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/20 hover:ring-white/20
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60
+           flex flex-col"
       >
-        {/* Glow */}
         <div className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity">
           <div className="absolute -top-20 -right-20 h-56 w-56 rounded-full bg-gradient-to-br from-cyan-400/20 to-fuchsia-500/20 blur-2xl" />
         </div>
 
-        {/* Corner badge */}
         <span className="absolute right-4 top-4 z-10 inline-flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white ring-1 ring-white/15">
           <SparklesIcon className="h-4 w-4" />
           AI pick
         </span>
 
-        <div className="p-6 md:p-8">
-          {/* Title row */}
+        <div className="p-6 md:p-8 flex flex-col h-full">
           <div
             className="
-              flex flex-wrap items-start gap-2 md:gap-3
-              pr-24 md:pr-32       /* real gutter so we never sit under the badge */
-              min-w-0              /* allow text to wrap instead of overflow */
-            "
+              flex flex-wrap items-start gap-2 md:gap-3 pt-4 w-48"
           >
-            <h3
-              className="
-                text-white text-2xl md:text-[28px] font-semibold tracking-tight leading-snug
-                break-words hyphens-auto
-                /* no line-clamp -> no truncation */
-              "
-            >
+            <h3 className="text-white text-2xl md:text-[28px] font-semibold tracking-tight leading-snug">
               {rec.title}
             </h3>
 
@@ -81,7 +70,6 @@ function Card({ rec }: Props) {
             )}
           </div>
 
-          {/* Tags: higher contrast, subtle ring + inner highlight */}
           {tags.length > 0 && (
             <ul className="mt-3 flex flex-wrap gap-2">
               {tags.map((t) => (
@@ -98,20 +86,22 @@ function Card({ rec }: Props) {
           )}
 
           {rec.description && (
-            <p className="mt-4 text-white/90 text-[15px] md:text-[16px] leading-relaxed">
+            <p className="mt-4 text-white/90 text-[15px] md:text-[16px] leading-relaxed line-clamp-3">
               {rec.description}
             </p>
           )}
 
           {rec.reason && (
-            <div className="mt-5 rounded-2xl border border-white/12 bg-white/[0.045] p-4">
-              <div className="mb-1 flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-white/65">
-                <span className="inline-block h-[1px] w-5 bg-white/25" />
-                Why you’ll like it
+            <div className="mt-auto pt-5">
+              <div className="rounded-2xl border border-white/12 bg-white/[0.045] p-4">
+                <div className="mb-1 flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-white/65">
+                  <span className="inline-block h-[1px] w-5 bg-white/25" />
+                  Why you’ll like it
+                </div>
+                <p className="text-white/80 text-[14px] md:text-[15px] leading-relaxed line-clamp-4">
+                  {rec.reason}
+                </p>
               </div>
-              <p className="text-white/80 text-[14px] md:text-[15px] leading-relaxed">
-                {rec.reason}
-              </p>
             </div>
           )}
         </div>
