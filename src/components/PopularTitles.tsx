@@ -5,35 +5,38 @@ import Section from "./Section";
 import EmptyStateCard from "./EmptyStateCard";
 import TitleList from "./TitleList";
 import TitleCard from "./TitleCard";
-import { useRatedTitles } from "@/hooks/useRatedTitles";
+import { useDiscoverTitles } from "@/hooks/useDiscoverTitles";
 
-export default function RatedTitles({
+export default function PopularTitles({
   layout = "carousel",
+  type = "movie",
 }: {
   layout?: Layout;
+  type?: 'movie' | 'tv';
 }) {
-  const { ratedTitles, rateTitle } = useRatedTitles();
+  const { titles } = useDiscoverTitles(type);
   const isGrid = layout === "grid";
+
+  const title = type === "movie" ? '🔥 Popular Movies' : '🔥 Popular TV Shows';
 
   return (
     <Section
-      title="⭐ My Rated Titles"
-      isEmpty={!ratedTitles?.length}
+      title={title}
+      isEmpty={!titles.length}
       showViewAll={!isGrid}
-      viewAllHref="/all-rated-titles"
       emptyContent={
         <EmptyStateCard>
           <p className="text-center text-sm font-medium">
-            Search and rate some titles
+            Loading...
           </p>
         </EmptyStateCard>
       }
     >
       <TitleList
-        items={ratedTitles}
+        items={titles}
         layout={layout}
-        getKey={(s) => s.id}
-        renderItem={(s) => <TitleCard title={s} rateTitle={rateTitle} />}
+        getKey={(t) => t.id}
+        renderItem={(t) => <TitleCard title={t} />}
       />
     </Section>
   );

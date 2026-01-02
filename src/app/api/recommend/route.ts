@@ -65,10 +65,6 @@ type ModelResponse = {
 // Minimal shape of a db.execute result we rely on
 type ExecResult = { rows?: Array<{ id?: string }> };
 
-/** ------------------------------------------------------------------ */
-/** One-time table bootstrap (no migrations required)                  */
-/** ------------------------------------------------------------------ */
-
 const ensureTablesOnce = (async () => {
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS recommendation_sets (
@@ -538,8 +534,8 @@ ${watchListLines}
 Task:
 - Propose EXACTLY ${targetCount} titles strongly related to the SEED by theme, tone, audience, craft, or creators.
 - Prefer recent titles (past ~5 years) but older titles are allowed if a new title isn't a strong fit.
-- Avoid the same cinematic universe direct duplicates and avoid the SEED itself.
-- Use web search to check basic details when helpful.
+- Avoid direct duplicates and avoid the SEED itself.
+- Use web search check for the latest titles and reviews.
 - Output ONE line per item, NO preamble/numbering/URLs.
 - If you know it, include the release year in parentheses right after the title (e.g., "Dune (2021)").
 - END output with: <<<END>>>
@@ -789,7 +785,7 @@ Task:
 - Propose EXACTLY ${targetCount} titles that the user is likely to enjoy.
 - Prefer recent titles (past ~5 years), but older titles are allowed if they are a better fit.
 - DO NOT include titles that are already in the favorites list OR the watchlist.
-- Use web search to check basic details when helpful.
+- Use web search check for the latest titles and reviews.
 - Output ONE line per item, NO preamble/numbering/URLs.
 - If you know it, include the release year in parentheses right after the title (e.g., "Past Lives (2023)").
 - END output with: <<<END>>>
