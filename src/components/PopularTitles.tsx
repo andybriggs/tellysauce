@@ -12,12 +12,13 @@ export default function PopularTitles({
   type = "movie",
 }: {
   layout?: Layout;
-  type?: 'movie' | 'tv';
+  type?: "movie" | "tv";
 }) {
   const { titles } = useDiscoverTitles(type);
   const isGrid = layout === "grid";
 
-  const title = type === "movie" ? '🔥 Popular Movies' : '🔥 Popular TV Shows';
+  const title =
+    type === "movie" ? "🔥 Movies people love" : "🔥 TV Shows people love";
 
   return (
     <Section
@@ -26,9 +27,7 @@ export default function PopularTitles({
       showViewAll={!isGrid}
       emptyContent={
         <EmptyStateCard>
-          <p className="text-center text-sm font-medium">
-            Loading...
-          </p>
+          <p className="text-center text-sm font-medium">Loading...</p>
         </EmptyStateCard>
       }
     >
