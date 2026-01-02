@@ -20,7 +20,7 @@
     "drizzle-orm": "^0.44.5",
     "heroicons": "^2.2.0",
     "lodash": "^4.17.21",
-    "next": "15.1.6",
+    "next": "15.1.11",
     "next-auth": "^4.24.11",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
