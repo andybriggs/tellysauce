@@ -119,8 +119,6 @@ async function fetchJson<T>(
   }
 }
 
-/* ---------- Component ---------- */
-
 export default function RecommendTitles({
   seed,
   autoRun = false,

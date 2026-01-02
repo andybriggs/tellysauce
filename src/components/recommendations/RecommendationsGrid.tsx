@@ -9,10 +9,10 @@ type Props = {
 
 export default function RecommendationsGrid({ items }: Props) {
   return (
-    <ul className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <ul className="flex items-stretch gap-4 overflow-auto py-4">
       {items.map((rec) => (
         <RecommendationCard
-          key={rec.title} // Prefer a stable id if one exists
+          key={rec.title}
           rec={rec}
         />
       ))}

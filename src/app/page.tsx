@@ -79,7 +79,7 @@ export default function Home() {
 
       {!isLoggedIn && (
         <div className="flex flex-col items-center px-4 mt-10">
-          <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 rounded-3xl p-[1px] shadow-2xl w-full max-w-screen-lg">
+          <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 rounded-3xl p-[1px] shadow-2xl w-full max-w-screen-xl">
             <div className="bg-gray-900 rounded-3xl p-8 flex flex-col items-center text-center">
               <h1 className="text-3xl font-extrabold text-white mb-4">
                 Welcome!👋
@@ -96,7 +96,7 @@ export default function Home() {
           </div>
         </div>
       )}
-      <div className="max-w-screen-lg mx-auto p-8">
+      <div className="max-w-screen-xl mx-auto p-8">
         <PopularTitles />
         <PopularTitles type="tv" />
         {isLoggedIn && (
