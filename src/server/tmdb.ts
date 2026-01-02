@@ -1,4 +1,4 @@
-const TMDB_BASE = "https://api.themoviedb.org/3";
+export const TMDB_BASE = "https://api.themoviedb.org/3";
 
 type MediaType = "tv" | "movie";
 export type TMDBTitle = {

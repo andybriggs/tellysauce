@@ -17,7 +17,7 @@ export default function Watchlist({
 
   return (
     <Section
-      title="My Watchlist"
+      title="🍿 My Watchlist"
       isEmpty={!watchList.length}
       showViewAll={!isGrid}
       viewAllHref="/watchlist"
