@@ -20,7 +20,7 @@ export async function GET(req: Request) {
     .slice(0, 10);
 
     // TODO: integrate non en film recommendations
-    const url = `${TMDB_BASE}/discover/${type}?primary_release_date.gte=${sinceYear}&sort_by=revenue.desc&with_original_language=en`;
+    const url = `${TMDB_BASE}/discover/${type}?primary_release_date.gte=${sinceYear}&first_air_date.gte=${sinceYear}&sort_by=revenue.desc&with_original_language=en`;
 
     const res = await fetch(url, {
       headers: {
