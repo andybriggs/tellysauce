@@ -9,6 +9,7 @@ export default function Section({
   showViewAll,
   isEmpty,
   emptyContent,
+  headerContentAfter,
 }: {
   title: string;
   children: ReactNode;
@@ -16,10 +17,11 @@ export default function Section({
   showViewAll?: boolean;
   isEmpty: boolean;
   emptyContent: ReactNode;
+  headerContentAfter?: ReactNode;
 }) {
   if (isEmpty) {
     return (
-      <div className="mb-4">
+      <div className="mb-8">
         <h2 className="text-2xl text-white font-bold leading-normal mb-2">
           {title}
         </h2>
@@ -34,6 +36,7 @@ export default function Section({
         title={title}
         viewAllHref={viewAllHref}
         showViewAll={showViewAll}
+        contentAfter={headerContentAfter}
       />
       {children}
     </div>

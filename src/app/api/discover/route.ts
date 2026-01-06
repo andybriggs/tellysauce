@@ -14,18 +14,29 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type");
+    const timeframe = searchParams.get("timeframe"); // "recent" | "all"
 
-    const sinceYear = new Date(new Date().setFullYear(new Date().getFullYear() - 1))
-    .toISOString()
-    .slice(0, 10);
+    if (type !== "movie" && type !== "tv") {
+      return NextResponse.json({ error: "Invalid type" }, { status: 400 });
+    }
 
-    // TODO: integrate non en film recommendations
-    const url = `${TMDB_BASE}/discover/${type}?primary_release_date.gte=${sinceYear}&first_air_date.gte=${sinceYear}&sort_by=revenue.desc&with_original_language=en`;
+    // Recent: "popular" (time-weighted)
+    // All: "top_rated" (brings older titles in)
+    const path =
+      timeframe === "all" ? `/${type}/top_rated` : `/${type}/popular`;
+
+    const params = new URLSearchParams({
+      language: "en-GB", // or "en-US"
+      // region: "GB",   // optional; region behavior is documented by TMDB
+      // page: "1",
+    });
+
+    const url = `${TMDB_BASE}${path}?${params.toString()}`;
 
     const res = await fetch(url, {
       headers: {
         Accept: "application/json",
-        Authorization: `Bearer ${process.env.TMDB_ACCESS_TOKEN}`
+        Authorization: `Bearer ${process.env.TMDB_ACCESS_TOKEN}`,
       },
       next: { revalidate: 60 * 30 },
     });
@@ -43,19 +54,18 @@ export async function GET(req: Request) {
     const titles: Title[] = (data.results ?? []).map((t: TmdbResult) => ({
       id: t.id,
       type,
-      name: t.title ?? t.name,
+      name: t.title ?? t.name ?? "",
       description: t.overview ?? "",
-      poster: t.poster_path ? `https://image.tmdb.org/t/p/w500${t.poster_path}` : null,
+      poster: t.poster_path
+        ? `https://image.tmdb.org/t/p/w500${t.poster_path}`
+        : null,
     }));
 
-    return NextResponse.json({
-      titles,
-    });
+    return NextResponse.json({ titles });
   } catch (err: unknown) {
-    const message =
-    err instanceof Error ? err.message : String(err);
+    const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
-      { error: "Server error", details: message},
+      { error: "Server error", details: message },
       { status: 500 }
     );
   }
