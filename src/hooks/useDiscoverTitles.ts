@@ -12,15 +12,23 @@ const fetcher = (url: string) =>
 type DiscoverTitlesResponse = {
   titles: Title[];
   isLoading: boolean;
-  error: string | null
+  error: string | null;
 };
 
-export function useDiscoverTitles(type?: "movie" | "tv") {
+export function useDiscoverTitles(
+  type?: "movie" | "tv",
+  options?: { timeframe?: string }
+) {
+  let key = `/api/discover?type=${type ?? "movie"}`;
 
-  const key = `/api/discover?type=${type ?? 'movie'}`;
+  if (options?.timeframe) {
+    key += `&timeframe=${options.timeframe}`;
+  }
 
-  const { data, isLoading, error } =
-    useSWR<DiscoverTitlesResponse>(key, fetcher);
+  const { data, isLoading, error } = useSWR<DiscoverTitlesResponse>(
+    key,
+    fetcher
+  );
 
   return {
     titles: data?.titles ?? [],

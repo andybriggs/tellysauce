@@ -11,7 +11,6 @@ export interface TitleListProps<T> {
   getKey: (item: T) => string | number;
 }
 
-// Note the `<T,>` generic on the arrow function to avoid JSX parsing issues.
 const TitleList = <T,>({
   items,
   layout = "carousel",
