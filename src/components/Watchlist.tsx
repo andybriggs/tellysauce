@@ -32,7 +32,6 @@ export default function Watchlist({
       <TitleList
         items={watchList}
         layout={layout}
-        getKey={(t) => t.id}
         renderItem={(t) => <TitleCard title={t} />}
       />
     </Section>

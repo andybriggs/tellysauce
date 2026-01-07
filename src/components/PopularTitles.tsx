@@ -4,7 +4,6 @@ import { Layout } from "./TitleList";
 import Section from "./Section";
 import EmptyStateCard from "./EmptyStateCard";
 import TitleList from "./TitleList";
-import TitleCard from "./TitleCard";
 import { useDiscoverTitles } from "@/hooks/useDiscoverTitles";
 import { useState } from "react";
 import { PillTabs } from "./PillTabs";
@@ -46,12 +45,7 @@ export default function PopularTitles({
       }
       headerContentAfter={pillTabs}
     >
-      <TitleList
-        items={titles}
-        layout={layout}
-        getKey={(t) => t.id}
-        renderItem={(t) => <TitleCard title={t} />}
-      />
+      <TitleList items={titles} layout={layout} />
     </Section>
   );
 }
