@@ -15,7 +15,7 @@ export default function SectionHeader({
   contentAfter?: ReactNode;
 }) {
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-4">
+    <div className="flex flex-wrap items-center gap-4">
       {/* Left block */}
       <div className="flex flex-wrap items-center gap-4">
         <h2 className="text-2xl font-bold leading-normal text-white">
