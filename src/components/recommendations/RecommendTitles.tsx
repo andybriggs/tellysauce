@@ -5,7 +5,7 @@ import { useWatchList } from "@/hooks/useWatchList";
 import EmptyRecommendations from "./EmptyRecommendations";
 import RecommendationsHeader from "./RecommendationsHeader";
 import RecommendationSkeletonGrid from "./RecommendationSkeletonGrid";
-import RecommendationsGrid from "./RecommendationsGrid";
+import RecommendationsList from "./RecommendationsList";
 import { useRatedTitles } from "@/hooks/useRatedTitles";
 
 /* ---------- Local types ---------- */
@@ -315,7 +315,7 @@ export default function RecommendTitles({
       {isLoading ? (
         <RecommendationSkeletonGrid count={6} />
       ) : (
-        <RecommendationsGrid items={recommendations} />
+        <RecommendationsList items={recommendations} />
       )}
     </section>
   );
