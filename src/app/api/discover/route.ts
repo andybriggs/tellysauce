@@ -55,15 +55,15 @@ export async function GET(req: Request) {
       }
     }
 
-    // Recent: "popular" (time-weighted)
-    // All: "top_rated" (brings older titles in)
-    const path =
-      timeframe === "all" ? `/${type}/top_rated` : `/${type}/popular`;
+    // Use /discover/* so we can filter by original language.
+    // Recent: sort by popularity; All: sort by vote average (with min vote guard).
+    const path = `/discover/${type}`;
 
     const params = new URLSearchParams({
-      language: "en-GB", // or "en-US"
-      // region: "GB",   // optional; region behavior is documented by TMDB
-      // page: "1",
+      language: "en-GB",
+      with_original_language: "en",
+      sort_by: timeframe === "all" ? "vote_average.desc" : "popularity.desc",
+      ...(timeframe === "all" ? { "vote_count.gte": "500" } : {}),
     });
 
     const url = `${TMDB_BASE}${path}?${params.toString()}`;
