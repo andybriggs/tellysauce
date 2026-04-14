@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import type { Title } from "@/types";
 import { TMDB_BASE } from "@/server/tmdb";
+import { db } from "@/db";
+import { sql } from "drizzle-orm";
 
 type TmdbResult = {
   id: number;
@@ -18,6 +20,39 @@ export async function GET(req: Request) {
 
     if (type !== "movie" && type !== "tv") {
       return NextResponse.json({ error: "Invalid type" }, { status: 400 });
+    }
+
+    const source = searchParams.get("source");
+
+    if (source === "ai") {
+      try {
+        const rows = await db.execute(sql`
+          SELECT tmdb_id, title, poster, year, description, rank
+          FROM ai_popular_titles
+          WHERE media_type = ${type}
+            AND fetched_date = (
+              SELECT MAX(fetched_date) FROM ai_popular_titles WHERE media_type = ${type}
+            )
+          ORDER BY rank ASC
+          LIMIT 10
+        `);
+
+        const titles: Title[] = (rows.rows ?? []).map((r) => ({
+          id: r.tmdb_id as number,
+          type,
+          name: r.title as string,
+          description: (r.description as string | null) ?? "",
+          poster: r.poster as string | null,
+          year: r.year as number | undefined,
+          rating: 0,
+        }));
+
+        return NextResponse.json({ titles });
+      } catch (err: unknown) {
+        // Table may not exist yet (migration pending) — return empty gracefully
+        console.error("[discover] AI source query failed:", err instanceof Error ? err.message : err);
+        return NextResponse.json({ titles: [] });
+      }
     }
 
     // Recent: "popular" (time-weighted)

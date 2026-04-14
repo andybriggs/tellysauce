@@ -11,18 +11,29 @@ import { PillTabs } from "./PillTabs";
 export default function PopularTitles({
   layout = "carousel",
   type = "movie",
+  source,
 }: {
   layout?: Layout;
   type?: "movie" | "tv";
+  source?: "ai";
 }) {
   const [timeframe, setTimeframe] = useState<string>("recent");
-  const { titles } = useDiscoverTitles(type, { timeframe });
+  const isAi = source === "ai";
+  const { titles } = useDiscoverTitles(type, {
+    timeframe: isAi ? undefined : timeframe,
+    source,
+  });
   const isGrid = layout === "grid";
 
-  const title =
-    type === "movie" ? "🔥 Movies people love" : "🔥 TV Shows people love";
+  const title = isAi
+    ? type === "movie"
+      ? "✨ AI picks: movies"
+      : "✨ AI picks: TV shows"
+    : type === "movie"
+    ? "🔥 Movies people love"
+    : "🔥 TV Shows people love";
 
-  const pillTabs = (
+  const pillTabs = !isAi ? (
     <PillTabs<string>
       value={timeframe}
       onChange={setTimeframe}
@@ -31,16 +42,18 @@ export default function PopularTitles({
         { value: "all", label: "All time" },
       ]}
     />
-  );
+  ) : null;
 
   return (
     <Section
       title={title}
       isEmpty={!titles.length}
-      showViewAll={!isGrid}
+      showViewAll={!isGrid && !isAi}
       emptyContent={
         <EmptyStateCard>
-          <p className="text-center text-sm font-medium">Loading...</p>
+          <p className="text-center text-sm font-medium">
+            {isAi ? "AI picks refresh daily — check back soon." : "Loading..."}
+          </p>
         </EmptyStateCard>
       }
       headerContentAfter={pillTabs}

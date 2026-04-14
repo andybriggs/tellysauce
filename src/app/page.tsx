@@ -99,6 +99,8 @@ export default function Home() {
       <div className="max-w-screen-xl mx-auto p-8">
         <PopularTitles />
         <PopularTitles type="tv" />
+        <PopularTitles source="ai" />
+        <PopularTitles source="ai" type="tv" />
         {isLoggedIn && (
           <>
             <Watchlist />

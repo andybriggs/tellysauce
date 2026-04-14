@@ -8,6 +8,7 @@ import {
   pgEnum,
   jsonb,
   boolean,
+  date,
 } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
@@ -104,6 +105,20 @@ export const recommendationSets = pgTable("recommendation_sets", {
     .notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true }),
   isStale: boolean("is_stale").notNull().default(false),
+});
+
+export const aiPopularTitles = pgTable("ai_popular_titles", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tmdbId: integer("tmdb_id").notNull(),
+  mediaType: mediaTypeEnum("media_type").notNull(),
+  title: text("title").notNull(),
+  poster: text("poster"),
+  year: integer("year"),
+  description: text("description"),
+  aiReason: text("ai_reason"),
+  rank: integer("rank").notNull(),
+  fetchedDate: date("fetched_date").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const recommendationItems = pgTable("recommendation_items", {
