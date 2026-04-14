@@ -31,7 +31,7 @@ export default function Section({
   }
 
   return (
-    <div className="mb-16">
+    <div className="mb-12">
       <SectionHeader
         title={title}
         viewAllHref={viewAllHref}

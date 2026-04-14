@@ -7,14 +7,11 @@ type Props = {
   items: Recommendation[];
 };
 
-export default function RecommendationsGrid({ items }: Props) {
+export default function RecommendationsList({ items }: Props) {
   return (
     <ul className="flex items-stretch gap-4 overflow-auto py-4">
       {items.map((rec) => (
-        <RecommendationCard
-          key={rec.title}
-          rec={rec}
-        />
+        <RecommendationCard key={rec.title} rec={rec} />
       ))}
     </ul>
   );

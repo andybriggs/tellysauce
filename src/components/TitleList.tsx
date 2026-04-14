@@ -70,7 +70,7 @@ const TitleList = ({
       <div ref={emblaRef} className="overflow-hidden">
         <ul className="flex items-stretch gap-4">
           {items.map((item) => (
-            <li key={item.id} className="flex-[0_0_auto] mb-6">
+            <li key={item.id} className="flex-[0_0_auto] mb-4">
               {renderItem ? renderItem(item) : <TitleCard title={item} />}
             </li>
           ))}

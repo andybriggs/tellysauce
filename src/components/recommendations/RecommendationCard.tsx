@@ -33,10 +33,10 @@ function Card({ rec }: Props) {
         href={href}
         prefetch={false}
         aria-label={`Open ${rec.title}${year ? ` (${year})` : ""}`}
-        className="block h-[460px] overflow-hidden rounded-3xl ring-1 ring-white/10 bg-white/5 backdrop-blur-md
+        className="block overflow-hidden rounded-3xl ring-1 ring-white/10 bg-white/5 backdrop-blur-md
            transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/20 hover:ring-white/20
            focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60
-           flex flex-col"
+           flex flex-col min-w-[320px]"
       >
         <div className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity">
           <div className="absolute -top-20 -right-20 h-56 w-56 rounded-full bg-gradient-to-br from-cyan-400/20 to-fuchsia-500/20 blur-2xl" />
@@ -55,24 +55,22 @@ function Card({ rec }: Props) {
             <h3 className="text-white text-2xl md:text-[28px] font-semibold tracking-tight leading-snug">
               {rec.title}
             </h3>
-
-            {year && (
-              <span
-                className="
-                  shrink-0 rounded-md border border-white/15 bg-black/40 px-2 py-0.5
-                  text-[11px] text-white/85
-                  md:self-center
-                "
-                aria-label={`Year ${year}`}
-              >
-                {year}
-              </span>
-            )}
           </div>
 
           {tags.length > 0 && (
             <ul className="mt-3 flex flex-wrap gap-2">
-              {tags.map((t) => (
+              {year && (
+                <li
+                  className="rounded-full bg-white/18 text-white/95 text-[12px] font-medium
+                             px-3 py-1 ring-1 ring-white/25 shadow-inner shadow-white/10
+                             transition-colors hover:bg-white/24"
+
+                  aria-label={`Year ${year}`}
+                >
+                  {year}
+                </li>
+              )}
+              {tags.slice(0, 2).map((t) => (
                 <li
                   key={t}
                   className="rounded-full bg-white/18 text-white/95 text-[12px] font-medium
