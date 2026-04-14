@@ -125,6 +125,8 @@ async function fetchGroundedTitles(
 
 Search Reddit right now — especially r/movies, r/television, r/MovieSuggestions, r/NetflixBestOf, r/TrueFilm, r/criterion, r/letterboxd — for the 10 most positively discussed ${kind} in the past 7 days.
 
+IMPORTANT — Regional focus: Prioritise content that is popular in English-speaking countries (US, UK, Australia, Canada, Ireland) and Western Europe (France, Germany, Spain, Italy, etc.). You may include East Asian content ONLY if it has had a major mainstream crossover in Western markets (e.g. Squid Game, Parasite). Do not include content that is primarily popular within East Asian markets.
+
 Focus on high-upvote threads, multi-community buzz, and genuine enthusiasm (not controversy).
 Output EXACTLY 10 titles, one per line, NO preamble/numbering/URLs.
 If you know the release year, include it in parentheses after the title.
@@ -219,7 +221,13 @@ async function searchTmdbId(
   year?: number | null
 ): Promise<number | null> {
   const params = new URLSearchParams({ query: title, language: "en-US" });
-  if (year) params.set("year", String(year));
+  // TMDB uses different year params per media type
+  if (year) {
+    params.set(
+      mediaType === "tv" ? "first_air_date_year" : "year",
+      String(year)
+    );
+  }
 
   const url = `${TMDB_BASE}/search/${mediaType}?${params.toString()}`;
   const res = await fetch(url, {
@@ -291,6 +299,11 @@ async function saveBatch(
   mediaType: "movie" | "tv",
   fetchedDate: string
 ) {
+  if (resolved.length === 0) {
+    console.warn(`[ai-popular] Skipping save for ${mediaType} — 0 titles resolved, keeping existing data`);
+    return;
+  }
+
   await db.execute(sql`
     DELETE FROM ai_popular_titles
     WHERE media_type = ${mediaType} AND fetched_date = ${fetchedDate}
