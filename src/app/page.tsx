@@ -97,10 +97,10 @@ export default function Home() {
         </div>
       )}
       <div className="max-w-screen-xl mx-auto p-8">
-        <PopularTitles />
-        <PopularTitles type="tv" />
         <PopularTitles source="ai" />
         <PopularTitles source="ai" type="tv" />
+        <PopularTitles />
+        <PopularTitles type="tv" />
         {isLoggedIn && (
           <>
             <Watchlist />

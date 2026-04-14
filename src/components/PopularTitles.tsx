@@ -27,11 +27,11 @@ export default function PopularTitles({
 
   const title = isAi
     ? type === "movie"
-      ? "✨ AI picks: Movies"
-      : "✨ AI picks: TV shows"
+      ? "✨ Todays AI picks: Movies"
+      : "✨ Todays AI picks: TV shows"
     : type === "movie"
-      ? "🔥 Movies people love"
-      : "🔥 TV Shows people love";
+      ? "🔥 TMDB Popular movies"
+      : "🔥 TMDB Popular TV shows";
 
   const pillTabs = !isAi ? (
     <PillTabs<string>
