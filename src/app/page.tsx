@@ -1,7 +1,7 @@
 "use client";
 
 import { debounce } from "lodash";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Hero from "@/components/Hero";
 import RatedTitles from "@/components/RatedTitles";
 import RecommendTitles from "@/components/recommendations/RecommendTitles";
@@ -14,10 +14,41 @@ import Container from "@/components/Container";
 import useIsLoggedIn from "@/hooks/useIsLoggedIn";
 import PopularTitles from "@/components/PopularTitles";
 
+type SubStatus = {
+  subscriptionStatus: string | null;
+  freeRecCallsUsed: number;
+};
+
 export default function Home() {
   const { state, dispatch, fetchAutoCompleteResults } = useStreamingSearch();
 
   const isLoggedIn = useIsLoggedIn();
+  const [showSuccessBanner, setShowSuccessBanner] = useState(false);
+  const [subStatus, setSubStatus] = useState<SubStatus | null>(null);
+
+  // Detect ?subscription=success redirect from Stripe
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("subscription") === "success") {
+      setShowSuccessBanner(true);
+      window.history.replaceState({}, "", "/");
+    }
+  }, []);
+
+  // Fetch subscription status once logged in
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    fetch("/api/subscription-status")
+      .then((r) => r.ok ? r.json() : null)
+      .then((d: SubStatus | null) => { if (d) setSubStatus(d); })
+      .catch(() => {});
+  }, [isLoggedIn]);
+
+  const handleManageSubscription = async () => {
+    const res = await fetch("/api/stripe/portal", { method: "POST" });
+    const data = (await res.json()) as { url?: string };
+    if (data.url) window.location.href = data.url;
+  };
 
   const { searchQuery, autoCompleteResults, isLoading } = state;
 
@@ -45,6 +76,17 @@ export default function Home() {
 
   return (
     <>
+      {showSuccessBanner && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-600 text-white px-6 py-3 rounded-2xl shadow-lg flex items-center gap-3">
+          <span>You&apos;re now subscribed to TellySauce Pro!</span>
+          <button
+            onClick={() => setShowSuccessBanner(false)}
+            className="text-white/70 hover:text-white text-lg leading-none"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       <section className="relative w-full z-10">
         <div
           className="
@@ -55,7 +97,15 @@ export default function Home() {
         />
         <div className="absolute inset-0 bg-gradient-to-r from-pink-500 to-orange-400 opacity-80" />
         <Container>
-          <div className="flex p-4 justify-end relative z-11">
+          <div className="flex p-4 justify-end items-center gap-3 relative z-11">
+            {isLoggedIn && subStatus?.subscriptionStatus === "active" && (
+              <button
+                onClick={handleManageSubscription}
+                className="text-xs font-semibold text-white/80 hover:text-white bg-white/10 hover:bg-white/20 px-3 py-1 rounded-full transition"
+              >
+                ✨ Pro · Manage
+              </button>
+            )}
             <AuthButton />
           </div>
         </Container>

@@ -23,6 +23,12 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
+  // Subscription fields
+  freeRecCallsUsed: integer("free_rec_calls_used").notNull().default(0),
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  subscriptionStatus: text("subscription_status"), // 'active' | 'canceled' | 'past_due' | null
+  subscriptionPeriodEnd: timestamp("subscription_period_end", { withTimezone: true }),
 });
 
 export const mediaTypeEnum = pgEnum("media_type", ["tv", "movie"]);
