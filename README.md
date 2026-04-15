@@ -10,6 +10,7 @@ Users can search for titles, maintain a watchlist, rate shows/movies 1–5 stars
 - **Database**: PostgreSQL via [Neon](https://neon.tech) (serverless), Drizzle ORM
 - **Auth**: NextAuth.js v4, Google OAuth
 - **AI**: Google Gemini (`@google/genai`) — 2-stage pipeline (grounded search + JSON structuring)
+- **Payments**: Stripe — £1.99/month subscription gating AI recommendations
 - **Data fetching**: SWR (client-side), Next.js fetch with ISR (server-side)
 - **Styling**: TailwindCSS, Embla Carousel
 - **Deployment**: Vercel (includes cron jobs via `vercel.json`)
@@ -49,6 +50,9 @@ Open [http://localhost:3000](http://localhost:3000).
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
 | `CRON_SECRET` | Bearer token for Vercel cron authentication |
 | `NEXT_PUBLIC_CACHE_VERSION` | Cache-busting version for client-side SWR requests |
+| `STRIPE_SECRET_KEY` | Stripe secret key (`sk_test_...` locally, `sk_live_...` on Vercel) |
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret (see note below) |
+| `STRIPE_PRICE_ID` | Stripe Price ID for the £1.99/month Pro plan (`price_...`) |
 
 ## Database
 
@@ -58,7 +62,7 @@ The project uses Drizzle ORM with a Neon PostgreSQL database.
 
 | Table | Purpose |
 |-------|---------|
-| `users` | Google OAuth users |
+| `users` | Google OAuth users + Stripe subscription state |
 | `titles` | TMDB title cache (keyed by `tmdb_id` + `media_type`) |
 | `user_titles` | Watchlist entries and ratings (`status`: `WATCHLIST` \| `RATED`, `rating`: 1–5) |
 | `recommendation_sets` | Cached Gemini recommendation batches (7-day expiry) |
@@ -97,7 +101,10 @@ yarn db:studio     # Open Drizzle Studio (database browser)
 | `POST` | `/api/rated` | Rate a title (1–5 stars) |
 | `GET` | `/api/rating?tmdbId={id}&type=movie\|tv` | Get the current user's rating for a specific title |
 | `GET` | `/api/recommendations` | Fetch cached Gemini recommendations for the current user |
-| `POST` | `/api/recommend` | Generate Gemini AI recommendations (profile or seed mode) |
+| `POST` | `/api/recommend` | Generate Gemini AI recommendations — subscription-gated (3 free lifetime calls, then £1.99/month) |
+| `GET` | `/api/subscription-status` | Returns current user's subscription status and free call count |
+| `POST` | `/api/stripe/checkout` | Create a Stripe Checkout session for TellySauce Pro |
+| `POST` | `/api/stripe/portal` | Create a Stripe Billing Portal session (manage/cancel subscription) |
 
 ### Cron (Vercel internal)
 
@@ -144,6 +151,27 @@ All TMDB requests use the v4 Bearer token (`TMDB_ACCESS_TOKEN`).
 
 - `fetchTMDBTitle(tmdbId, mediaType)` — `src/server/tmdb.ts` — canonical function for fetching full title details
 - Title search year params differ by media type: movies use `year`, TV shows use `first_air_date_year`
+
+## Stripe Subscription
+
+AI recommendations (profile and seed modes) are gated behind a **£1.99/month** subscription (TellySauce Pro). Users get **3 free lifetime recommendation generations** before the paywall appears. Daily AI picks remain free.
+
+### Stripe setup
+
+1. Create a product in the [Stripe Dashboard](https://dashboard.stripe.com/products/create) named **TellySauce Pro** with a £1.99/month recurring price. Copy the `price_...` ID into `STRIPE_PRICE_ID`.
+2. Register a webhook endpoint at `/api/stripe/webhook` listening to: `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`. Copy the signing secret into `STRIPE_WEBHOOK_SECRET`.
+
+### Local webhook testing
+
+The Stripe CLI forwards events to your local server:
+
+```bash
+stripe listen --forward-to localhost:3000/api/stripe/webhook
+```
+
+> **Important:** The `whsec_...` secret printed by `stripe listen` is different from the one in the Stripe dashboard. Use the CLI secret in `.env.local` and the dashboard secret in Vercel environment variables.
+
+Test with card number `4242 4242 4242 4242`, any future expiry, any CVC.
 
 ## Deployment
 

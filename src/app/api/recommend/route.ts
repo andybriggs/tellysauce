@@ -64,6 +64,10 @@ type ModelResponse = {
 
 // Minimal shape of a db.execute result we rely on
 type ExecResult = { rows?: Array<{ id?: string }> };
+type UserSubRow = {
+  subscription_status: string | null;
+  free_rec_calls_used: number;
+};
 
 const ensureTablesOnce = (async () => {
   await db.execute(sql`
@@ -471,7 +475,26 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const userId = session.user.id as string;
+
   try {
+    // Subscription gate: check free call allowance
+    const subResult = await db.execute(
+      sql`SELECT subscription_status, free_rec_calls_used FROM users WHERE id = ${userId}`
+    );
+    const userRow = (
+      (subResult as unknown as { rows?: UserSubRow[] }).rows ?? []
+    )[0];
+    const isSubscribed = userRow?.subscription_status === "active";
+    const freeCallsUsed = userRow?.free_rec_calls_used ?? 0;
+
+    if (!isSubscribed && freeCallsUsed >= 3) {
+      return Response.json(
+        { error: "subscription_required", freeCallsUsed },
+        { status: 402 }
+      );
+    }
+
     if (!process.env.GOOGLE_GEMINI_API_KEY) {
       return Response.json(
         { error: "Missing GOOGLE_GEMINI_API_KEY" },
@@ -725,7 +748,7 @@ Each item: { "title", "description", "reason", "tags": [strings], "year": number
 
       const key = buildRecKey({ mode, seed });
       const { setId } = await upsertRecommendationSet({
-        userId: session.user.id as string,
+        userId,
         key,
         origin: "SEED",
         inputSnapshot: bodyUnknown,
@@ -737,6 +760,12 @@ Each item: { "title", "description", "reason", "tags": [strings], "year": number
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       });
       await replaceRecommendationItems(setId, recommendations);
+
+      if (!isSubscribed) {
+        await db.execute(
+          sql`UPDATE users SET free_rec_calls_used = free_rec_calls_used + 1 WHERE id = ${userId}`
+        );
+      }
 
       return Response.json({ recommendations, key, setId });
     }
@@ -975,7 +1004,7 @@ Each item: { "title", "description", "reason", "tags": [strings], "year": number
 
     const key = buildRecKey({ mode });
     const { setId } = await upsertRecommendationSet({
-      userId: session.user.id as string,
+      userId,
       key,
       origin: "PROFILE",
       inputSnapshot: bodyUnknown,
@@ -983,6 +1012,12 @@ Each item: { "title", "description", "reason", "tags": [strings], "year": number
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     });
     await replaceRecommendationItems(setId, recommendations);
+
+    if (!isSubscribed) {
+      await db.execute(
+        sql`UPDATE users SET free_rec_calls_used = free_rec_calls_used + 1 WHERE id = ${userId}`
+      );
+    }
 
     return Response.json({ recommendations, key, setId });
   } catch (err) {

@@ -7,6 +7,7 @@ import RecommendationsHeader from "./RecommendationsHeader";
 import RecommendationSkeletonGrid from "./RecommendationSkeletonGrid";
 import RecommendationsList from "./RecommendationsList";
 import { useRatedTitles } from "@/hooks/useRatedTitles";
+import PaywallModal from "@/components/PaywallModal";
 
 /* ---------- Local types ---------- */
 
@@ -135,6 +136,7 @@ export default function RecommendTitles({
 
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
 
   const isSeedMode = !!seed;
   const key = useMemo(() => buildKey(seed), [seed]);
@@ -204,91 +206,57 @@ export default function RecommendTitles({
   const handleClick = useCallback(async () => {
     setIsLoading(true);
     try {
-      if (seed) {
-        const watchListTitles =
-          (Array.isArray(watchList) &&
-            watchList
-              .filter(isIdName)
-              .map((w) => w.name)
-              .filter(Boolean)) ||
-          [];
+      const watchListTitles =
+        (Array.isArray(watchList) &&
+          watchList
+            .filter(isIdName)
+            .map((w) => w.name)
+            .filter(Boolean)) ||
+        [];
 
-        const data = await fetchJson<RecommendPostResponse>("/api/recommend", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            mode: "seed",
-            seed,
-            watchList: watchListTitles,
-          }),
-        });
-        if (!data) return;
-
-        const recs: Recommendation[] = Array.isArray(data.recommendations)
-          ? data.recommendations.map((r) => {
-              const year =
-                typeof r.year === "number" && Number.isFinite(r.year)
-                  ? r.year
-                  : deriveYearFrom(r.title) ??
-                    deriveYearFrom(toStringArray(r.tags).join(" ")) ??
-                    deriveYearFrom(r.description ?? null);
-
-              return {
-                title: r.title,
-                description: r.description ?? "",
-                reason: r.reason ?? "",
-                tags: toStringArray(r.tags),
-                year,
-              };
-            })
-          : [];
-        setRecommendations(recs);
-      } else {
-        const titleList =
-          (ratedTitles ?? []).map((s) => ({
-            name: s.name,
-            rating: s.rating,
-          })) || [];
-
-        const watchListTitles =
-          (Array.isArray(watchList) &&
-            watchList
-              .filter(isIdName)
-              .map((w) => w.name)
-              .filter(Boolean)) ||
-          [];
-
-        const data = await fetchJson<RecommendPostResponse>("/api/recommend", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+      const body = seed
+        ? JSON.stringify({ mode: "seed", seed, watchList: watchListTitles })
+        : JSON.stringify({
             mode: "profile",
-            titles: titleList,
+            titles: (ratedTitles ?? []).map((s) => ({
+              name: s.name,
+              rating: s.rating,
+            })),
             watchList: watchListTitles,
-          }),
-        });
-        if (!data) return;
+          });
 
-        const recs: Recommendation[] = Array.isArray(data.recommendations)
-          ? data.recommendations.map((r) => {
-              const year =
-                typeof r.year === "number" && Number.isFinite(r.year)
-                  ? r.year
-                  : deriveYearFrom(r.title) ??
-                    deriveYearFrom(toStringArray(r.tags).join(" ")) ??
-                    deriveYearFrom(r.description ?? null);
+      const res = await fetch("/api/recommend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+      });
 
-              return {
-                title: r.title,
-                description: r.description ?? "",
-                reason: r.reason ?? "",
-                tags: toStringArray(r.tags),
-                year,
-              };
-            })
-          : [];
-        setRecommendations(recs);
+      if (res.status === 402) {
+        setShowPaywall(true);
+        return;
       }
+
+      if (!res.ok) return;
+
+      const data = (await res.json()) as RecommendPostResponse;
+      const recs: Recommendation[] = Array.isArray(data.recommendations)
+        ? data.recommendations.map((r) => {
+            const year =
+              typeof r.year === "number" && Number.isFinite(r.year)
+                ? r.year
+                : deriveYearFrom(r.title) ??
+                  deriveYearFrom(toStringArray(r.tags).join(" ")) ??
+                  deriveYearFrom(r.description ?? null);
+            return {
+              title: r.title,
+              description: r.description ?? "",
+              reason: r.reason ?? "",
+              tags: toStringArray(r.tags),
+              year,
+            };
+          })
+        : [];
+      setRecommendations(recs);
     } finally {
       setIsLoading(false);
     }
@@ -304,19 +272,22 @@ export default function RecommendTitles({
   if (!hasTitles && !isSeedMode) return <EmptyRecommendations />;
 
   return (
-    <section className="mt-6 rounded-3xl p-6 sm:p-8 md:p-10 bg-gradient-to-r from-pink-500 to-orange-400 opacity-80 ring-1 ring-white/10">
-      <RecommendationsHeader
-        onClick={handleClick}
-        isLoading={isLoading}
-        canRun={hasTitles}
-        hasResults={recommendations.length > 0}
-        label={buttonLabel ?? (seed ? "Find similar titles" : undefined)}
-      />
-      {isLoading ? (
-        <RecommendationSkeletonGrid count={6} />
-      ) : (
-        <RecommendationsList items={recommendations} />
-      )}
-    </section>
+    <>
+      {showPaywall && <PaywallModal onClose={() => setShowPaywall(false)} />}
+      <section className="mt-6 rounded-3xl p-6 sm:p-8 md:p-10 bg-gradient-to-r from-pink-500 to-orange-400 opacity-80 ring-1 ring-white/10">
+        <RecommendationsHeader
+          onClick={handleClick}
+          isLoading={isLoading}
+          canRun={hasTitles}
+          hasResults={recommendations.length > 0}
+          label={buttonLabel ?? (seed ? "Find similar titles" : undefined)}
+        />
+        {isLoading ? (
+          <RecommendationSkeletonGrid count={6} />
+        ) : (
+          <RecommendationsList items={recommendations} />
+        )}
+      </section>
+    </>
   );
 }
