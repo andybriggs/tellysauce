@@ -136,12 +136,11 @@ FORMAT:
 Title (optional YYYY) | description <=10 words | why it's popular <=8 words | tag1, tag2`;
 
   const res: unknown = await ai.models.generateContent({
-    model: process.env.GEMINI_MODEL_GROUNDED || "gemini-2.5-flash",
+    model: process.env.GEMINI_MODEL_GROUNDED_HQ!,
     contents: [{ role: "user", parts: [{ text: prompt }] }],
     config: {
       tools: [{ googleSearch: {} }],
       responseModalities: ["TEXT"],
-      thinkingConfig: { thinkingBudget: 0 },
       maxOutputTokens: 700,
       temperature: 0.4,
       stopSequences: ["<<<END>>>"],
