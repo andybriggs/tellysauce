@@ -7,6 +7,7 @@ import TitleHeader from "@/components/TitleHeader";
 import MetaPills from "@/components/MetaPills";
 import Overview from "@/components/Overview";
 import ExternalLinks from "@/components/ExternalLinks";
+import WatchlistButton from "@/components/WatchlistButton";
 import WhereToWatch from "@/components/WhereToWatch";
 import TagsList from "@/components/TagsList";
 import TitleActions from "@/components/TitleActions";
@@ -427,6 +428,7 @@ export default async function TitlePage({ params }: PageProps) {
               tmdbId={data.tmdb_id ?? undefined}
               tmdbVoteAverage={data.tmdb_vote_average ?? undefined}
             />
+            <WatchlistButton title={titleToSave} />
             <TitleActions title={titleToSave} />
           </div>
         </div>
