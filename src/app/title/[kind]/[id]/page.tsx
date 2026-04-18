@@ -33,6 +33,8 @@ export interface TitleDetails {
   genres?: number[];
   genre_names?: string[];
   critic_score?: number | null; // always null
+  tmdb_vote_average?: number | null;
+  tmdb_vote_count?: number | null;
   us_rating?: string | null;
   poster?: string | null;
   posterMedium?: string | null;
@@ -95,6 +97,8 @@ type TMDBCommon = {
   poster_path?: string | null;
   backdrop_path?: string | null;
   original_language?: string | null;
+  vote_average?: number | null;
+  vote_count?: number | null;
   videos?: { results?: TMDBVideo[] };
   images?: unknown;
   external_ids?: TMDBExternalIds;
@@ -182,6 +186,8 @@ function mapMovie(m: TMDBMovie): TitleDetails {
     imdb_id: m.external_ids?.imdb_id ?? null,
     tmdb_id: m.id,
     tmdb_type: "movie",
+    tmdb_vote_average: m.vote_average ?? null,
+    tmdb_vote_count: m.vote_count ?? null,
     genres: (m.genres ?? []).map((g) => g.id),
     genre_names: (m.genres ?? []).map((g) => g.name),
     poster: tmdbImg.poster(m.poster_path),
@@ -217,6 +223,8 @@ function mapTV(tv: TMDBTV): TitleDetails {
     imdb_id: tv.external_ids?.imdb_id ?? null,
     tmdb_id: tv.id,
     tmdb_type: "tv",
+    tmdb_vote_average: tv.vote_average ?? null,
+    tmdb_vote_count: tv.vote_count ?? null,
     genres: (tv.genres ?? []).map((g) => g.id),
     genre_names: (tv.genres ?? []).map((g) => g.name),
     poster: tmdbImg.poster(tv.poster_path),
@@ -227,6 +235,19 @@ function mapTV(tv: TMDBTV): TitleDetails {
     network_names: (tv.networks ?? []).map((n) => n.name),
     trailer: extractTrailer(tv.videos),
   };
+}
+
+async function fetchIMDbRating(imdbId: string): Promise<string | null> {
+  const key = process.env.OMDB_API_KEY;
+  if (!key) return null;
+  const res = await fetch(
+    `https://www.omdbapi.com/?i=${encodeURIComponent(imdbId)}&apikey=${key}`,
+    { next: { revalidate } }
+  );
+  if (!res.ok) return null;
+  const data = await res.json();
+  if (data.Response === "False") return null;
+  return data.imdbRating && data.imdbRating !== "N/A" ? data.imdbRating : null;
 }
 
 async function fetchTitleDetails(
@@ -351,6 +372,10 @@ export default async function TitlePage({ params }: PageProps) {
 
   if (!data) notFound();
 
+  const imdbRating = data.imdb_id
+    ? await fetchIMDbRating(data.imdb_id)
+    : null;
+
   const title = data.title || data.original_title || "Untitled";
   const poster =
     data.posterLarge || data.posterMedium || data.poster || undefined;
@@ -422,8 +447,10 @@ export default async function TitlePage({ params }: PageProps) {
               <ExternalLinks
                 trailerUrl={data.trailer ?? undefined}
                 imdbId={data.imdb_id ?? undefined}
+                imdbRating={imdbRating}
                 tmdbType={data.tmdb_type ?? undefined}
                 tmdbId={data.tmdb_id ?? undefined}
+                tmdbVoteAverage={data.tmdb_vote_average ?? undefined}
               />
             </div>
           </main>
