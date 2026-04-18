@@ -13,6 +13,7 @@ import TagsList from "@/components/TagsList";
 import TitleActions from "@/components/TitleActions";
 import Container from "@/components/Container";
 import RecommendTitles from "@/components/recommendations/RecommendTitles";
+import TrailerWithPosterOverlay from "@/components/TrailerWithPosterOverlay";
 
 export const revalidate = 3600;
 
@@ -435,23 +436,19 @@ export default async function TitlePage({ params }: PageProps) {
 
         {/* Tablet: two columns (1:3). Desktop: three columns (1:3:1). Mobile: stacked. */}
         <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-8">
-          {/* Column 1: Poster */}
-          <aside className="md:col-span-1 lg:col-span-1 mx-auto md:mx-0 w-full max-w-xs aspect-[2/3]">
+          {/* Column 1: Poster — hidden on mobile only when a trailer is available (poster overlaid on video instead) */}
+          <aside className={`${data.trailerKey ? "hidden md:block" : ""} md:col-span-1 lg:col-span-1 mx-auto md:mx-0 w-full max-w-xs aspect-[2/3]`}>
             <PosterCard posterUrl={poster} title={title} />
           </aside>
 
           {/* Column 2: Trailer, or tags + description when no trailer available */}
           <div className="md:col-span-3 lg:col-span-3">
             {data.trailerKey ? (
-              <div className="aspect-video md:aspect-auto md:h-full w-full overflow-hidden rounded-xl">
-                <iframe
-                  src={`https://www.youtube.com/embed/${data.trailerKey}`}
-                  title="Trailer"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                  className="h-full w-full"
-                />
-              </div>
+              <TrailerWithPosterOverlay
+                trailerKey={data.trailerKey}
+                poster={poster}
+                title={title}
+              />
             ) : (
               <div className="space-y-4">
                 <div className="flex flex-wrap items-center gap-3">
