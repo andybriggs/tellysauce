@@ -42,7 +42,7 @@ export interface TitleDetails {
   backdrop?: string | null;
   original_language?: string | null;
   network_names?: string[];
-  trailer?: string | null;
+  trailerKey?: string | null;
 }
 
 export interface TitleSource {
@@ -168,7 +168,7 @@ function extractTrailer(videos?: { results?: TMDBVideo[] }): string | null {
     ) ||
     list.find((v) => v.site === "YouTube" && v.type === "Trailer") ||
     null;
-  return pick?.key ? `https://www.youtube.com/watch?v=${pick.key}` : null;
+  return pick?.key ?? null;
 }
 
 function mapMovie(m: TMDBMovie): TitleDetails {
@@ -196,7 +196,7 @@ function mapMovie(m: TMDBMovie): TitleDetails {
     backdrop: tmdbImg.backdrop(m.backdrop_path),
     original_language: m.original_language ?? null,
     network_names: undefined,
-    trailer: extractTrailer(m.videos),
+    trailerKey: extractTrailer(m.videos),
   };
 }
 
@@ -233,7 +233,7 @@ function mapTV(tv: TMDBTV): TitleDetails {
     backdrop: tmdbImg.backdrop(tv.backdrop_path),
     original_language: tv.original_language ?? null,
     network_names: (tv.networks ?? []).map((n) => n.name),
-    trailer: extractTrailer(tv.videos),
+    trailerKey: extractTrailer(tv.videos),
   };
 }
 
@@ -445,13 +445,23 @@ export default async function TitlePage({ params }: PageProps) {
                 networks={data.network_names}
               />
               <ExternalLinks
-                trailerUrl={data.trailer ?? undefined}
                 imdbId={data.imdb_id ?? undefined}
                 imdbRating={imdbRating}
                 tmdbType={data.tmdb_type ?? undefined}
                 tmdbId={data.tmdb_id ?? undefined}
                 tmdbVoteAverage={data.tmdb_vote_average ?? undefined}
               />
+              {data.trailerKey && (
+                <div className="aspect-video w-full overflow-hidden rounded-xl">
+                  <iframe
+                    src={`https://www.youtube.com/embed/${data.trailerKey}`}
+                    title="Trailer"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    className="h-full w-full"
+                  />
+                </div>
+              )}
             </div>
           </main>
 
