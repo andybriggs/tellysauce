@@ -63,4 +63,19 @@ describe('ExternalLinks', () => {
     render(<ExternalLinks imdbId="tt1234567" />);
     expect(screen.getByText(/rating unavailable/i)).toBeInTheDocument();
   });
+
+  it('renders TMDB rating when tmdbVoteAverage is provided', () => {
+    render(<ExternalLinks tmdbId={1234} tmdbType="movie" tmdbVoteAverage={7.8} />);
+    expect(screen.getByText(/7\.8/)).toBeInTheDocument();
+  });
+
+  it('shows rating unavailable on TMDB button when tmdbVoteAverage is absent', () => {
+    render(<ExternalLinks tmdbId={1234} tmdbType="movie" />);
+    expect(screen.getByText(/rating unavailable/i)).toBeInTheDocument();
+  });
+
+  it('shows rating unavailable on TMDB button when tmdbVoteAverage is 0', () => {
+    render(<ExternalLinks tmdbId={1234} tmdbType="movie" tmdbVoteAverage={0} />);
+    expect(screen.getByText(/rating unavailable/i)).toBeInTheDocument();
+  });
 });
