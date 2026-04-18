@@ -18,10 +18,6 @@ vi.mock('next/link', () => ({
   ),
 }));
 
-vi.mock('@heroicons/react/24/solid', () => ({
-  PlayCircleIcon: () => <svg data-testid="play-icon" />,
-}));
-
 describe('ExternalLinks', () => {
   it('renders IMDb link with correct URL', () => {
     render(<ExternalLinks imdbId="tt1234567" />);
@@ -35,11 +31,6 @@ describe('ExternalLinks', () => {
     const link = screen.getByRole('link', { name: /tmdb/i });
     expect(link).toBeInTheDocument();
     expect(link).toHaveAttribute('href', 'https://www.themoviedb.org/tv/1234');
-  });
-
-  it('renders trailer link', () => {
-    render(<ExternalLinks trailerUrl="https://youtube.com/watch?v=abc" />);
-    expect(screen.getByText(/watch trailer/i)).toBeInTheDocument();
   });
 
   it('renders nothing when no props are provided', () => {
@@ -57,17 +48,19 @@ describe('ExternalLinks', () => {
     expect(screen.queryByText('TMDB')).toBeNull();
   });
 
-  it('renders all links when all props are provided', () => {
-    render(
-      <ExternalLinks
-        trailerUrl="https://youtube.com/watch?v=xyz"
-        imdbId="tt9999999"
-        tmdbId={999}
-        tmdbType="movie"
-      />
-    );
-    expect(screen.getByText(/watch trailer/i)).toBeInTheDocument();
+  it('renders both IMDb and TMDB links together', () => {
+    render(<ExternalLinks imdbId="tt9999999" tmdbId={999} tmdbType="movie" />);
     expect(screen.getByText('IMDb')).toBeInTheDocument();
     expect(screen.getByText('TMDB')).toBeInTheDocument();
+  });
+
+  it('renders IMDb rating when provided', () => {
+    render(<ExternalLinks imdbId="tt1234567" imdbRating="8.5" />);
+    expect(screen.getByText(/8\.5/)).toBeInTheDocument();
+  });
+
+  it('shows rating unavailable when IMDb rating is missing', () => {
+    render(<ExternalLinks imdbId="tt1234567" />);
+    expect(screen.getByText(/rating unavailable/i)).toBeInTheDocument();
   });
 });

@@ -1,13 +1,14 @@
 interface TagsListProps {
   genres?: string[];
   networks?: string[];
+  showLabel?: boolean;
 }
 
-export default function TagsList({ genres, networks }: TagsListProps) {
+export default function TagsList({ genres, networks, showLabel = true }: TagsListProps) {
   if (!genres?.length && !networks?.length) return null;
   return (
-    <div className="space-y-3">
-      <div className="text-xs uppercase tracking-wide text-slate-400">Tags</div>
+    <div className={showLabel ? "space-y-3" : undefined}>
+      {showLabel && <div className="text-xs uppercase tracking-wide text-slate-400">Tags</div>}
       <div className="flex flex-wrap gap-2">
         {genres?.map((g) => (
           <span
