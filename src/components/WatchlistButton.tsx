@@ -2,6 +2,7 @@
 
 import { BookmarkIcon } from "@heroicons/react/24/solid";
 import { useWatchList } from "@/hooks/useWatchList";
+import useIsLoggedIn from "@/hooks/useIsLoggedIn";
 import type { Title } from "@/types/";
 
 type Props = {
@@ -11,6 +12,9 @@ type Props = {
 
 export default function WatchlistButton({ title, className }: Props) {
   const { hasMounted, isSaved, toggle } = useWatchList();
+  const isLoggedIn = useIsLoggedIn();
+
+  if (!isLoggedIn) return null;
 
   const hasValidId = typeof title?.id === "number";
   const saved = hasMounted && hasValidId ? isSaved(title.id) : false;
@@ -34,7 +38,7 @@ export default function WatchlistButton({ title, className }: Props) {
         toggle(title);
       }}
       className={[
-        "inline-flex items-center gap-2 rounded-xl ring-1 px-4 py-2 transition mt-4 sm:mt-0 mr-auto sm:mr-0",
+        "inline-flex items-center gap-2 rounded-xl ring-1 px-4 py-2 transition",
         saved
           ? "bg-emerald-500/20 text-emerald-100 ring-emerald-400/30 hover:bg-emerald-500/25"
           : "bg-white/10 text-white ring-white/15 hover:bg-white/20",
