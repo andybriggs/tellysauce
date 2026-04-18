@@ -53,6 +53,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | `STRIPE_SECRET_KEY` | Stripe secret key (`sk_test_...` locally, `sk_live_...` on Vercel) |
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret (see note below) |
 | `STRIPE_PRICE_ID` | Stripe Price ID for the £1.99/month Pro plan (`price_...`) |
+| `OMDB_API_KEY` | OMDb API key for fetching IMDb ratings on title pages — free tier (1,000 req/day) at [omdbapi.com](https://www.omdbapi.com/apikey.aspx). If unset, rating buttons show "Rating unavailable" but still link through. |
 
 ## Database
 

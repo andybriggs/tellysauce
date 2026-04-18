@@ -40,6 +40,7 @@ Always use **yarn** (not npm). `package.json` has `"packageManager": "yarn@1.22.
 - `STRIPE_SECRET_KEY` — Stripe secret key (`sk_test_...` locally, `sk_live_...` on Vercel)
 - `STRIPE_WEBHOOK_SECRET` — Stripe webhook signing secret. **Local dev**: use the `whsec_...` printed by `stripe listen` (different from the dashboard secret). **Vercel**: use the secret from the dashboard webhook endpoint.
 - `STRIPE_PRICE_ID` — Stripe Price ID (`price_...`) for the £1.99/month TellySauce Pro plan
+- `OMDB_API_KEY` — OMDb API key for IMDb ratings on the title detail page. Free (1,000 req/day) from omdbapi.com. If absent, rating buttons gracefully show "Rating unavailable".
 
 ## Important patterns
 
@@ -61,6 +62,13 @@ await sql.query(`CREATE TABLE IF NOT EXISTS ...`);
 ### TMDB resolution
 - `fetchTMDBTitle(tmdbId, mediaType)` — `src/server/tmdb.ts` — fetches full title details
 - TMDB search year params differ by type: movies use `year`, TV shows use `first_air_date_year`
+- The title detail page fetches `vote_average` / `vote_count` from the base TMDB endpoint (already included; no extra append needed) and stores them as `tmdb_vote_average` / `tmdb_vote_count` on `TitleDetails`
+
+### OMDb API (IMDb ratings)
+- `fetchIMDbRating(imdbId)` in `src/app/title/[kind]/[id]/page.tsx` — server-side fetch to `https://www.omdbapi.com/?i={imdbId}&apikey={OMDB_API_KEY}`
+- Returns the `imdbRating` string (e.g. `"8.9"`) or `null` when unavailable or key is absent
+- Cached via Next.js ISR (`next: { revalidate }`) — same 1-hour window as the TMDB fetch
+- Result is passed to `ExternalLinks` as `imdbRating`; the component shows "Rating unavailable" when null
 
 ### API routes
 | Route | Purpose |
