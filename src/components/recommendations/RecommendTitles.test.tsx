@@ -164,7 +164,7 @@ describe('RecommendTitles', () => {
 
     // Skeleton is rendered as animate-pulse list items
     await waitFor(() => {
-      const { container } = render(<div>{document.body.innerHTML}</div>);
+      render(<div>{document.body.innerHTML}</div>);
       // Just check the button becomes disabled (loading state)
       expect(screen.getByRole('button')).toBeDisabled();
     });

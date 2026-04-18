@@ -3,6 +3,15 @@
 ## What this app is
 A Next.js 15 web app for discovering, rating, and getting AI-powered recommendations for TV shows and movies. Hosted on Vercel. Users can search titles, maintain a watchlist, rate shows 1–5, and receive personalised Gemini AI recommendations.
 
+## Package manager
+Always use **yarn** (not npm). `package.json` has `"packageManager": "yarn@1.22.22"`. Run `yarn install`, `yarn dev`, `yarn test`, etc. Never commit a `package-lock.json`.
+
+## Testing
+- **Stack**: Vitest + React Testing Library + MSW
+- **Run**: `yarn test` (watch) or `yarn test --run` (CI)
+- **Coverage**: `yarn test:coverage`
+- Test files sit next to source (`*.test.ts` / `*.test.tsx`). Setup: `src/test/setup.ts`. MSW handlers: `src/test/mocks/handlers.ts`.
+
 ## Tech stack
 - **Framework**: Next.js 15 (App Router), React 19, TypeScript
 - **Database**: PostgreSQL via Neon (serverless), Drizzle ORM — `src/db/schema.ts`

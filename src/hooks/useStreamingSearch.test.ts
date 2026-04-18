@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { renderHook, act, waitFor } from "@testing-library/react";
+import { renderHook, act } from "@testing-library/react";
 import { server } from "@/test/mocks/server";
 import { http, HttpResponse } from "msw";
 import { useStreamingSearch, initialState } from "./useStreamingSearch";

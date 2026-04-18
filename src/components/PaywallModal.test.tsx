@@ -1,8 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 import PaywallModal from './PaywallModal';
-import { server } from '@/test/mocks/server';
-import { http, HttpResponse } from 'msw';
 
 describe('PaywallModal', () => {
   beforeEach(() => {
