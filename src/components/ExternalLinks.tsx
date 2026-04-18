@@ -1,8 +1,6 @@
-import { PlayCircleIcon } from "@heroicons/react/24/solid";
 import Link from "next/link";
 
 interface ExternalLinksProps {
-  trailerUrl?: string;
   imdbId?: string | null;
   imdbRating?: string | null;
   tmdbType?: string | null;
@@ -11,14 +9,13 @@ interface ExternalLinksProps {
 }
 
 export default function ExternalLinks({
-  trailerUrl,
   imdbId,
   imdbRating,
   tmdbType,
   tmdbId,
   tmdbVoteAverage,
 }: ExternalLinksProps) {
-  const hasAny = trailerUrl || imdbId || (tmdbId && tmdbType);
+  const hasAny = imdbId || (tmdbId && tmdbType);
   if (!hasAny) return null;
 
   const tmdbScore =
@@ -28,18 +25,6 @@ export default function ExternalLinks({
 
   return (
     <div className="flex flex-wrap gap-3">
-      {trailerUrl && (
-        <Link
-          href={trailerUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2 text-white backdrop-blur transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
-        >
-          <PlayCircleIcon className="h-6 w-6" />
-          Watch trailer
-        </Link>
-      )}
-
       {imdbId && (
         <Link
           href={`https://www.imdb.com/title/${imdbId}/`}
