@@ -13,7 +13,7 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
-    "types": ["next-auth"],
+    "types": ["next-auth", "vitest/globals"],
     "plugins": [
       {
         "name": "next"
