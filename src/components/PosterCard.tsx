@@ -7,7 +7,7 @@ interface PosterCardProps {
 
 export default function PosterCard({ posterUrl, title }: PosterCardProps) {
   return (
-    <div className="overflow-hidden rounded-2xl shadow-2xl ring-1 ring-white/10">
+    <div className="h-full overflow-hidden rounded-2xl shadow-2xl ring-1 ring-white/10">
       {posterUrl ? (
         <Image
           src={posterUrl}

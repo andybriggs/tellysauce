@@ -15,7 +15,7 @@ describe('Hero', () => {
   it('renders the tagline text', () => {
     render(<Hero />);
     expect(
-      screen.getByText(/get started by searching for your favorite titles/i)
+      screen.getByText(/rate titles and get AI powered recommendations/i)
     ).toBeInTheDocument();
   });
 });

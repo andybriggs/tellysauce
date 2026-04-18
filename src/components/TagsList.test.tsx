@@ -25,6 +25,12 @@ describe('TagsList', () => {
     expect(screen.getByText('Tags')).toBeInTheDocument();
   });
 
+  it('hides the Tags label when showLabel is false', () => {
+    render(<TagsList genres={['Action']} showLabel={false} />);
+    expect(screen.queryByText('Tags')).toBeNull();
+    expect(screen.getByText('Action')).toBeInTheDocument();
+  });
+
   it('renders nothing when both arrays are empty', () => {
     const { container } = render(<TagsList genres={[]} networks={[]} />);
     expect(container.firstChild).toBeNull();

@@ -11,7 +11,7 @@ const Hero = () => (
           Telly Sauce
         </h1>
         <p className="mt-4 text-base sm:text-lg md:text-xl text-white/90 max-w-2xl mx-auto leading-relaxed">
-          Get started by searching for your favorite titles
+          Rate titles and get AI powered recommendations
         </p>
       </div>
     </div>

@@ -415,61 +415,92 @@ export default async function TitlePage({ params }: PageProps) {
           <BackLink href="/" label="Back" />
         </div>
 
+        {/* Title — full-width block above the grid */}
+        <div className="mb-6 space-y-3">
+          <TitleHeader title={title} />
+          {/* Ratings + watchlist/star actions in a line below the title */}
+          <div className="flex flex-wrap items-center gap-3">
+            <ExternalLinks
+              imdbId={data.imdb_id ?? undefined}
+              imdbRating={imdbRating}
+              tmdbType={data.tmdb_type ?? undefined}
+              tmdbId={data.tmdb_id ?? undefined}
+              tmdbVoteAverage={data.tmdb_vote_average ?? undefined}
+            />
+            <TitleActions title={titleToSave} />
+          </div>
+        </div>
+
         {/* Tablet: two columns (1:3). Desktop: three columns (1:3:1). Mobile: stacked. */}
         <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-8">
           {/* Column 1: Poster */}
-          <aside className="md:col-span-1 lg:col-span-1 mx-auto md:mx-0 w-full max-w-xs">
+          <aside className="md:col-span-1 lg:col-span-1 mx-auto md:mx-0 w-full max-w-xs aspect-[2/3]">
             <PosterCard posterUrl={poster} title={title} />
           </aside>
 
-          {/* Column 2: Main content */}
-          <main className="md:col-span-3 lg:col-span-3">
-            <div className="space-y-6">
-              <div className="space-y-3">
-                <TitleHeader
-                  title={title}
-                  actionSlot={<TitleActions title={titleToSave} />}
-                />
-                <MetaPills
-                  year={data.year}
-                  endYear={data.end_year ?? undefined}
-                  type={data.type}
-                  usRating={data.us_rating ?? undefined}
-                  language={data.original_language ?? undefined}
+          {/* Column 2: Trailer, or tags + description when no trailer available */}
+          <div className="md:col-span-3 lg:col-span-3">
+            {data.trailerKey ? (
+              <div className="aspect-video md:aspect-auto md:h-full w-full overflow-hidden rounded-xl">
+                <iframe
+                  src={`https://www.youtube.com/embed/${data.trailerKey}`}
+                  title="Trailer"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="h-full w-full"
                 />
               </div>
-
-              <Overview text={data.plot_overview} />
-              <TagsList
-                genres={data.genre_names}
-                networks={data.network_names}
-              />
-              <ExternalLinks
-                imdbId={data.imdb_id ?? undefined}
-                imdbRating={imdbRating}
-                tmdbType={data.tmdb_type ?? undefined}
-                tmdbId={data.tmdb_id ?? undefined}
-                tmdbVoteAverage={data.tmdb_vote_average ?? undefined}
-              />
-              {data.trailerKey && (
-                <div className="aspect-video w-full overflow-hidden rounded-xl">
-                  <iframe
-                    src={`https://www.youtube.com/embed/${data.trailerKey}`}
-                    title="Trailer"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    className="h-full w-full"
+            ) : (
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <MetaPills
+                    year={data.year}
+                    endYear={data.end_year ?? undefined}
+                    type={data.type}
+                    usRating={data.us_rating ?? undefined}
+                    language={data.original_language ?? undefined}
+                  />
+                  <TagsList
+                    genres={data.genre_names}
+                    networks={data.network_names}
+                    showLabel={false}
                   />
                 </div>
-              )}
-            </div>
-          </main>
+                <Overview text={data.plot_overview} />
+              </div>
+            )}
+          </div>
 
           {/* Column 3: Providers — stacked below on md, side column on lg */}
-          <aside className="md:col-span-4 lg:col-span-1">
+          <aside className="md:col-span-4 lg:col-span-1 lg:aspect-[2/3] lg:overflow-y-auto">
             <WhereToWatch sources={sources} />
           </aside>
         </div>
+
+        {/* Meta pills + genre/network tags — only shown here when a trailer is present */}
+        {data.trailerKey && (
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <MetaPills
+              year={data.year}
+              endYear={data.end_year ?? undefined}
+              type={data.type}
+              usRating={data.us_rating ?? undefined}
+              language={data.original_language ?? undefined}
+            />
+            <TagsList
+              genres={data.genre_names}
+              networks={data.network_names}
+              showLabel={false}
+            />
+          </div>
+        )}
+
+        {/* Description — only shown here when a trailer is present (otherwise rendered in the middle column) */}
+        {data.trailerKey && (
+          <div className="mt-4">
+            <Overview text={data.plot_overview} />
+          </div>
+        )}
 
         <div className="mt-8">
           <RecommendTitles
