@@ -173,6 +173,17 @@ stripe listen --forward-to localhost:3000/api/stripe/webhook
 
 Test with card number `4242 4242 4242 4242`, any future expiry, any CVC.
 
+## Testing
+
+The project uses [Vitest](https://vitest.dev/) + [React Testing Library](https://testing-library.com/docs/react-testing-library/intro/) + [MSW](https://mswjs.io/) for mocking.
+
+```bash
+yarn test              # Run all tests (watch mode)
+yarn test:coverage     # Run with coverage report
+```
+
+Test files live next to the code they test (`*.test.ts` / `*.test.tsx`). Global test setup is in `src/test/setup.ts` and shared MSW handlers in `src/test/mocks/`.
+
 ## Deployment
 
 Deployed on Vercel. The `vercel.json` at the project root configures the daily cron job. Make sure `CRON_SECRET` is set in your Vercel project environment variables — Vercel uses it to authenticate cron requests automatically.

@@ -62,7 +62,7 @@ describe('WatchlistButton', () => {
   });
 
   it('is disabled and shows "Title not available" title when no id', () => {
-    const titleNoId = { name: 'Unknown', poster: null, type: 'tv' as const, description: null } as any;
+    const titleNoId = { name: 'Unknown', poster: null, type: 'tv' as const, description: null } as unknown as typeof mockTitle;
     render(<WatchlistButton title={titleNoId} />);
     const btn = screen.getByRole('button');
     expect(btn).toBeDisabled();
@@ -75,7 +75,7 @@ describe('WatchlistButton', () => {
   });
 
   it('does not call toggle when title has no valid id', () => {
-    const titleNoId = { name: 'Unknown', poster: null, type: 'tv' as const, description: null } as any;
+    const titleNoId = { name: 'Unknown', poster: null, type: 'tv' as const, description: null } as unknown as typeof mockTitle;
     render(<WatchlistButton title={titleNoId} />);
     fireEvent.click(screen.getByRole('button'));
     expect(mockToggle).not.toHaveBeenCalled();
