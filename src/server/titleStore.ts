@@ -2,8 +2,9 @@ import { db } from "@/db";
 import { titles, userTitles } from "@/db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { fetchTMDBTitle } from "./tmdb";
+import type { MediaType } from "@/types/title";
 
-export type MediaType = "tv" | "movie";
+export type { MediaType };
 
 export type UpsertTitleArgs = {
   tmdbId: number;

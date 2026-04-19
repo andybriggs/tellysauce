@@ -1,7 +1,6 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-
-type MediaKind = "movie" | "tv";
+import type { MediaType as MediaKind } from "@/types/title";
 type SearchParams = {
   q?: string;
   kind?: MediaKind;

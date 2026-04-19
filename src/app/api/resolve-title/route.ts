@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
+import type { MediaType as MediaKind } from "@/types/title";
 
 /* =========================
    Types
    ========================= */
 
-type MediaKind = "movie" | "tv";
 type Lang = string; // e.g. "en-GB"
 type Region = string; // e.g. "GB"
 

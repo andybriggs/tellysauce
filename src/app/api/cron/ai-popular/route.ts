@@ -3,6 +3,8 @@ import { db } from "@/db";
 import { sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { TMDB_BASE, fetchTMDBTitle } from "@/server/tmdb";
+import type { Rec } from "@/app/api/recommend/route";
+import type { ModelResponse } from "@/lib/gemini";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -10,23 +12,6 @@ export const maxDuration = 300;
 /** ------------------------------------------------------------------ */
 /** Types                                                               */
 /** ------------------------------------------------------------------ */
-
-type Rec = {
-  title: string;
-  description: string;
-  reason: string;
-  tags: string[];
-  year?: number | null;
-};
-
-type ModelPart = { text?: string };
-type ModelContent = { parts?: ModelPart[] };
-type ModelCandidate = { content?: ModelContent; finishReason?: string | null };
-type ModelResponse = {
-  candidates?: ModelCandidate[];
-  promptFeedback?: { blockReason?: string | null };
-  text?: string;
-};
 
 type ResolvedTitle = {
   tmdbId: number;

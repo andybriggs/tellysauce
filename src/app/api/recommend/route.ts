@@ -8,6 +8,7 @@ import { sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { buildRecKey } from "@/lib/recs";
 import { SeedInput } from "@/types";
+import type { ModelResponse } from "@/lib/gemini";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -49,18 +50,6 @@ type SeedPayload = {
 };
 
 type RecommendBody = ProfilePayload | SeedPayload;
-
-type ModelPart = { text?: string };
-type ModelContent = { parts?: ModelPart[] };
-type ModelCandidate = {
-  content?: ModelContent;
-  finishReason?: string | null;
-};
-type ModelResponse = {
-  candidates?: ModelCandidate[];
-  promptFeedback?: { blockReason?: string | null };
-  text?: string; // some Gemini SDK responses surface .text on structuring runs
-};
 
 // Minimal shape of a db.execute result we rely on
 type ExecResult = { rows?: Array<{ id?: string }> };
