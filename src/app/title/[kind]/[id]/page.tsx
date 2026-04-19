@@ -470,8 +470,8 @@ export default async function TitlePage({ params }: PageProps) {
             )}
           </div>
 
-          {/* Column 3: Providers — stacked below on md, side column on lg */}
-          <aside className="md:col-span-4 lg:col-span-1 lg:aspect-[2/3] lg:overflow-y-auto">
+          {/* Column 3: Providers — hidden on mobile (rendered below instead), stacked on md, side column on lg */}
+          <aside className="hidden md:block md:col-span-4 lg:col-span-1 lg:aspect-[2/3] lg:overflow-y-auto">
             <WhereToWatch sources={sources} />
           </aside>
         </div>
@@ -500,6 +500,11 @@ export default async function TitlePage({ params }: PageProps) {
             <Overview text={data.plot_overview} />
           </div>
         )}
+
+        {/* Where to watch — mobile only (hidden on md+, where it renders inside the grid) */}
+        <div className="md:hidden mt-6">
+          <WhereToWatch sources={sources} />
+        </div>
 
         <div className="mt-8">
           <RecommendTitles
