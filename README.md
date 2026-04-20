@@ -1,4 +1,4 @@
-# TellySauce
+# Telly Sauce
 
 A Next.js 15 web app for discovering, rating, and getting AI-powered recommendations for TV shows and movies.
 
@@ -35,25 +35,25 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `TMDB_API_KEY` | TMDB v3 API key |
-| `TMDB_ACCESS_TOKEN` | TMDB v4 Bearer token (used for all requests) |
-| `GOOGLE_GEMINI_API_KEY` | Gemini API key |
-| `GEMINI_MODEL_GROUNDED` | Model for grounded search stage (default: `gemini-2.5-flash`) |
-| `GEMINI_MODEL_STRUCT` | Model for JSON structuring stage (default: `gemini-2.5-flash-lite`) |
-| `DATABASE_URL` | Neon PostgreSQL connection string (pooled) |
-| `DATABASE_URL_UNPOOLED` | Neon PostgreSQL connection string (direct, for migrations) |
-| `NEXTAUTH_SECRET` | NextAuth secret |
-| `NEXTAUTH_URL` | App base URL (e.g. `http://localhost:3000`) |
-| `GOOGLE_CLIENT_ID` | Google OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
-| `CRON_SECRET` | Bearer token for Vercel cron authentication |
-| `NEXT_PUBLIC_CACHE_VERSION` | Cache-busting version for client-side SWR requests |
-| `STRIPE_SECRET_KEY` | Stripe secret key (`sk_test_...` locally, `sk_live_...` on Vercel) |
-| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret (see note below) |
-| `STRIPE_PRICE_ID` | Stripe Price ID for the £1.99/month Pro plan (`price_...`) |
-| `OMDB_API_KEY` | OMDb API key for fetching IMDb ratings on title pages — free tier (1,000 req/day) at [omdbapi.com](https://www.omdbapi.com/apikey.aspx). If unset, rating buttons show "Rating unavailable" but still link through. |
+| Variable                    | Description                                                                                                                                                                                                         |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TMDB_API_KEY`              | TMDB v3 API key                                                                                                                                                                                                     |
+| `TMDB_ACCESS_TOKEN`         | TMDB v4 Bearer token (used for all requests)                                                                                                                                                                        |
+| `GOOGLE_GEMINI_API_KEY`     | Gemini API key                                                                                                                                                                                                      |
+| `GEMINI_MODEL_GROUNDED`     | Model for grounded search stage (default: `gemini-2.5-flash`)                                                                                                                                                       |
+| `GEMINI_MODEL_STRUCT`       | Model for JSON structuring stage (default: `gemini-2.5-flash-lite`)                                                                                                                                                 |
+| `DATABASE_URL`              | Neon PostgreSQL connection string (pooled)                                                                                                                                                                          |
+| `DATABASE_URL_UNPOOLED`     | Neon PostgreSQL connection string (direct, for migrations)                                                                                                                                                          |
+| `NEXTAUTH_SECRET`           | NextAuth secret                                                                                                                                                                                                     |
+| `NEXTAUTH_URL`              | App base URL (e.g. `http://localhost:3000`)                                                                                                                                                                         |
+| `GOOGLE_CLIENT_ID`          | Google OAuth client ID                                                                                                                                                                                              |
+| `GOOGLE_CLIENT_SECRET`      | Google OAuth client secret                                                                                                                                                                                          |
+| `CRON_SECRET`               | Bearer token for Vercel cron authentication                                                                                                                                                                         |
+| `NEXT_PUBLIC_CACHE_VERSION` | Cache-busting version for client-side SWR requests                                                                                                                                                                  |
+| `STRIPE_SECRET_KEY`         | Stripe secret key (`sk_test_...` locally, `sk_live_...` on Vercel)                                                                                                                                                  |
+| `STRIPE_WEBHOOK_SECRET`     | Stripe webhook signing secret (see note below)                                                                                                                                                                      |
+| `STRIPE_PRICE_ID`           | Stripe Price ID for the £1.99/month Pro plan (`price_...`)                                                                                                                                                          |
+| `OMDB_API_KEY`              | OMDb API key for fetching IMDb ratings on title pages — free tier (1,000 req/day) at [omdbapi.com](https://www.omdbapi.com/apikey.aspx). If unset, rating buttons show "Rating unavailable" but still link through. |
 
 ## Database
 
@@ -61,14 +61,14 @@ The project uses Drizzle ORM with a Neon PostgreSQL database.
 
 ### Schema
 
-| Table | Purpose |
-|-------|---------|
-| `users` | Google OAuth users + Stripe subscription state |
-| `titles` | TMDB title cache (keyed by `tmdb_id` + `media_type`) |
-| `user_titles` | Watchlist entries and ratings (`status`: `WATCHLIST` \| `RATED`, `rating`: 1–5) |
-| `recommendation_sets` | Cached Gemini recommendation batches (7-day expiry) |
-| `recommendation_items` | Individual titles within a recommendation set |
-| `ai_popular_titles` | Daily AI-curated popular titles populated by the cron job |
+| Table                  | Purpose                                                                         |
+| ---------------------- | ------------------------------------------------------------------------------- |
+| `users`                | Google OAuth users + Stripe subscription state                                  |
+| `titles`               | TMDB title cache (keyed by `tmdb_id` + `media_type`)                            |
+| `user_titles`          | Watchlist entries and ratings (`status`: `WATCHLIST` \| `RATED`, `rating`: 1–5) |
+| `recommendation_sets`  | Cached Gemini recommendation batches (7-day expiry)                             |
+| `recommendation_items` | Individual titles within a recommendation set                                   |
+| `ai_popular_titles`    | Daily AI-curated popular titles populated by the cron job                       |
 
 ### Scripts
 
@@ -84,34 +84,34 @@ yarn db:studio     # Open Drizzle Studio (database browser)
 
 ### Public
 
-| Method | Route | Description |
-|--------|-------|-------------|
-| `GET` | `/api/discover?type=movie\|tv&timeframe=recent\|all` | TMDB popular or top-rated titles |
-| `GET` | `/api/discover?type=movie\|tv&source=ai` | Daily AI picks from the `ai_popular_titles` table |
-| `GET` | `/api/autocomplete?q={query}` | TMDB title search for the search bar |
-| `GET` | `/api/resolve-title?title={title}&type=movie\|tv` | Advanced TMDB title resolution with scoring |
+| Method | Route                                                | Description                                       |
+| ------ | ---------------------------------------------------- | ------------------------------------------------- |
+| `GET`  | `/api/discover?type=movie\|tv&timeframe=recent\|all` | TMDB popular or top-rated titles                  |
+| `GET`  | `/api/discover?type=movie\|tv&source=ai`             | Daily AI picks from the `ai_popular_titles` table |
+| `GET`  | `/api/autocomplete?q={query}`                        | TMDB title search for the search bar              |
+| `GET`  | `/api/resolve-title?title={title}&type=movie\|tv`    | Advanced TMDB title resolution with scoring       |
 
 ### Authenticated (requires session)
 
-| Method | Route | Description |
-|--------|-------|-------------|
-| `GET` | `/api/watchlist` | Get the current user's watchlist |
-| `POST` | `/api/watchlist` | Add a title to the watchlist |
-| `DELETE` | `/api/watchlist` | Remove a title from the watchlist |
-| `GET` | `/api/rated` | Get all titles the current user has rated |
-| `POST` | `/api/rated` | Rate a title (1–5 stars) |
-| `GET` | `/api/rating?tmdbId={id}&type=movie\|tv` | Get the current user's rating for a specific title |
-| `GET` | `/api/recommendations` | Fetch cached Gemini recommendations for the current user |
-| `POST` | `/api/recommend` | Generate Gemini AI recommendations — subscription-gated (3 free lifetime calls, then £1.99/month) |
-| `GET` | `/api/subscription-status` | Returns current user's subscription status and free call count |
-| `POST` | `/api/stripe/checkout` | Create a Stripe Checkout session for TellySauce Pro |
-| `POST` | `/api/stripe/portal` | Create a Stripe Billing Portal session (manage/cancel subscription) |
+| Method   | Route                                    | Description                                                                                       |
+| -------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `GET`    | `/api/watchlist`                         | Get the current user's watchlist                                                                  |
+| `POST`   | `/api/watchlist`                         | Add a title to the watchlist                                                                      |
+| `DELETE` | `/api/watchlist`                         | Remove a title from the watchlist                                                                 |
+| `GET`    | `/api/rated`                             | Get all titles the current user has rated                                                         |
+| `POST`   | `/api/rated`                             | Rate a title (1–5 stars)                                                                          |
+| `GET`    | `/api/rating?tmdbId={id}&type=movie\|tv` | Get the current user's rating for a specific title                                                |
+| `GET`    | `/api/recommendations`                   | Fetch cached Gemini recommendations for the current user                                          |
+| `POST`   | `/api/recommend`                         | Generate Gemini AI recommendations — subscription-gated (3 free lifetime calls, then £1.99/month) |
+| `GET`    | `/api/subscription-status`               | Returns current user's subscription status and free call count                                    |
+| `POST`   | `/api/stripe/checkout`                   | Create a Stripe Checkout session for TellySauce Pro                                               |
+| `POST`   | `/api/stripe/portal`                     | Create a Stripe Billing Portal session (manage/cancel subscription)                               |
 
 ### Cron (Vercel internal)
 
-| Method | Route | Description |
-|--------|-------|-------------|
-| `GET` | `/api/cron/ai-popular` | Daily job: fetch AI picks via Gemini, resolve via TMDB, store in DB |
+| Method | Route                  | Description                                                         |
+| ------ | ---------------------- | ------------------------------------------------------------------- |
+| `GET`  | `/api/cron/ai-popular` | Daily job: fetch AI picks via Gemini, resolve via TMDB, store in DB |
 
 The cron route requires `Authorization: Bearer $CRON_SECRET`. Vercel adds this header automatically when the env var is set. To trigger manually:
 
