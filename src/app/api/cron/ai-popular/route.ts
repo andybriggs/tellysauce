@@ -109,27 +109,6 @@ function parseJsonArrayOfRecs(raw: string): Rec[] {
  * Returns one RedditQuote[] per title block (blocks separated by ---).
  * Format: QUOTE: "text" — r/subreddit
  */
-function extractQuotesFromRawText(rawText: string): RedditQuote[][] {
-  const blocks = rawText.split(/\n---\n|\n---$|^---\n/m).filter((b) => b.trim());
-  return blocks.map((block) => {
-    const quotes: RedditQuote[] = [];
-    for (const line of block.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith("QUOTE:")) continue;
-      // Match: QUOTE: "text" — r/subreddit  (em dash, en dash, or hyphen)
-      const match = trimmed.match(/^QUOTE:\s*"(.+?)"\s*[—–-]+\s*r\/(.+)$/);
-      if (match) {
-        quotes.push({
-          text: match[1].trim(),
-          subreddit: match[2].trim(),
-        });
-      }
-      if (quotes.length === 3) break;
-    }
-    return quotes;
-  });
-}
-
 /** ------------------------------------------------------------------ */
 /** Stage 1: Grounded search via Gemini                                 */
 /** ------------------------------------------------------------------ */
