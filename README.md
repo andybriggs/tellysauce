@@ -2,14 +2,14 @@
 
 A Next.js 15 web app for discovering, rating, and getting AI-powered recommendations for TV shows and movies.
 
-Users can search for titles, maintain a watchlist, rate shows/movies 1–5 stars, and receive personalised Gemini AI recommendations. The homepage also features daily AI-curated picks sourced from online community buzz.
+Users can search for titles, maintain a watchlist, rate shows/movies 1–5 stars, and receive personalised AI recommendations. The homepage also features daily AI-curated picks sourced from online community buzz.
 
 ## Tech Stack
 
 - **Framework**: Next.js 15 (App Router), React 19, TypeScript
 - **Database**: PostgreSQL via [Neon](https://neon.tech) (serverless), Drizzle ORM
 - **Auth**: NextAuth.js v4, Google OAuth
-- **AI**: Google Gemini (`@google/genai`) — 2-stage pipeline (grounded search + JSON structuring)
+- **AI**: OpenAI (`openai`) — single-call structured output for recommendations; Responses API with `web_search_preview` for cron
 - **Payments**: Stripe — £1.99/month subscription gating AI recommendations
 - **Data fetching**: SWR (client-side), Next.js fetch with ISR (server-side)
 - **Styling**: TailwindCSS, Embla Carousel
@@ -39,9 +39,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `TMDB_API_KEY`              | TMDB v3 API key                                                                                                                                                                                                     |
 | `TMDB_ACCESS_TOKEN`         | TMDB v4 Bearer token (used for all requests)                                                                                                                                                                        |
-| `GOOGLE_GEMINI_API_KEY`     | Gemini API key                                                                                                                                                                                                      |
-| `GEMINI_MODEL_GROUNDED`     | Model for grounded search stage (default: `gemini-2.5-flash`)                                                                                                                                                       |
-| `GEMINI_MODEL_STRUCT`       | Model for JSON structuring stage (default: `gemini-2.5-flash-lite`)                                                                                                                                                 |
+| `OPENAI_API_KEY`            | OpenAI API key — used for recommendations and cron web search                                                                                                                                                       |
 | `DATABASE_URL`              | Neon PostgreSQL connection string (pooled)                                                                                                                                                                          |
 | `DATABASE_URL_UNPOOLED`     | Neon PostgreSQL connection string (direct, for migrations)                                                                                                                                                          |
 | `NEXTAUTH_SECRET`           | NextAuth secret                                                                                                                                                                                                     |
@@ -66,7 +64,7 @@ The project uses Drizzle ORM with a Neon PostgreSQL database.
 | `users`                | Google OAuth users + Stripe subscription state                                  |
 | `titles`               | TMDB title cache (keyed by `tmdb_id` + `media_type`)                            |
 | `user_titles`          | Watchlist entries and ratings (`status`: `WATCHLIST` \| `RATED`, `rating`: 1–5) |
-| `recommendation_sets`  | Cached Gemini recommendation batches (7-day expiry)                             |
+| `recommendation_sets`  | Cached AI recommendation batches (7-day expiry)                                 |
 | `recommendation_items` | Individual titles within a recommendation set                                   |
 | `ai_popular_titles`    | Daily AI-curated popular titles populated by the cron job                       |
 
@@ -101,8 +99,8 @@ yarn db:studio     # Open Drizzle Studio (database browser)
 | `GET`    | `/api/rated`                             | Get all titles the current user has rated                                                         |
 | `POST`   | `/api/rated`                             | Rate a title (1–5 stars)                                                                          |
 | `GET`    | `/api/rating?tmdbId={id}&type=movie\|tv` | Get the current user's rating for a specific title                                                |
-| `GET`    | `/api/recommendations`                   | Fetch cached Gemini recommendations for the current user                                          |
-| `POST`   | `/api/recommend`                         | Generate Gemini AI recommendations — subscription-gated (3 free lifetime calls, then £1.99/month) |
+| `GET`    | `/api/recommendations`                   | Fetch cached AI recommendations for the current user                                              |
+| `POST`   | `/api/recommend`                         | Generate AI recommendations via OpenAI — subscription-gated (3 free lifetime calls, then £1.99/month) |
 | `GET`    | `/api/subscription-status`               | Returns current user's subscription status and free call count                                    |
 | `POST`   | `/api/stripe/checkout`                   | Create a Stripe Checkout session for TellySauce Pro                                               |
 | `POST`   | `/api/stripe/portal`                     | Create a Stripe Billing Portal session (manage/cancel subscription)                               |
@@ -111,7 +109,7 @@ yarn db:studio     # Open Drizzle Studio (database browser)
 
 | Method | Route                  | Description                                                         |
 | ------ | ---------------------- | ------------------------------------------------------------------- |
-| `GET`  | `/api/cron/ai-popular` | Daily job: fetch AI picks via Gemini, resolve via TMDB, store in DB |
+| `GET`  | `/api/cron/ai-popular` | Daily job: fetch AI picks via OpenAI web search, resolve via TMDB, store in DB |
 
 The cron route requires `Authorization: Bearer $CRON_SECRET`. Vercel adds this header automatically when the env var is set. To trigger manually:
 
@@ -121,20 +119,23 @@ curl -H "Authorization: Bearer <CRON_SECRET>" https://<your-domain>/api/cron/ai-
 
 ## AI Features
 
-### Gemini 2-Stage Pipeline
+### OpenAI Pipeline
 
-All Gemini calls follow a consistent two-stage pattern:
+All AI calls use the shared `openai` client from `src/lib/ai.ts`.
 
-1. **Stage 1 — Grounded search** (`GEMINI_MODEL_GROUNDED` + `googleSearch` tool): generates free-text results grounded in real-time web data
-2. **Stage 2 — JSON structuring** (`GEMINI_MODEL_STRUCT` + `responseMimeType: "application/json"`): converts the grounded text into a typed JSON array
+**Recommendations** (`src/app/api/recommend/route.ts`): a single `gpt-4o-mini` call using `response_format: json_schema` (strict structured output). Returns `{ recommendations: [...] }` directly — no intermediate text parsing or retry loops.
 
-Helper functions (`extractModelText`, `parseLines`, `parseJsonArrayOfRecs`) live in `src/app/api/recommend/route.ts` and are copied into the cron route.
+**Cron** (`src/app/api/cron/ai-popular/route.ts`): a 4-stage pipeline:
+1. **Web search** — `openai.responses.create` with `gpt-4o-mini` + `web_search_preview` tool. Finds trending titles from Reddit.
+2. **JSON structuring** — `gpt-4o-mini` chat completions with `json_schema`. Parses the Stage 1 text into structured title objects.
+3. **TMDB resolution** — enriches each title with poster, description, and year from TMDB.
+4. **Quote generation** — `gpt-4o-mini` chat completions with `json_schema`. Generates Reddit-style viewer quotes per title.
 
 ### Daily AI Picks (Cron)
 
 Scheduled daily at 06:00 UTC. The job:
 
-1. Uses Gemini (with Google Search grounding) to find the 10 most positively discussed movies and TV shows from the past 7 days across Reddit and similar communities
+1. Uses OpenAI web search (`gpt-4o-mini` + `web_search_preview` tool) to find the 10 most positively discussed movies and TV shows from the past 7 days across Reddit and similar communities
 2. Resolves each title string to a TMDB ID, then enriches with poster, description, and year
 3. Stores results in `ai_popular_titles` with a `fetched_date` batch key
 
@@ -144,7 +145,7 @@ Scheduled daily at 06:00 UTC. The job:
 
 ### Personalised Recommendations
 
-The `/api/recommend` route uses the user's rating history to generate a personalised recommendation list via Gemini. Results are cached in `recommendation_sets` / `recommendation_items` for 7 days.
+The `/api/recommend` route uses the user's rating history to generate a personalised recommendation list via OpenAI. Results are cached in `recommendation_sets` / `recommendation_items` for 7 days.
 
 ## TMDB Integration
 
