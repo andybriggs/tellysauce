@@ -10,6 +10,7 @@ vi.mock('@heroicons/react/24/solid', () => ({
 
 const mockToggle = vi.fn();
 const mockIsSaved = vi.fn(() => false);
+const mockIsRated = vi.fn(() => false);
 
 vi.mock('@/hooks/useWatchList', () => ({
   useWatchList: vi.fn(() => ({
@@ -17,6 +18,16 @@ vi.mock('@/hooks/useWatchList', () => ({
     isSaved: mockIsSaved,
     toggle: mockToggle,
   })),
+}));
+
+vi.mock('@/hooks/useRatedTitles', () => ({
+  useRatedTitles: vi.fn(() => ({
+    isSaved: mockIsRated,
+  })),
+}));
+
+vi.mock('@/hooks/useIsLoggedIn', () => ({
+  default: vi.fn(() => true),
 }));
 
 const mockTitle = {
@@ -31,6 +42,7 @@ describe('WatchlistButton', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockIsSaved.mockReturnValue(false);
+    mockIsRated.mockReturnValue(false);
   });
 
   it('renders "Add to watchlist" when not saved', () => {
@@ -79,5 +91,17 @@ describe('WatchlistButton', () => {
     render(<WatchlistButton title={titleNoId} />);
     fireEvent.click(screen.getByRole('button'));
     expect(mockToggle).not.toHaveBeenCalled();
+  });
+
+  it('does not render when the title has already been rated', () => {
+    mockIsRated.mockReturnValue(true);
+    const { container } = render(<WatchlistButton title={mockTitle} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('renders normally when the title is not rated', () => {
+    mockIsRated.mockReturnValue(false);
+    render(<WatchlistButton title={mockTitle} />);
+    expect(screen.getByRole('button')).toBeInTheDocument();
   });
 });
