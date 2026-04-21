@@ -414,11 +414,19 @@ export async function GET(req: Request) {
       structureToRecs(ai, tvText),
     ]);
 
+    console.log(`[ai-popular] Stage 2 results: movies=${movieRecs.length}, tv=${tvRecs.length}`);
+    if (movieRecs.length > 0) console.log("[ai-popular] Sample movie rec:", JSON.stringify(movieRecs[0]));
+    if (tvRecs.length > 0) console.log("[ai-popular] Sample tv rec:", JSON.stringify(tvRecs[0]));
+    if (movieRecs.length === 0) console.error("[ai-popular] Stage 2 produced 0 movie recs. Raw text sample:", movieText.slice(0, 500));
+    if (tvRecs.length === 0) console.error("[ai-popular] Stage 2 produced 0 tv recs. Raw text sample:", tvText.slice(0, 500));
+
     // Resolve to TMDB IDs + enrich with poster/description
     const [movieResolved, tvResolved] = await Promise.all([
       resolveRecs(movieRecs, "movie"),
       resolveRecs(tvRecs, "tv"),
     ]);
+
+    console.log(`[ai-popular] Stage 3 results: movies=${movieResolved.length}, tv=${tvResolved.length}`);
 
     // Save to DB
     await Promise.all([
