@@ -126,6 +126,7 @@ Title (optional YYYY) | description <=10 words | why it's popular <=8 words | ta
     config: {
       tools: [{ googleSearch: {} }],
       responseModalities: ["TEXT"],
+      thinkingConfig: { thinkingBudget: 1024 },
       maxOutputTokens: 700,
       temperature: 0.4,
       stopSequences: ["<<<END>>>"],
