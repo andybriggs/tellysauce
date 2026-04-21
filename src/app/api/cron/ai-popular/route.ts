@@ -135,6 +135,23 @@ Title (optional YYYY) | description <=10 words | why it's popular <=8 words | ta
   });
 
   const { text, finishReason, blockReason } = extractModelText(res);
+
+  // Diagnostic: log raw response structure so we can see what the SDK returns when text is empty
+  if (!text) {
+    const raw = res as Record<string, unknown>;
+    const cand = (raw?.candidates as unknown[])?.[0] as Record<string, unknown> | undefined;
+    console.error("[ai-popular] Empty text diagnostic", {
+      mediaType,
+      finishReason,
+      blockReason,
+      hasTopLevelText: typeof (raw as { text?: unknown })?.text,
+      candidatesLength: (raw?.candidates as unknown[] | undefined)?.length ?? 0,
+      partsLength: ((cand?.content as { parts?: unknown[] } | undefined)?.parts ?? []).length,
+      parts: JSON.stringify((cand?.content as { parts?: unknown[] } | undefined)?.parts ?? []).slice(0, 500),
+      hasGroundingMetadata: !!cand?.groundingMetadata,
+    });
+  }
+
   const endIdx = text.indexOf("<<<END>>>");
   const trimmed = (endIdx >= 0 ? text.slice(0, endIdx) : text).trim();
 
