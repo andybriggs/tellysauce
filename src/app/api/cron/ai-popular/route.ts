@@ -74,12 +74,12 @@ function parseYearLoose(s: string | null | undefined): number | null {
   return any ? Number(any[0]) : null;
 }
 
-function parseJsonArrayOfRecs(raw: string): CronRec[] {
+function parseJsonArrayOfRecs(raw: string): Rec[] {
   try {
     const parsed: unknown = JSON.parse(raw);
     if (Array.isArray(parsed)) {
       return parsed
-        .map((it): CronRec | null => {
+        .map((it): Rec | null => {
           if (!isRecord(it)) return null;
           const title = typeof it.title === "string" ? it.title.trim() : "";
           if (!title) return null;
@@ -94,28 +94,40 @@ function parseJsonArrayOfRecs(raw: string): CronRec[] {
             typeof y === "number" && Number.isFinite(y)
               ? Math.trunc(y)
               : parseYearLoose(title) ?? null;
-          const quotes: RedditQuote[] = Array.isArray(it.quotes)
-            ? it.quotes
-                .filter(
-                  (q): q is { text: string; subreddit: string } =>
-                    isRecord(q) &&
-                    typeof q.text === "string" &&
-                    typeof q.subreddit === "string"
-                )
-                .map((q) => ({
-                  text: q.text.trim(),
-                  subreddit: q.subreddit.trim().replace(/^r\//, ""),
-                }))
-                .slice(0, 3)
-            : [];
-          return { title, description, reason, tags, year, quotes };
+          return { title, description, reason, tags, year };
         })
-        .filter((x): x is CronRec => Boolean(x));
+        .filter((x): x is Rec => Boolean(x));
     }
   } catch {
     /* ignore */
   }
   return [];
+}
+
+/**
+ * Parses QUOTE: lines from Stage 1 raw text.
+ * Returns one RedditQuote[] per title block (blocks separated by ---).
+ * Format: QUOTE: "text" — r/subreddit
+ */
+function extractQuotesFromRawText(rawText: string): RedditQuote[][] {
+  const blocks = rawText.split(/\n---\n|\n---$|^---\n/m).filter((b) => b.trim());
+  return blocks.map((block) => {
+    const quotes: RedditQuote[] = [];
+    for (const line of block.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("QUOTE:")) continue;
+      // Match: QUOTE: "text" — r/subreddit  (em dash, en dash, or hyphen)
+      const match = trimmed.match(/^QUOTE:\s*"(.+?)"\s*[—–-]+\s*r\/(.+)$/);
+      if (match) {
+        quotes.push({
+          text: match[1].trim(),
+          subreddit: match[2].trim(),
+        });
+      }
+      if (quotes.length === 3) break;
+    }
+    return quotes;
+  });
 }
 
 /** ------------------------------------------------------------------ */
@@ -213,23 +225,22 @@ QUOTE: "another reaction if a second is clearly available" — r/subreddit
 async function structureToRecs(
   ai: GoogleGenAI,
   groundedText: string
-): Promise<CronRec[]> {
-  // Count title blocks by the number of lines containing " | " (the title lines)
+): Promise<Rec[]> {
+  // Count only title lines (contain " | ") — QUOTE: lines and --- separators are not items
   const titleLineCount = parseLines(groundedText).filter(
     (l) => l.includes(" | ") && !l.startsWith("QUOTE:")
-  ).length;
+  ).length || 10;
 
   const res: unknown = await ai.models.generateContent({
     model: process.env.GEMINI_MODEL_STRUCT || "gemini-2.5-flash-lite",
-    contents: `Turn the following blocks into STRICT JSON.
+    contents: `Turn the following lines into STRICT JSON.
 
 Rules:
 - Output ONLY JSON (no prose, no code fences).
-- Each item: { "title", "description", "reason", "tags": [strings], "year": number|null, "quotes": [{text, subreddit}] }.
-- Parse the title line (contains "|") for title, description, reason, tags, year.
-- Parse QUOTE: lines into the "quotes" array (up to 3). Strip the "r/" prefix from subreddit names.
-- If no QUOTE lines are present for a title, use an empty "quotes" array.
-- If a 4-digit year appears in the title line, set "year" to that integer. If unknown, set null.
+- Each item: { "title", "description", "reason", "tags": [strings], "year": number|null }.
+- Only parse the title lines (those containing "|"). Ignore QUOTE: lines and --- separators.
+- If a 4-digit year appears in the line, set "year" to that integer. If unknown, set null.
+- Keep descriptions concise.
 - Return exactly ${titleLineCount} items.
 
 SOURCE:
@@ -246,24 +257,13 @@ ${groundedText}`,
             reason: { type: Type.STRING },
             tags: { type: Type.ARRAY, items: { type: Type.STRING } },
             year: { type: Type.INTEGER, nullable: true },
-            quotes: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  text: { type: Type.STRING },
-                  subreddit: { type: Type.STRING },
-                },
-                required: ["text", "subreddit"],
-              },
-            },
           },
-          required: ["title", "description", "reason", "tags", "year", "quotes"],
+          required: ["title", "description", "reason", "tags", "year"],
           additionalProperties: false,
         },
       },
       temperature: 0.2,
-      maxOutputTokens: 1200,
+      maxOutputTokens: 700,
     },
   });
 
@@ -415,15 +415,19 @@ export async function GET(req: Request) {
     ]);
 
     console.log(`[ai-popular] Stage 2 results: movies=${movieRecs.length}, tv=${tvRecs.length}`);
-    if (movieRecs.length > 0) console.log("[ai-popular] Sample movie rec:", JSON.stringify(movieRecs[0]));
-    if (tvRecs.length > 0) console.log("[ai-popular] Sample tv rec:", JSON.stringify(tvRecs[0]));
     if (movieRecs.length === 0) console.error("[ai-popular] Stage 2 produced 0 movie recs. Raw text sample:", movieText.slice(0, 500));
     if (tvRecs.length === 0) console.error("[ai-popular] Stage 2 produced 0 tv recs. Raw text sample:", tvText.slice(0, 500));
 
+    // Stage 2.5: extract QUOTE: lines from Stage 1 raw text and zip with structured recs
+    const movieQuoteBlocks = extractQuotesFromRawText(movieText);
+    const tvQuoteBlocks = extractQuotesFromRawText(tvText);
+    const movieCronRecs: CronRec[] = movieRecs.map((rec, i) => ({ ...rec, quotes: movieQuoteBlocks[i] ?? [] }));
+    const tvCronRecs: CronRec[] = tvRecs.map((rec, i) => ({ ...rec, quotes: tvQuoteBlocks[i] ?? [] }));
+
     // Resolve to TMDB IDs + enrich with poster/description
     const [movieResolved, tvResolved] = await Promise.all([
-      resolveRecs(movieRecs, "movie"),
-      resolveRecs(tvRecs, "tv"),
+      resolveRecs(movieCronRecs, "movie"),
+      resolveRecs(tvCronRecs, "tv"),
     ]);
 
     console.log(`[ai-popular] Stage 3 results: movies=${movieResolved.length}, tv=${tvResolved.length}`);
