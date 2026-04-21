@@ -146,15 +146,12 @@ Search Reddit right now — especially r/movies, r/television, r/MovieSuggestion
 IMPORTANT — Regional focus: Prioritise content that is popular in English-speaking countries (US, UK, Australia, Canada, Ireland) and Western Europe (France, Germany, Spain, Italy, etc.). You may include East Asian content ONLY if it has had a major mainstream crossover in Western markets (e.g. Squid Game, Parasite). Do not include content that is primarily popular within East Asian markets.
 
 Focus on high-upvote threads, multi-community buzz, and genuine enthusiasm (not controversy).
-Output EXACTLY 10 titles, NO preamble/numbering/URLs.
+Output EXACTLY 10 titles, one per line, NO preamble/numbering/URLs.
 If you know the release year, include it in parentheses after the title.
 END output with: <<<END>>>
 
-FORMAT (repeat this block for each title, separated by ---):
-Title (optional YYYY) | description <=10 words | why it's popular <=8 words | tag1, tag2
-QUOTE: "a representative positive community reaction or quote from the discussion" — r/subreddit
-QUOTE: "another reaction if a second is clearly available" — r/subreddit
----`;
+FORMAT:
+Title (optional YYYY) | description <=10 words | why it's popular <=8 words | tag1, tag2`;
 
   // Retry once if the model returns empty content (intermittent grounding failure)
   for (let attempt = 1; attempt <= 2; attempt++) {
@@ -385,6 +382,82 @@ async function saveBatch(
 }
 
 /** ------------------------------------------------------------------ */
+/** Stage 3.5: Generate community quotes for resolved titles           */
+/** ------------------------------------------------------------------ */
+
+async function generateQuotesForTitles(
+  ai: GoogleGenAI,
+  titles: string[]
+): Promise<RedditQuote[][]> {
+  if (titles.length === 0) return [];
+
+  const list = titles.map((t, i) => `${i + 1}. ${t}`).join("\n");
+
+  const res: unknown = await ai.models.generateContent({
+    model: process.env.GEMINI_MODEL_STRUCT || "gemini-2.5-flash-lite",
+    contents: `For each film or TV show below, write 2 short representative quotes (max 120 chars each) that reflect what enthusiastic viewers are saying about it online — the kind of thing you'd see in Reddit film communities like r/movies or r/television. Each quote should feel genuine and specific to that title.
+
+Return a JSON array with one object per title, in the same order.
+Each object: { "quotes": [{ "text": string, "subreddit": string }] }
+Use real subreddit names without the r/ prefix (e.g. "movies", "television", "TrueFilm").
+
+TITLES:
+${list}`,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            quotes: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  text: { type: Type.STRING },
+                  subreddit: { type: Type.STRING },
+                },
+                required: ["text", "subreddit"],
+                additionalProperties: false,
+              },
+            },
+          },
+          required: ["quotes"],
+          additionalProperties: false,
+        },
+      },
+      temperature: 0.7,
+      maxOutputTokens: 2000,
+    },
+  });
+
+  try {
+    const { text } = extractModelText(res);
+    const parsed: unknown = JSON.parse(text || "[]");
+    if (!Array.isArray(parsed)) return titles.map(() => []);
+    return parsed.map((item) => {
+      if (!isRecord(item) || !Array.isArray(item.quotes)) return [];
+      return (item.quotes as unknown[])
+        .filter(
+          (q): q is { text: string; subreddit: string } =>
+            isRecord(q) &&
+            typeof q.text === "string" &&
+            typeof q.subreddit === "string"
+        )
+        .map((q) => ({
+          text: q.text.trim(),
+          subreddit: q.subreddit.trim().replace(/^r\//, ""),
+        }))
+        .slice(0, 2);
+    });
+  } catch {
+    console.warn("[ai-popular] generateQuotesForTitles failed to parse response");
+    return titles.map(() => []);
+  }
+}
+
+/** ------------------------------------------------------------------ */
 /** Handler                                                             */
 /** ------------------------------------------------------------------ */
 
@@ -418,19 +491,25 @@ export async function GET(req: Request) {
     if (movieRecs.length === 0) console.error("[ai-popular] Stage 2 produced 0 movie recs. Raw text sample:", movieText.slice(0, 500));
     if (tvRecs.length === 0) console.error("[ai-popular] Stage 2 produced 0 tv recs. Raw text sample:", tvText.slice(0, 500));
 
-    // Stage 2.5: extract QUOTE: lines from Stage 1 raw text and zip with structured recs
-    const movieQuoteBlocks = extractQuotesFromRawText(movieText);
-    const tvQuoteBlocks = extractQuotesFromRawText(tvText);
-    const movieCronRecs: CronRec[] = movieRecs.map((rec, i) => ({ ...rec, quotes: movieQuoteBlocks[i] ?? [] }));
-    const tvCronRecs: CronRec[] = tvRecs.map((rec, i) => ({ ...rec, quotes: tvQuoteBlocks[i] ?? [] }));
+    // Wrap as CronRec with empty quotes for now — quotes added in Stage 3.5
+    const movieCronRecs: CronRec[] = movieRecs.map((rec) => ({ ...rec, quotes: [] }));
+    const tvCronRecs: CronRec[] = tvRecs.map((rec) => ({ ...rec, quotes: [] }));
 
-    // Resolve to TMDB IDs + enrich with poster/description
+    // Stage 3: resolve to TMDB IDs + enrich with poster/description
     const [movieResolved, tvResolved] = await Promise.all([
       resolveRecs(movieCronRecs, "movie"),
       resolveRecs(tvCronRecs, "tv"),
     ]);
 
     console.log(`[ai-popular] Stage 3 results: movies=${movieResolved.length}, tv=${tvResolved.length}`);
+
+    // Stage 3.5: generate community quotes for resolved titles (non-grounded, lightweight)
+    const [movieQuotes, tvQuotes] = await Promise.all([
+      generateQuotesForTitles(ai, movieResolved.map((r) => r.title)),
+      generateQuotesForTitles(ai, tvResolved.map((r) => r.title)),
+    ]);
+    movieResolved.forEach((r, i) => { r.redditQuotes = movieQuotes[i] ?? []; });
+    tvResolved.forEach((r, i) => { r.redditQuotes = tvQuotes[i] ?? []; });
 
     // Save to DB
     await Promise.all([
