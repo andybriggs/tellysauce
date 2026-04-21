@@ -152,7 +152,6 @@ QUOTE: "another reaction if a second is clearly available" — r/subreddit
       config: {
         tools: [{ googleSearch: {} }],
         responseModalities: ["TEXT"],
-        thinkingConfig: { thinkingBudget: 1024 },
         maxOutputTokens: 4096,
         temperature: 0.4,
         stopSequences: ["<<<END>>>"],
