@@ -46,7 +46,7 @@ Title (optional YYYY) | description <=10 words | why it's popular <=8 words | ta
 
   for (let attempt = 1; attempt <= 2; attempt++) {
     const res = await openai.responses.create({
-      model: "gpt-4o-mini-search-preview",
+      model: "gpt-4o-mini",
       tools: [{ type: "web_search_preview" }],
       input: prompt,
     });
