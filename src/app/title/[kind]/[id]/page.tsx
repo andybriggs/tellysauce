@@ -58,9 +58,9 @@ export async function generateMetadata({
 export default async function TitlePage({ params }: PageProps) {
   const { id, kind } = await params;
 
-  const [data, sources] = await Promise.all([
+  const [data, allSources] = await Promise.all([
     fetchTitleDetails(kind, id, revalidate),
-    fetchTitleSources(kind, id, revalidate, "GB"),
+    fetchTitleSources(kind, id, revalidate),
   ]);
 
   if (!data) notFound();
@@ -121,7 +121,7 @@ export default async function TitlePage({ params }: PageProps) {
     </div>
   );
 
-  const whereToWatch = <WhereToWatch sources={sources} />;
+  const whereToWatch = <WhereToWatch allSources={allSources} />;
 
   return (
     <main className="relative min-h-[60vh] w-full pb-8">

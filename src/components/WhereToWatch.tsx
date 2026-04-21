@@ -1,22 +1,77 @@
+"use client";
+import { useState, useEffect } from "react";
 import ResultsTable from "@/components/ResultsTable";
-import { StreamingSource } from "@/types/";
+import type { TitleSource } from "@/types/title";
 
-interface WhereToWatchProps {
-  sources: StreamingSource[];
-  regionLabel?: string;
+const PRIORITY_REGIONS = ["GB", "US", "CA", "AU", "IE"];
+const STORAGE_KEY = "watch_region";
+
+function detectDefaultRegion(): string {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) return stored;
+    const lang = navigator.language ?? "";
+    const parts = lang.split("-");
+    if (parts.length >= 2) return parts[parts.length - 1].toUpperCase();
+  } catch { }
+  return "GB";
 }
 
-export default function WhereToWatch({
-  sources,
-  regionLabel = "GB",
-}: WhereToWatchProps) {
+interface WhereToWatchProps {
+  allSources: Record<string, TitleSource[]>;
+}
+
+export default function WhereToWatch({ allSources }: WhereToWatchProps) {
+  const [region, setRegion] = useState("GB");
+
+  useEffect(() => {
+    setRegion(detectDefaultRegion());
+  }, []);
+
+  const availableRegions = Object.keys(allSources).sort((a, b) => {
+    const pa = PRIORITY_REGIONS.indexOf(a);
+    const pb = PRIORITY_REGIONS.indexOf(b);
+    if (pa !== -1 && pb !== -1) return pa - pb;
+    if (pa !== -1) return -1;
+    if (pb !== -1) return 1;
+    return a.localeCompare(b);
+  });
+
+  const countryNames = new Intl.DisplayNames(["en"], { type: "region" });
+
+  const handleChange = (code: string) => {
+    setRegion(code);
+    try {
+      localStorage.setItem(STORAGE_KEY, code);
+    } catch { }
+  };
+
+  const sources = allSources[region] ?? [];
+
   return (
     <div>
-      <h2 className="mb-3 text-lg font-semibold text-white">Where to watch</h2>
-      {sources?.length ? (
+      <div className="mb-3">
+        <h2 className="text-lg font-semibold text-white mb-3">Where to watch</h2>
+        {availableRegions.length > 0 && (
+          <select
+            value={availableRegions.includes(region) ? region : availableRegions[0]}
+            onChange={(e) => handleChange(e.target.value)}
+            className="rounded bg-slate-700 px-2 py-1 text-sm text-white"
+          >
+            {availableRegions.map((code) => (
+              <option key={code} value={code}>
+                {countryNames.of(code) ?? code}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+      {sources.length ? (
         <ResultsTable data={sources} />
       ) : (
-        <p className="text-slate-300">No sources found for {regionLabel}.</p>
+        <p className="text-slate-300">
+          No sources found for {countryNames.of(region) ?? region}.
+        </p>
       )}
     </div>
   );

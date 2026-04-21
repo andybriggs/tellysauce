@@ -64,6 +64,10 @@ await sql.query(`CREATE TABLE IF NOT EXISTS ...`);
 - TMDB search year params differ by type: movies use `year`, TV shows use `first_air_date_year`
 - The title detail page fetches `vote_average` / `vote_count` from the base TMDB endpoint (already included; no extra append needed) and stores them as `tmdb_vote_average` / `tmdb_vote_count` on `TitleDetails`
 
+### Watch providers (Where to watch)
+- `fetchTitleSources(kind, id, revalidate)` — `src/server/tmdb.ts` — returns `Record<string, TitleSource[]>` keyed by ISO country code (e.g. `"GB"`, `"US"`). TMDB returns all regions in one call; we return them all.
+- `src/components/WhereToWatch.tsx` — client component. Reads selected region from `localStorage` key `"watch_region"`, falling back to country derived from `navigator.language`, then `"GB"`. Shows a dropdown listing only countries that have provider data for the current title. Priority order: GB, US, CA, AU, IE, then alphabetical.
+
 ### OMDb API (IMDb ratings)
 - `fetchIMDbRating(imdbId)` in `src/app/title/[kind]/[id]/page.tsx` — server-side fetch to `https://www.omdbapi.com/?i={imdbId}&apikey={OMDB_API_KEY}`
 - Returns the `imdbRating` string (e.g. `"8.9"`) or `null` when unavailable or key is absent

@@ -228,11 +228,10 @@ export async function fetchTitleDetails(
 export async function fetchTitleSources(
   kind: MediaType,
   id: string,
-  revalidate: number,
-  region = "GB"
-): Promise<TitleSource[]> {
+  revalidate: number
+): Promise<Record<string, TitleSource[]>> {
   const token = process.env.TMDB_ACCESS_TOKEN;
-  if (!token) return [];
+  if (!token) return {};
 
   const url = `https://api.themoviedb.org/3/${kind}/${encodeURIComponent(
     id
@@ -242,41 +241,41 @@ export async function fetchTitleSources(
     headers: TMDB_HEADERS(),
     next: { revalidate },
   });
-  if (!res.ok) return [];
+  if (!res.ok) return {};
 
   const data: TMDBProvidersResponse = await res.json();
-  const regional = data.results?.[region];
-  if (!regional) return [];
+  if (!data.results) return {};
 
-  const buckets: Array<{
-    type: TitleSource["type"];
-    list?: TMDBProviderItem[];
-  }> = [
-    { type: "sub", list: regional.flatrate },
-    { type: "rent", list: regional.rent },
-    { type: "buy", list: regional.buy },
-    { type: "free", list: regional.free },
-    { type: "ads", list: regional.ads },
-  ];
-
-  const link = regional.link ?? null;
-
-  return buckets.flatMap(({ type, list }) =>
-    (list ?? []).map((p) => ({
-      source_id: p.provider_id,
-      name: p.provider_name,
-      icon: tmdbProviderLogo(p.logo_path),
-      type,
-      region,
-      ios_url: null,
-      android_url: null,
-      web_url: link,
-      format: null,
-      price: null,
-      seasons: undefined,
-      episodes: undefined,
-    }))
-  );
+  const out: Record<string, TitleSource[]> = {};
+  for (const [regionCode, regional] of Object.entries(data.results)) {
+    const link = regional.link ?? null;
+    const buckets: Array<{
+      type: TitleSource["type"];
+      list?: TMDBProviderItem[];
+    }> = [
+      { type: "sub", list: regional.flatrate },
+      { type: "rent", list: regional.rent },
+      { type: "buy", list: regional.buy },
+      { type: "free", list: regional.free },
+      { type: "ads", list: regional.ads },
+    ];
+    const sources = buckets.flatMap(({ type, list }) =>
+      (list ?? []).map((p) => ({
+        source_id: p.provider_id,
+        name: p.provider_name,
+        icon: tmdbProviderLogo(p.logo_path),
+        type,
+        region: regionCode,
+        ios_url: null,
+        android_url: null,
+        web_url: link,
+        format: null,
+        price: null,
+      }))
+    );
+    if (sources.length) out[regionCode] = sources;
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------

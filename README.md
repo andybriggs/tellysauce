@@ -152,6 +152,7 @@ All TMDB requests use the v4 Bearer token (`TMDB_ACCESS_TOKEN`).
 
 - `fetchTMDBTitle(tmdbId, mediaType)` — `src/server/tmdb.ts` — canonical function for fetching full title details
 - Title search year params differ by media type: movies use `year`, TV shows use `first_air_date_year`
+- `fetchTitleSources(kind, id, revalidate)` — returns streaming providers for **all regions** as `Record<string, TitleSource[]>`. The title page passes this to `WhereToWatch`, which lets users pick their country from a dropdown. The selected region persists in `localStorage` (`watch_region` key) and auto-detects from `navigator.language` on first visit.
 
 ## Stripe Subscription
 
