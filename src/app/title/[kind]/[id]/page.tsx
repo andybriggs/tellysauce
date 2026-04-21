@@ -16,6 +16,8 @@ import RecommendTitles from "@/components/recommendations/RecommendTitles";
 import TrailerWithPosterOverlay from "@/components/TrailerWithPosterOverlay";
 import { fetchTitleDetails, fetchTitleSources } from "@/server/tmdb";
 import { fetchIMDbRating } from "@/server/omdb";
+import { fetchAiPopularData } from "@/server/aiPopular";
+import RedditQuotes from "@/components/RedditQuotes";
 import type { MediaType } from "@/types/title";
 
 export const revalidate = 3600;
@@ -58,9 +60,10 @@ export async function generateMetadata({
 export default async function TitlePage({ params }: PageProps) {
   const { id, kind } = await params;
 
-  const [data, allSources] = await Promise.all([
+  const [data, allSources, aiPopularData] = await Promise.all([
     fetchTitleDetails(kind, id, revalidate),
     fetchTitleSources(kind, id, revalidate),
+    fetchAiPopularData(Number(id), kind),
   ]);
 
   if (!data) notFound();
@@ -197,6 +200,12 @@ export default async function TitlePage({ params }: PageProps) {
             buttonLabel="More like this"
           />
         </div>
+
+        {aiPopularData?.redditQuotes && aiPopularData.redditQuotes.length > 0 && (
+          <div className="mt-8">
+            <RedditQuotes quotes={aiPopularData.redditQuotes} title={title} />
+          </div>
+        )}
       </Container>
     </main>
   );

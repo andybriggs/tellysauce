@@ -10,6 +10,7 @@ import {
   boolean,
   date,
 } from "drizzle-orm/pg-core";
+import type { RedditQuote } from "@/types/reddit";
 
 export const users = pgTable("users", {
   id: text("id").primaryKey(),
@@ -124,6 +125,7 @@ export const aiPopularTitles = pgTable("ai_popular_titles", {
   aiReason: text("ai_reason"),
   rank: integer("rank").notNull(),
   fetchedDate: date("fetched_date").notNull(),
+  redditQuotes: jsonb("reddit_quotes").$type<RedditQuote[]>(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
