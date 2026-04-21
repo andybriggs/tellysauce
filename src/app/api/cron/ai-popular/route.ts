@@ -149,6 +149,9 @@ Title (optional YYYY) | description <=10 words | why it's popular <=8 words | ta
       partsLength: ((cand?.content as { parts?: unknown[] } | undefined)?.parts ?? []).length,
       parts: JSON.stringify((cand?.content as { parts?: unknown[] } | undefined)?.parts ?? []).slice(0, 500),
       hasGroundingMetadata: !!cand?.groundingMetadata,
+      groundingMetadataKeys: cand?.groundingMetadata ? Object.keys(cand.groundingMetadata as object) : [],
+      groundingMetadataSample: JSON.stringify(cand?.groundingMetadata).slice(0, 800),
+      fullCandidate: JSON.stringify(cand).slice(0, 1000),
     });
   }
 
