@@ -23,9 +23,11 @@ interface WhereToWatchProps {
 
 export default function WhereToWatch({ allSources }: WhereToWatchProps) {
   const [region, setRegion] = useState("GB");
+  const [countryNames, setCountryNames] = useState<Intl.DisplayNames | null>(null);
 
   useEffect(() => {
     setRegion(detectDefaultRegion());
+    setCountryNames(new Intl.DisplayNames(["en"], { type: "region" }));
   }, []);
 
   const availableRegions = Object.keys(allSources).sort((a, b) => {
@@ -36,8 +38,6 @@ export default function WhereToWatch({ allSources }: WhereToWatchProps) {
     if (pb !== -1) return 1;
     return a.localeCompare(b);
   });
-
-  const countryNames = new Intl.DisplayNames(["en"], { type: "region" });
 
   const handleChange = (code: string) => {
     setRegion(code);
@@ -60,7 +60,7 @@ export default function WhereToWatch({ allSources }: WhereToWatchProps) {
           >
             {availableRegions.map((code) => (
               <option key={code} value={code}>
-                {countryNames.of(code) ?? code}
+                {countryNames?.of(code) ?? code}
               </option>
             ))}
           </select>
@@ -70,7 +70,7 @@ export default function WhereToWatch({ allSources }: WhereToWatchProps) {
         <ResultsTable data={sources} />
       ) : (
         <p className="text-slate-300">
-          No sources found for {countryNames.of(region) ?? region}.
+          No sources found for {countryNames?.of(region) ?? region}.
         </p>
       )}
     </div>

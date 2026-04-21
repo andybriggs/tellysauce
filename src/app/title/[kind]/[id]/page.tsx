@@ -169,16 +169,22 @@ export default async function TitlePage({ params }: PageProps) {
             )}
           </div>
 
+          {/* Meta — shown inside the grid at mobile + md when trailer is present so it sits
+              above the providers row. Hidden at lg where it renders after the grid instead. */}
+          {data.trailerKey && (
+            <div className="md:col-span-4 lg:hidden">{metaSection}</div>
+          )}
+
           {/* Column 3: Providers — hidden on mobile (rendered below instead), stacked on md, side column on lg */}
           <aside className="hidden md:block md:col-span-4 lg:col-span-1 lg:aspect-[2/3] lg:overflow-y-auto">
             {whereToWatch}
           </aside>
         </div>
 
-        {/* Meta pills + genre/network tags + overview — only shown here when a trailer is present
-            (otherwise they live inside column 2 above) */}
+        {/* Meta pills + genre/network tags + overview — only shown at lg+ when a trailer is present
+            (at smaller sizes it renders inside the grid above, before the providers row) */}
         {data.trailerKey && (
-          <div className="mt-6">{metaSection}</div>
+          <div className="hidden lg:block mt-6">{metaSection}</div>
         )}
 
         {/* Where to watch — mobile only (hidden on md+, where it renders inside the grid) */}
