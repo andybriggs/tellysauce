@@ -360,7 +360,10 @@ export async function POST(req: NextRequest) {
         return Response.json({ error: "Seed title missing" }, { status: 400 });
       }
 
-      const avoidList = [...watchlistTitles, seed.title].filter(Boolean).join(", ");
+      const avoidLines = [...watchlistTitles, seed.title]
+        .filter(Boolean)
+        .map((t) => `- ${t}`)
+        .join("\n") || "- (none)";
 
       const prompt = `You are a TV and film expert.
 
@@ -371,12 +374,13 @@ SEED TITLE:
 - Genres: ${(seed.genres ?? []).join(", ") || "unknown"}
 - Overview: ${brief(seed.overview) || "none"}
 
-DO NOT suggest any of these titles (already watched or the seed itself):
-${avoidList || "none"}
+TITLES TO EXCLUDE — the user has already seen or saved all of these. Do not suggest any of them under any circumstances:
+${avoidLines}
 
 Return EXACTLY ${targetCount} titles strongly related to the seed by theme, tone, audience, craft, or creators.
 Prefer titles from the past 5 years but include older classics if they are a strong match.
-For each title provide a description (max 15 words), the reason it matches the seed (max 10 words), 3–5 genre/style tags, and the release year if known (null otherwise).`;
+For each title provide a description (max 15 words), the reason it matches the seed (max 10 words), 3–5 genre/style tags, and the release year if known (null otherwise).
+Double-check your response against the exclusion list before returning it.`;
 
       const recommendations = await callOpenAI(prompt);
 
@@ -437,19 +441,23 @@ For each title provide a description (max 15 words), the reason it matches the s
     }));
 
     const favoriteTitles = compact.map((s) => s.title);
-    const avoidList = [...favoriteTitles, ...watchlistTitles].filter(Boolean).join(", ");
+    const avoidLines = [...favoriteTitles, ...watchlistTitles]
+      .filter(Boolean)
+      .map((t) => `- ${t}`)
+      .join("\n") || "- (none)";
 
     const prompt = `You are a TV and film expert.
 
 User's favorite titles (with ratings out of 5):
 ${compact.map((s) => `- ${s.title}${s.rating != null ? ` (rated ${s.rating}/5)` : ""}`).join("\n")}
 
-DO NOT suggest any of these titles (already in the user's list):
-${avoidList || "none"}
+TITLES TO EXCLUDE — the user has already seen or saved all of these. Do not suggest any of them under any circumstances:
+${avoidLines}
 
 Return EXACTLY ${targetCount} titles the user is likely to enjoy based on their taste.
 Prefer titles from the past 5 years but include older titles if they are a strong match.
-For each title provide a description (max 15 words), the reason it suits this user (max 10 words), 3–5 genre/style tags, and the release year if known (null otherwise).`;
+For each title provide a description (max 15 words), the reason it suits this user (max 10 words), 3–5 genre/style tags, and the release year if known (null otherwise).
+Double-check your response against the exclusion list before returning it.`;
 
     const recommendations = await callOpenAI(prompt);
 
