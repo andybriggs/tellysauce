@@ -15,22 +15,12 @@ vi.mock("@/lib/recs", () => ({
   buildRecKey: vi.fn().mockReturnValue("profile-key"),
 }));
 
-// GoogleGenAI mock — must be a class constructor
-vi.mock("@google/genai", () => {
-  const mockGenerateContent = vi.fn();
-  class MockGoogleGenAI {
-    models = { generateContent: mockGenerateContent };
-    constructor() {}
-  }
+// OpenAI mock via @/lib/ai
+vi.mock("@/lib/ai", () => {
+  const mockCreate = vi.fn();
   return {
-    GoogleGenAI: MockGoogleGenAI,
-    Type: {
-      ARRAY: "array",
-      OBJECT: "object",
-      STRING: "string",
-      INTEGER: "integer",
-    },
-    __mockGenerateContent: mockGenerateContent,
+    openai: { chat: { completions: { create: mockCreate } } },
+    __mockCreate: mockCreate,
   };
 });
 
@@ -41,26 +31,35 @@ import { POST } from "./route";
 const mockSession = vi.mocked(getServerSession);
 const mockDb = db as unknown as { execute: ReturnType<typeof vi.fn> };
 
-// Access the shared generateContent mock via module
-async function getMockGenerateContent() {
-  const mod = await import("@google/genai");
-  return (mod as unknown as { __mockGenerateContent: ReturnType<typeof vi.fn> }).__mockGenerateContent;
+async function getMockCreate() {
+  const mod = await import("@/lib/ai");
+  return (mod as unknown as { __mockCreate: ReturnType<typeof vi.fn> })
+    .__mockCreate;
+}
+
+function makeOpenAIResponse(recommendations: unknown[]) {
+  return {
+    choices: [
+      {
+        message: {
+          content: JSON.stringify({ recommendations }),
+        },
+      },
+    ],
+  };
 }
 
 // Helper: set up db.execute so subscription query returns specific user row
-// The route calls db.execute for:
-//   1. CREATE TABLE recommendation_sets (ensureTablesOnce — runs once at module load)
-//   2. CREATE TABLE recommendation_items (ensureTablesOnce)
-//   3. CREATE INDEX (ensureTablesOnce)
-//   4. SELECT subscription_status, free_rec_calls_used (per request)
-//   5+ upsert/insert operations
-//
-// Since ensureTablesOnce is a module-level IIFE (runs at import), by test time
-// it has already resolved. We just need to set up what each per-request call returns.
-function setupSubscriptionExec(row: { subscription_status: string | null; free_rec_calls_used: number }) {
+function setupSubscriptionExec(row: {
+  subscription_status: string | null;
+  free_rec_calls_used: number;
+}) {
   mockDb.execute.mockImplementation((sqlArg: unknown) => {
     const sqlStr = JSON.stringify(sqlArg);
-    if (sqlStr.includes("subscription_status") && sqlStr.includes("free_rec_calls_used")) {
+    if (
+      sqlStr.includes("subscription_status") &&
+      sqlStr.includes("free_rec_calls_used")
+    ) {
       return Promise.resolve({ rows: [row] });
     }
     if (sqlStr.includes("recommendation_sets") && sqlStr.includes("RETURNING")) {
@@ -72,9 +71,8 @@ function setupSubscriptionExec(row: { subscription_status: string | null; free_r
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // Default: resolve all db.execute calls
   mockDb.execute.mockResolvedValue(undefined);
-  vi.stubEnv("GOOGLE_GEMINI_API_KEY", "test-gemini-key");
+  vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
 });
 
 afterEach(() => {
@@ -115,25 +113,23 @@ describe("POST /api/recommend", () => {
 
   it("succeeds for active subscriber", async () => {
     mockSession.mockResolvedValue({ user: { id: "user-1" } } as never);
-    setupSubscriptionExec({ subscription_status: "active", free_rec_calls_used: 10 });
+    setupSubscriptionExec({
+      subscription_status: "active",
+      free_rec_calls_used: 10,
+    });
 
-    const mockGenerateContent = await getMockGenerateContent();
-    mockGenerateContent
-      .mockResolvedValueOnce({
-        candidates: [{
-          content: { parts: [{ text: "The Matrix (1999) | Sci-fi classic | Great choice | sci-fi, action\n" }] },
-          finishReason: "STOP",
-        }],
-      })
-      .mockResolvedValueOnce({
-        text: JSON.stringify([{
+    const mockCreate = await getMockCreate();
+    mockCreate.mockResolvedValueOnce(
+      makeOpenAIResponse([
+        {
           title: "The Matrix",
           description: "A hacker discovers the truth.",
           reason: "Great choice",
           tags: ["sci-fi", "action"],
           year: 1999,
-        }]),
-      });
+        },
+      ])
+    );
 
     const req = new NextRequest("http://localhost/api/recommend", {
       method: "POST",
@@ -150,25 +146,23 @@ describe("POST /api/recommend", () => {
 
   it("succeeds for user within free tier (freeRecCallsUsed < 3)", async () => {
     mockSession.mockResolvedValue({ user: { id: "user-2" } } as never);
-    setupSubscriptionExec({ subscription_status: null, free_rec_calls_used: 0 });
+    setupSubscriptionExec({
+      subscription_status: null,
+      free_rec_calls_used: 0,
+    });
 
-    const mockGenerateContent = await getMockGenerateContent();
-    mockGenerateContent
-      .mockResolvedValueOnce({
-        candidates: [{
-          content: { parts: [{ text: "Interstellar (2014) | Space epic | Loved by sci-fi fans | sci-fi, drama\n" }] },
-          finishReason: "STOP",
-        }],
-      })
-      .mockResolvedValueOnce({
-        text: JSON.stringify([{
+    const mockCreate = await getMockCreate();
+    mockCreate.mockResolvedValueOnce(
+      makeOpenAIResponse([
+        {
           title: "Interstellar",
           description: "Space exploration drama.",
           reason: "Loved by sci-fi fans",
           tags: ["sci-fi", "drama"],
           year: 2014,
-        }]),
-      });
+        },
+      ])
+    );
 
     const req = new NextRequest("http://localhost/api/recommend", {
       method: "POST",
@@ -184,7 +178,10 @@ describe("POST /api/recommend", () => {
 
   it("returns 400 when no titles provided in profile mode", async () => {
     mockSession.mockResolvedValue({ user: { id: "user-1" } } as never);
-    setupSubscriptionExec({ subscription_status: "active", free_rec_calls_used: 0 });
+    setupSubscriptionExec({
+      subscription_status: "active",
+      free_rec_calls_used: 0,
+    });
 
     const req = new NextRequest("http://localhost/api/recommend", {
       method: "POST",
@@ -200,7 +197,10 @@ describe("POST /api/recommend", () => {
 
   it("returns 400 when seed mode has no seed title", async () => {
     mockSession.mockResolvedValue({ user: { id: "user-1" } } as never);
-    setupSubscriptionExec({ subscription_status: "active", free_rec_calls_used: 0 });
+    setupSubscriptionExec({
+      subscription_status: "active",
+      free_rec_calls_used: 0,
+    });
 
     const req = new NextRequest("http://localhost/api/recommend", {
       method: "POST",

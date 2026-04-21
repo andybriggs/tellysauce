@@ -15,22 +15,18 @@ vi.mock("@/server/tmdb", () => ({
   fetchTMDBTitle: vi.fn(),
 }));
 
-// GoogleGenAI mock — must be a class constructor
-vi.mock("@google/genai", () => {
-  const mockGenerateContent = vi.fn();
-  class MockGoogleGenAI {
-    models = { generateContent: mockGenerateContent };
-    constructor() {}
-  }
+// Mock @/lib/ai — openai has both chat.completions.create (structuring/quotes)
+// and responses.create (web search grounding), each with their own mock fn.
+vi.mock("@/lib/ai", () => {
+  const mockCreate = vi.fn();
+  const mockResponsesCreate = vi.fn();
   return {
-    GoogleGenAI: MockGoogleGenAI,
-    Type: {
-      ARRAY: "array",
-      OBJECT: "object",
-      STRING: "string",
-      INTEGER: "integer",
+    openai: {
+      chat: { completions: { create: mockCreate } },
+      responses: { create: mockResponsesCreate },
     },
-    __mockGenerateContent: mockGenerateContent,
+    __mockCreate: mockCreate,
+    __mockResponsesCreate: mockResponsesCreate,
   };
 });
 
@@ -41,18 +37,28 @@ import { GET } from "./route";
 const mockDb = db as unknown as { execute: ReturnType<typeof vi.fn> };
 const mockFetchTMDBTitle = vi.mocked(fetchTMDBTitle);
 
-async function getMockGenerateContent() {
-  const mod = await import("@google/genai");
-  return (mod as unknown as { __mockGenerateContent: ReturnType<typeof vi.fn> }).__mockGenerateContent;
+async function getMocks() {
+  const mod = await import("@/lib/ai");
+  const m = mod as unknown as {
+    __mockCreate: ReturnType<typeof vi.fn>;
+    __mockResponsesCreate: ReturnType<typeof vi.fn>;
+  };
+  return { mockCreate: m.__mockCreate, mockResponsesCreate: m.__mockResponsesCreate };
+}
+
+function makeResponsesResponse(text: string) {
+  return { output_text: text };
+}
+
+function makeJsonResponse(data: unknown) {
+  return { choices: [{ message: { content: JSON.stringify(data) } }] };
 }
 
 beforeEach(() => {
-  vi.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(console, "error").mockImplementation(() => {});
   vi.clearAllMocks();
   vi.stubEnv("CRON_SECRET", "test-cron-secret");
-  vi.stubEnv("GOOGLE_GEMINI_API_KEY", "test-gemini-key");
-  vi.stubEnv("GEMINI_MODEL_GROUNDED_HQ", "gemini-2.5-pro");
-  vi.stubEnv("GEMINI_MODEL_STRUCT", "gemini-2.5-flash-lite");
+  vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
   mockDb.execute.mockResolvedValue(undefined);
 });
 
@@ -82,34 +88,53 @@ describe("GET /api/cron/ai-popular", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 500 when GOOGLE_GEMINI_API_KEY is missing", async () => {
-    vi.stubEnv("GOOGLE_GEMINI_API_KEY", "");
+  it("returns 500 when OPENAI_API_KEY is missing", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "");
     const req = makeRequest("Bearer test-cron-secret");
     const res = await GET(req);
     expect(res.status).toBe(500);
     const data = await res.json();
-    expect(data.error).toMatch(/GOOGLE_GEMINI_API_KEY/);
+    expect(data.error).toMatch(/OPENAI_API_KEY/);
   });
 
-  it("executes successfully with valid auth and mocked Gemini + TMDB", async () => {
-    const groundedText = "The Matrix (1999) | A sci-fi classic | Hugely popular | sci-fi, action";
-    const jsonRecs = JSON.stringify([{
-      title: "The Matrix",
-      description: "A sci-fi classic",
-      reason: "Hugely popular",
-      tags: ["sci-fi", "action"],
-      year: 1999,
-    }]);
+  it("executes successfully with valid auth and mocked OpenAI + TMDB", async () => {
+    const groundedText =
+      "The Matrix (1999) | A sci-fi classic | Hugely popular | sci-fi, action";
+    const structuredRecs = {
+      titles: [
+        {
+          title: "The Matrix",
+          description: "A sci-fi classic",
+          reason: "Hugely popular",
+          tags: ["sci-fi", "action"],
+          year: 1999,
+        },
+      ],
+    };
+    const quotes = {
+      items: [
+        {
+          quotes: [
+            { text: "A masterpiece of sci-fi cinema", subreddit: "movies" },
+          ],
+        },
+      ],
+    };
 
-    const mockGenerateContent = await getMockGenerateContent();
-    // 4 calls in parallel pairs: movie grounded, tv grounded, movie struct, tv struct
-    mockGenerateContent
-      .mockResolvedValueOnce({ candidates: [{ content: { parts: [{ text: groundedText }] }, finishReason: "STOP" }] })
-      .mockResolvedValueOnce({ candidates: [{ content: { parts: [{ text: groundedText }] }, finishReason: "STOP" }] })
-      .mockResolvedValueOnce({ text: jsonRecs })
-      .mockResolvedValueOnce({ text: jsonRecs });
+    const { mockCreate, mockResponsesCreate } = await getMocks();
 
-    // TMDB search returns an ID (used by searchTmdbId)
+    // Stage 1: web search via responses.create (movie + tv in parallel)
+    mockResponsesCreate
+      .mockResolvedValueOnce(makeResponsesResponse(groundedText))
+      .mockResolvedValueOnce(makeResponsesResponse(groundedText));
+
+    // Stage 2 + 3.5: structuring and quotes via chat.completions.create
+    mockCreate
+      .mockResolvedValueOnce(makeJsonResponse(structuredRecs)) // movie struct
+      .mockResolvedValueOnce(makeJsonResponse(structuredRecs)) // tv struct
+      .mockResolvedValueOnce(makeJsonResponse(quotes))         // movie quotes
+      .mockResolvedValueOnce(makeJsonResponse(quotes));        // tv quotes
+
     server.use(
       http.get("https://api.themoviedb.org/3/search/movie", () =>
         HttpResponse.json({ results: [{ id: 603 }] })
@@ -119,7 +144,6 @@ describe("GET /api/cron/ai-popular", () => {
       )
     );
 
-    // fetchTMDBTitle returns enriched data
     mockFetchTMDBTitle.mockResolvedValue({
       tmdbId: 603,
       mediaType: "movie",
@@ -140,9 +164,9 @@ describe("GET /api/cron/ai-popular", () => {
     expect(typeof data.tv).toBe("number");
   });
 
-  it("returns 500 when Gemini throws", async () => {
-    const mockGenerateContent = await getMockGenerateContent();
-    mockGenerateContent.mockRejectedValue(new Error("Gemini API failed"));
+  it("returns 500 when OpenAI web search throws", async () => {
+    const { mockResponsesCreate } = await getMocks();
+    mockResponsesCreate.mockRejectedValue(new Error("OpenAI API failed"));
 
     const req = makeRequest("Bearer test-cron-secret");
     const res = await GET(req);

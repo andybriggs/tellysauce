@@ -1,7 +1,7 @@
 # TellySauce — Project Context
 
 ## What this app is
-A Next.js 15 web app for discovering, rating, and getting AI-powered recommendations for TV shows and movies. Hosted on Vercel. Users can search titles, maintain a watchlist, rate shows 1–5, and receive personalised Gemini AI recommendations.
+A Next.js 15 web app for discovering, rating, and getting AI-powered recommendations for TV shows and movies. Hosted on Vercel. Users can search titles, maintain a watchlist, rate shows 1–5, and receive personalised AI recommendations.
 
 ## Package manager
 Always use **yarn** (not npm). `package.json` has `"packageManager": "yarn@1.22.22"`. Run `yarn install`, `yarn dev`, `yarn test`, etc. Never commit a `package-lock.json`.
@@ -16,7 +16,7 @@ Always use **yarn** (not npm). `package.json` has `"packageManager": "yarn@1.22.
 - **Framework**: Next.js 15 (App Router), React 19, TypeScript
 - **Database**: PostgreSQL via Neon (serverless), Drizzle ORM — `src/db/schema.ts`
 - **Auth**: NextAuth.js v4, Google OAuth — `src/lib/auth.ts`
-- **AI**: Google Gemini (`@google/genai`) — `src/app/api/recommend/route.ts`
+- **AI**: OpenAI (`openai`) — `src/lib/ai.ts` (shared client), `src/app/api/recommend/route.ts`, `src/app/api/cron/ai-popular/route.ts`
 - **Payments**: Stripe (subscriptions) — `src/lib/stripe.ts`
 - **Data fetching**: SWR (client-side), Next.js fetch with ISR (server-side)
 - **Styling**: TailwindCSS, Embla Carousel
@@ -26,14 +26,12 @@ Always use **yarn** (not npm). `package.json` has `"packageManager": "yarn@1.22.
 - `users` — Google OAuth users + Stripe subscription fields (`stripe_customer_id`, `stripe_subscription_id`, `subscription_status`, `subscription_period_end`, `free_rec_calls_used`)
 - `titles` — TMDB title cache (tmdbId + mediaType unique)
 - `user_titles` — watchlist and ratings (status: WATCHLIST | RATED, rating 1–5)
-- `recommendation_sets` / `recommendation_items` — Gemini recommendation cache (7-day expiry)
+- `recommendation_sets` / `recommendation_items` — AI recommendation cache (7-day expiry)
 - `ai_popular_titles` — daily AI-curated popular titles from Reddit/online buzz (populated by cron)
 
 ## Key environment variables (`.env.local`)
 - `TMDB_ACCESS_TOKEN` — TMDB v4 Bearer token
-- `GOOGLE_GEMINI_API_KEY` — Gemini API key
-- `GEMINI_MODEL_GROUNDED` — grounded search model (default: `gemini-2.5-flash`)
-- `GEMINI_MODEL_STRUCT` — JSON structuring model (default: `gemini-2.5-flash-lite`)
+- `OPENAI_API_KEY` — OpenAI API key (used for recommendations and cron web search)
 - `DATABASE_URL` / `DATABASE_URL_UNPOOLED` — Neon PostgreSQL
 - `CRON_SECRET` — Bearer token for Vercel cron auth
 - `NEXTAUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
@@ -44,11 +42,19 @@ Always use **yarn** (not npm). `package.json` has `"packageManager": "yarn@1.22.
 
 ## Important patterns
 
-### Gemini usage (2-stage pipeline)
-All Gemini calls follow this pattern from `src/app/api/recommend/route.ts`:
-1. **Stage 1** — grounded text generation: `GEMINI_MODEL_GROUNDED` + `tools: [{ googleSearch: {} }]` + `stopSequences: ["<<<END>>>"]`
-2. **Stage 2** — JSON structuring: `GEMINI_MODEL_STRUCT` + `responseMimeType: "application/json"` + `responseSchema`
-Helper functions `extractModelText`, `parseLines`, `parseJsonArrayOfRecs` are defined in `recommend/route.ts` and copied into the cron route.
+### OpenAI usage
+All AI calls use the shared client from `src/lib/ai.ts` (`openai` instance, `openai` npm package).
+
+**Recommendations** (`src/app/api/recommend/route.ts`) — single `gpt-4o-mini` call per request:
+- `openai.chat.completions.create` with `response_format: { type: "json_schema", ... }` (strict structured output)
+- Returns `{ recommendations: [{ title, description, reason, tags, year }] }` directly — no intermediate text parsing
+- Seed mode: 3 recommendations based on a single title. Profile mode: 8 based on the user's rated watchlist.
+
+**Cron** (`src/app/api/cron/ai-popular/route.ts`) — 4-stage pipeline:
+1. **Stage 1** — web search: `openai.responses.create` with model `gpt-4o-mini-search-preview` + `web_search_preview` tool. Returns pipe-delimited text of trending titles from Reddit.
+2. **Stage 2** — JSON structuring: `gpt-4o-mini` chat completions with `json_schema`. Parses the Stage 1 text into structured `{ titles: [...] }`.
+3. **Stage 3** — TMDB resolution: fetches poster/description from TMDB for each title.
+4. **Stage 3.5** — quote generation: `gpt-4o-mini` chat completions with `json_schema`. Generates Reddit-style viewer quotes per title.
 
 ### DB migrations
 The project uses both `drizzle-kit push` (dev) and hand-written SQL files in `drizzle/`. To apply a new migration manually:
@@ -79,8 +85,8 @@ await sql.query(`CREATE TABLE IF NOT EXISTS ...`);
 |-------|---------|
 | `GET /api/discover?type=movie|tv&timeframe=recent|all` | TMDB popular/top-rated |
 | `GET /api/discover?type=movie|tv&source=ai` | AI picks from `ai_popular_titles` DB table |
-| `POST /api/recommend` | Gemini recommendations (profile or seed mode) — subscription-gated |
-| `GET /api/cron/ai-popular` | Daily cron: Gemini → TMDB → `ai_popular_titles` |
+| `POST /api/recommend` | AI recommendations via OpenAI (profile or seed mode) — subscription-gated |
+| `GET /api/cron/ai-popular` | Daily cron: OpenAI web search → TMDB → `ai_popular_titles` |
 | `GET /api/autocomplete` | TMDB title search |
 | `GET /api/resolve-title` | Advanced TMDB title resolution with scoring |
 | `GET /api/subscription-status` | Returns `{ subscriptionStatus, freeRecCallsUsed }` for the current user |
@@ -93,7 +99,7 @@ await sql.query(`CREATE TABLE IF NOT EXISTS ...`);
 - Auth: `Authorization: Bearer $CRON_SECRET` header (Vercel adds this automatically)
 - Fetches top 10 movies + top 10 TV shows being positively discussed in Western/mainstream online communities (Reddit etc.)
 - **Regional focus**: English-speaking countries (US, UK, AU, CA, IE) + Western Europe. East Asian content only if major Western crossover (e.g. Squid Game).
-- Resolves Gemini-returned title strings to TMDB IDs, enriches with poster/description, stores in `ai_popular_titles`
+- Resolves AI-returned title strings to TMDB IDs, enriches with poster/description, stores in `ai_popular_titles`
 - Guard: skips DB write if 0 titles resolved (preserves previous day's data)
 
 ### Stripe subscription paywall
@@ -111,7 +117,7 @@ await sql.query(`CREATE TABLE IF NOT EXISTS ...`);
 - `src/app/page.tsx` — homepage (`"use client"` — uses search hooks). AI picks render first, then TMDB popular sections below.
 - `src/components/PopularTitles.tsx` — handles both TMDB and AI picks via `source` prop. `source="ai"` hides the timeframe tabs and shows a different title.
 - `src/hooks/useDiscoverTitles.ts` — SWR hook, accepts `{ timeframe?, source? }` options
-- `src/components/recommendations/` — Gemini recommendation display components
+- `src/components/recommendations/` — AI recommendation display components
 
 ## Known architectural note
 `page.tsx` is a client component (`"use client"`), so the AI picks are currently fetched client-side via SWR despite the data coming from our own DB. Server rendering the AI picks would require extracting the interactive search parts into separate client components — a worthwhile but separate refactor.
