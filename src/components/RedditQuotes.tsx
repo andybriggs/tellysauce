@@ -15,7 +15,10 @@ export default function RedditQuotes({ quotes, title }: RedditQuotesProps) {
       </h2>
       <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {quotes.map((q, i) => {
-          const searchUrl = `https://www.reddit.com/r/${q.subreddit}/search/?q=${encodeURIComponent(title)}&sort=top&t=week`;
+          const href = q.url
+            ? q.url
+            : `https://www.reddit.com/r/${q.subreddit}/search/?q=${encodeURIComponent(title)}&sort=top&t=month`;
+          const linkLabel = q.url ? "View thread" : "Search Reddit";
           return (
             <li
               key={i}
@@ -40,13 +43,13 @@ export default function RedditQuotes({ quotes, title }: RedditQuotesProps) {
                   r/{q.subreddit}
                 </span>
                 <a
-                  href={searchUrl}
+                  href={href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label={`View discussions about ${title} on r/${q.subreddit}`}
+                  aria-label={`${linkLabel} about ${title} on r/${q.subreddit}`}
                   className="shrink-0 text-slate-500 hover:text-white transition-colors text-xs underline underline-offset-2"
                 >
-                  View thread
+                  {linkLabel}
                 </a>
               </footer>
             </li>

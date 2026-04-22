@@ -2,7 +2,6 @@ import { db } from "@/db";
 import { sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { TMDB_BASE, fetchTMDBTitle } from "@/server/tmdb";
-import type { Rec } from "@/app/api/recommend/route";
 import type { RedditQuote } from "@/types/reddit";
 import { openai } from "@/lib/ai";
 
@@ -13,7 +12,12 @@ export const maxDuration = 300;
 /** Types                                                               */
 /** ------------------------------------------------------------------ */
 
-type CronRec = Rec & {
+type CronRec = {
+  title: string;
+  description: string;
+  reason: string;
+  tags: string[];
+  year: number | null;
   quotes: RedditQuote[];
 };
 
@@ -59,34 +63,32 @@ If you cannot find a real quote or URL for a title, set those fields to null.`;
       text: {
         format: {
           type: "json_schema",
-          json_schema: {
-            name: "title_list",
-            strict: true,
-            schema: {
-              type: "object",
-              properties: {
-                titles: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      title: { type: "string" },
-                      description: { type: "string" },
-                      reason: { type: "string" },
-                      tags: { type: "array", items: { type: "string" } },
-                      year: { anyOf: [{ type: "integer" }, { type: "null" }] },
-                      reddit_quote: { anyOf: [{ type: "string" }, { type: "null" }] },
-                      reddit_url: { anyOf: [{ type: "string" }, { type: "null" }] },
-                      subreddit: { anyOf: [{ type: "string" }, { type: "null" }] },
-                    },
-                    required: ["title", "description", "reason", "tags", "year", "reddit_quote", "reddit_url", "subreddit"],
-                    additionalProperties: false,
+          name: "title_list",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              titles: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    title: { type: "string" },
+                    description: { type: "string" },
+                    reason: { type: "string" },
+                    tags: { type: "array", items: { type: "string" } },
+                    year: { anyOf: [{ type: "integer" }, { type: "null" }] },
+                    reddit_quote: { anyOf: [{ type: "string" }, { type: "null" }] },
+                    reddit_url: { anyOf: [{ type: "string" }, { type: "null" }] },
+                    subreddit: { anyOf: [{ type: "string" }, { type: "null" }] },
                   },
+                  required: ["title", "description", "reason", "tags", "year", "reddit_quote", "reddit_url", "subreddit"],
+                  additionalProperties: false,
                 },
               },
-              required: ["titles"],
-              additionalProperties: false,
             },
+            required: ["titles"],
+            additionalProperties: false,
           },
         },
       },
