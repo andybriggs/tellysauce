@@ -1,4 +1,5 @@
 export type RedditQuote = {
-  text: string;      // paraphrased sentiment from Reddit discussion
+  text: string;      // viewer quote from Reddit discussion
   subreddit: string; // subreddit name without "r/" prefix, e.g. "movies"
+  url?: string;      // link to the Reddit thread where the quote was found
 };
