@@ -42,7 +42,7 @@ const TitleCard = ({ title, rateTitle }: Props) => {
           </span>
         </div>
 
-        {titleStars && (
+        {titleStars ? (
           <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
             <StarRating
               titleId={id}
@@ -50,7 +50,13 @@ const TitleCard = ({ title, rateTitle }: Props) => {
               rating={title.rating}
             />
           </div>
-        )}
+        ) : title.aiReason ? (
+          <div className="absolute bottom-0 left-0 right-0 px-3 py-2">
+            <p className="text-white/90 text-[11px] leading-snug line-clamp-2">
+              {title.aiReason}
+            </p>
+          </div>
+        ) : null}
       </div>
     </Link>
   );
