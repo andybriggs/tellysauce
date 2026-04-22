@@ -49,11 +49,12 @@ For each title return:
 - description: what it is in 10 words or fewer
 - reason: why it is popular right now in 8 words or fewer
 - tags: 3–5 genre/style tags
-- reddit_quote: a short direct quote (max 120 chars) from a real upvoted Reddit comment about this title — copy the commenter's actual words, not a paraphrase
-- reddit_url: the URL of the Reddit thread where the quote or discussion was found (e.g. https://reddit.com/r/movies/comments/...)
-- subreddit: the subreddit name without the r/ prefix (e.g. "movies")
+- reddit_quote: a short quote (max 120 chars) capturing what enthusiastic viewers are saying about this title in Reddit discussions — reflect the genuine community sentiment you found
+- subreddit: the subreddit name without the r/ prefix where the most discussion is happening (e.g. "movies")
 
-If you cannot find a real quote or URL for a title, set those fields to null.`;
+If you cannot find a quote or subreddit for a title, set those fields to null.
+
+Your entire response must be the JSON object described in the output schema — 10 titles, no preamble, no extra text.`;
 
   for (let attempt = 1; attempt <= 2; attempt++) {
     const res = await openai.responses.create({
@@ -79,10 +80,9 @@ If you cannot find a real quote or URL for a title, set those fields to null.`;
                     tags: { type: "array", items: { type: "string" } },
                     year: { anyOf: [{ type: "integer" }, { type: "null" }] },
                     reddit_quote: { anyOf: [{ type: "string" }, { type: "null" }] },
-                    reddit_url: { anyOf: [{ type: "string" }, { type: "null" }] },
                     subreddit: { anyOf: [{ type: "string" }, { type: "null" }] },
                   },
-                  required: ["title", "description", "reason", "tags", "year", "reddit_quote", "reddit_url", "subreddit"],
+                  required: ["title", "description", "reason", "tags", "year", "reddit_quote", "subreddit"],
                   additionalProperties: false,
                 },
               },
@@ -109,12 +109,22 @@ If you cannot find a real quote or URL for a title, set those fields to null.`;
     try {
       const parsed = JSON.parse(text) as { titles?: unknown[] };
       const recs = (parsed.titles ?? []).filter(
-        (r): r is CronRec & { reddit_quote: string | null; reddit_url: string | null; subreddit: string | null } =>
+        (r): r is CronRec & { reddit_quote: string | null; subreddit: string | null } =>
           typeof r === "object" &&
           r !== null &&
           typeof (r as Record<string, unknown>).title === "string" &&
           ((r as Record<string, unknown>).title as string).length > 0
       );
+
+      if (recs.length === 0) {
+        console.warn(
+          `[ai-popular] Structured response contained 0 titles for ${mediaType} (attempt ${attempt}/2)`
+        );
+        if (attempt < 2) continue;
+        throw new Error(
+          `Structured response contained 0 titles for ${mediaType} after 2 attempts`
+        );
+      }
 
       return recs.map((r) => {
         const quotes: RedditQuote[] =
@@ -123,7 +133,6 @@ If you cannot find a real quote or URL for a title, set those fields to null.`;
                 {
                   text: r.reddit_quote.slice(0, 120),
                   subreddit: (r.subreddit as string).replace(/^r\//, ""),
-                  ...(r.reddit_url ? { url: r.reddit_url } : {}),
                 },
               ]
             : [];
@@ -156,27 +165,34 @@ async function searchTmdbId(
   mediaType: "movie" | "tv",
   year?: number | null
 ): Promise<number | null> {
-  const params = new URLSearchParams({ query: title, language: "en-US" });
+  const yearKey = mediaType === "tv" ? "first_air_date_year" : "year";
+
+  const search = async (withYear: boolean): Promise<number | null> => {
+    const params = new URLSearchParams({ query: title, language: "en-US" });
+    if (withYear && year) params.set(yearKey, String(year));
+
+    const res = await fetch(`${TMDB_BASE}/search/${mediaType}?${params.toString()}`, {
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${process.env.TMDB_ACCESS_TOKEN}`,
+      },
+      cache: "no-store",
+    });
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.results?.[0]?.id ?? null;
+  };
+
+  // Try with year first; if nothing comes back (common for TV shows where the
+  // model returns a recent season year rather than the first-air year), retry
+  // without the year filter.
   if (year) {
-    params.set(
-      mediaType === "tv" ? "first_air_date_year" : "year",
-      String(year)
-    );
+    const id = await search(true);
+    if (id) return id;
   }
 
-  const url = `${TMDB_BASE}/search/${mediaType}?${params.toString()}`;
-  const res = await fetch(url, {
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${process.env.TMDB_ACCESS_TOKEN}`,
-    },
-    cache: "no-store",
-  });
-
-  if (!res.ok) return null;
-  const data = await res.json();
-  const first = data.results?.[0];
-  return first?.id ?? null;
+  return search(false);
 }
 
 /** ------------------------------------------------------------------ */

@@ -15,10 +15,8 @@ export default function RedditQuotes({ quotes, title }: RedditQuotesProps) {
       </h2>
       <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {quotes.map((q, i) => {
-          const href = q.url
-            ? q.url
-            : `https://www.reddit.com/r/${q.subreddit}/search/?q=${encodeURIComponent(title)}&sort=top&t=month`;
-          const linkLabel = q.url ? "View thread" : "Search Reddit";
+          const href = `https://www.reddit.com/r/${q.subreddit}/search/?q=${encodeURIComponent(title)}&sort=top&t=month`;
+          const linkLabel = "Search Reddit";
           return (
             <li
               key={i}
