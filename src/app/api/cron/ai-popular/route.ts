@@ -41,18 +41,16 @@ async function fetchGroundedTitles(mediaType: "movie" | "tv"): Promise<CronRec[]
 
 IMPORTANT — Regional focus: Prioritise content that is popular in English-speaking countries (US, UK, Australia, Canada, Ireland) and Western Europe (France, Germany, Spain, Italy, etc.). You may include East Asian content ONLY if it has had a major mainstream crossover in Western markets (e.g. Squid Game, Parasite). Do not include content that is primarily popular within East Asian markets.
 
+IMPORTANT — Genre diversity: Ensure a spread of genres. Include at most 2 horror or thriller titles in the list. Prioritise variety across drama, comedy, sci-fi, action, documentary, animation, etc.
+
 Focus on high-upvote threads, multi-community buzz, and genuine enthusiasm (not controversy).
 
 For each title return:
 - title: the film or show name
 - year: release year as an integer if known, otherwise null
 - description: what it is in 10 words or fewer
-- reason: why it is popular right now in 8 words or fewer
+- reason: in ≤12 words, why it is trending right now — naturally mention the community where it's being discussed (e.g. "r/movies is obsessed with this slow-burn thriller" or "dominating r/television after its shocking finale")
 - tags: 3–5 genre/style tags
-- reddit_quote: a short quote (max 120 chars) capturing what enthusiastic viewers are saying about this title in Reddit discussions — reflect the genuine community sentiment you found
-- subreddit: the subreddit name without the r/ prefix where the most discussion is happening (e.g. "movies")
-
-If you cannot find a quote or subreddit for a title, set those fields to null.
 
 Your entire response must be the JSON object described in the output schema — 10 titles, no preamble, no extra text.`;
 
@@ -79,10 +77,8 @@ Your entire response must be the JSON object described in the output schema — 
                     reason: { type: "string" },
                     tags: { type: "array", items: { type: "string" } },
                     year: { anyOf: [{ type: "integer" }, { type: "null" }] },
-                    reddit_quote: { anyOf: [{ type: "string" }, { type: "null" }] },
-                    subreddit: { anyOf: [{ type: "string" }, { type: "null" }] },
                   },
-                  required: ["title", "description", "reason", "tags", "year", "reddit_quote", "subreddit"],
+                  required: ["title", "description", "reason", "tags", "year"],
                   additionalProperties: false,
                 },
               },
@@ -109,7 +105,7 @@ Your entire response must be the JSON object described in the output schema — 
     try {
       const parsed = JSON.parse(text) as { titles?: unknown[] };
       const recs = (parsed.titles ?? []).filter(
-        (r): r is CronRec & { reddit_quote: string | null; subreddit: string | null } =>
+        (r): r is CronRec =>
           typeof r === "object" &&
           r !== null &&
           typeof (r as Record<string, unknown>).title === "string" &&
@@ -126,26 +122,14 @@ Your entire response must be the JSON object described in the output schema — 
         );
       }
 
-      return recs.map((r) => {
-        const quotes: RedditQuote[] =
-          r.reddit_quote && r.subreddit
-            ? [
-                {
-                  text: r.reddit_quote.slice(0, 120),
-                  subreddit: (r.subreddit as string).replace(/^r\//, ""),
-                },
-              ]
-            : [];
-
-        return {
-          title: r.title,
-          description: r.description,
-          reason: r.reason,
-          tags: r.tags,
-          year: r.year,
-          quotes,
-        };
-      });
+      return recs.map((r) => ({
+        title: r.title,
+        description: r.description,
+        reason: r.reason,
+        tags: r.tags,
+        year: r.year,
+        quotes: [],
+      }));
     } catch (err) {
       console.warn(`[ai-popular] Failed to parse structured response for ${mediaType} (attempt ${attempt}/2):`, err);
       if (attempt < 2) continue;

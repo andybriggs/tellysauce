@@ -17,7 +17,6 @@ import TrailerWithPosterOverlay from "@/components/TrailerWithPosterOverlay";
 import { fetchTitleDetails, fetchTitleSources } from "@/server/tmdb";
 import { fetchIMDbRating } from "@/server/omdb";
 import { fetchAiPopularData } from "@/server/aiPopular";
-import RedditQuotes from "@/components/RedditQuotes";
 import type { MediaType } from "@/types/title";
 
 export const revalidate = 3600;
@@ -201,9 +200,15 @@ export default async function TitlePage({ params }: PageProps) {
           />
         </div>
 
-        {aiPopularData?.redditQuotes && aiPopularData.redditQuotes.length > 0 && (
+        {aiPopularData?.aiReason && (
           <div className="mt-8">
-            <RedditQuotes quotes={aiPopularData.redditQuotes} title={title} />
+            <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-5 py-4 flex items-start gap-3">
+              <span className="mt-0.5 text-orange-400" aria-hidden>&#9650;</span>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-orange-400 mb-1">Trending now</p>
+                <p className="text-slate-200 text-sm leading-relaxed">{aiPopularData.aiReason}</p>
+              </div>
+            </div>
           </div>
         )}
       </Container>
