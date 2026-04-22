@@ -15,7 +15,6 @@ export type Title = {
   rating: number;
   description: string | null;
   year?: number;
-  aiReason?: string;
 };
 
 export type TitleMeta = Omit<Title, "rating">;

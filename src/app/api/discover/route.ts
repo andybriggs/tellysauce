@@ -27,7 +27,7 @@ export async function GET(req: Request) {
     if (source === "ai") {
       try {
         const rows = await db.execute(sql`
-          SELECT tmdb_id, title, poster, year, description, ai_reason, rank
+          SELECT tmdb_id, title, poster, year, description, rank
           FROM ai_popular_titles
           WHERE media_type = ${type}
             AND fetched_date = (
@@ -45,7 +45,6 @@ export async function GET(req: Request) {
           poster: r.poster as string | null,
           year: r.year as number | undefined,
           rating: 0,
-          aiReason: (r.ai_reason as string | null) ?? undefined,
         }));
 
         return NextResponse.json({ titles });
