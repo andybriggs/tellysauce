@@ -37,19 +37,28 @@ type ResolvedTitle = {
 
 async function fetchGroundedTitles(mediaType: "movie" | "tv"): Promise<CronRec[]> {
   const kind = mediaType === "movie" ? "movies" : "TV shows";
+  const currentYear = new Date().getFullYear();
   const prompt = `Search Reddit right now — especially r/movies, r/television, r/MovieSuggestions, r/NetflixBestOf, r/TrueFilm, r/criterion, r/letterboxd — for the 10 most positively discussed ${kind} in the past 7 days.
 
-IMPORTANT — Regional focus: Prioritise content that is popular in English-speaking countries (US, UK, Australia, Canada, Ireland) and Western Europe (France, Germany, Spain, Italy, etc.). You may include East Asian content ONLY if it has had a major mainstream crossover in Western markets (e.g. Squid Game, Parasite). Do not include content that is primarily popular within East Asian markets.
+RULES — follow all of these strictly:
 
-IMPORTANT — Genre diversity: Ensure a spread of genres. Include at most 2 horror or thriller titles in the list. Prioritise variety across drama, comedy, sci-fi, action, documentary, animation, etc.
+1. RECENCY: Only include ${kind} released in ${currentYear - 2} or later. The only exception is a title released before ${currentYear - 2} that is genuinely trending RIGHT NOW due to a specific recent event (new season, award win, sequel announcement) — and even then, include at most 1 such exception.
 
-Focus on high-upvote threads, multi-community buzz, and genuine enthusiasm (not controversy).
+2. MAINSTREAM APPEAL: Focus on titles with broad, mainstream audiences — wide theatrical releases, major streaming premieres (Netflix, Prime, Disney+, Apple TV+, HBO/Max), or shows with large viewership. Avoid niche or cult titles that appeal to a small subset of enthusiasts.
+
+3. GENRE BALANCE: Return a spread of genres. At most 1 horror or thriller title. Prioritise drama, comedy, action, sci-fi, animation, documentary. Do not return multiple titles from the same franchise or universe.
+
+4. REGIONAL FOCUS: Prioritise English-speaking countries (US, UK, Australia, Canada, Ireland) and Western Europe. East Asian content only if it has had a major mainstream Western crossover (e.g. Squid Game, Parasite).
+
+5. NO DUPLICATES: Every title must be unique. Do not repeat a title.
+
+6. ENTHUSIASM ONLY: Focus on high-upvote threads and genuine praise, not controversy or hate-watching.
 
 For each title return:
 - title: the film or show name
 - year: release year as an integer if known, otherwise null
 - description: what it is in 10 words or fewer
-- reason: in ≤12 words, why it is trending right now — naturally mention the community where it's being discussed (e.g. "r/movies is obsessed with this slow-burn thriller" or "dominating r/television after its shocking finale")
+- reason: why it is popular right now in 10 words or fewer
 - tags: 3–5 genre/style tags
 
 Your entire response must be the JSON object described in the output schema — 10 titles, no preamble, no extra text.`;
@@ -122,7 +131,16 @@ Your entire response must be the JSON object described in the output schema — 
         );
       }
 
-      return recs.map((r) => ({
+      // Deduplicate by normalised title (handles model repeating itself)
+      const seen = new Set<string>();
+      const unique = recs.filter((r) => {
+        const key = r.title.toLowerCase().replace(/[^a-z0-9]/g, "");
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      return unique.map((r) => ({
         title: r.title,
         description: r.description,
         reason: r.reason,
