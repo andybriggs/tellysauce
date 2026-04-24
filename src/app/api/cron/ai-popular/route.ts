@@ -38,21 +38,27 @@ type ResolvedTitle = {
 async function fetchGroundedTitles(mediaType: "movie" | "tv"): Promise<CronRec[]> {
   const kind = mediaType === "movie" ? "movies" : "TV shows";
   const currentYear = new Date().getFullYear();
-  const prompt = `Search Reddit right now — especially r/movies, r/television, r/MovieSuggestions, r/NetflixBestOf, r/TrueFilm, r/criterion, r/letterboxd — for the 10 most positively discussed ${kind} in the past 7 days.
+  const prompt = `Search the following sources for the 12 most popular and well-received ${kind} right now:
+
+SOURCES TO SEARCH:
+- IMDb: Most Popular ${kind === "movies" ? "Movies" : "TV Shows"} chart and Top Rated recent releases
+- Rotten Tomatoes: Most Popular and Certified Fresh ${kind === "movies" ? "movies" : "TV shows"} this week
+- Metacritic: Highest-scoring new ${kind === "movies" ? "movie" : "TV"} releases
+- Reddit: r/${kind === "movies" ? "movies, r/MovieSuggestions, r/TrueFilm, r/criterion, r/letterboxd" : "television, r/NetflixBestOf, r/television"} — high-upvote threads from the past 7 days
+
+Combine signals from all sources. A title appearing across multiple sources is a strong signal. Prioritise genuine quality and audience enthusiasm.
 
 RULES — follow all of these strictly:
 
-1. RECENCY: Only include ${kind} released in ${currentYear - 2} or later. The only exception is a title released before ${currentYear - 2} that is genuinely trending RIGHT NOW due to a specific recent event (new season, award win, sequel announcement) — and even then, include at most 1 such exception.
+1. RECENCY: Only include ${kind} released in ${currentYear - 2} or later. The only exception is a title released before ${currentYear - 2} that is trending RIGHT NOW due to a specific recent event (new season, award win, sequel) — at most 1 such exception.
 
-2. MAINSTREAM APPEAL: Focus on titles with broad, mainstream audiences — wide theatrical releases, major streaming premieres (Netflix, Prime, Disney+, Apple TV+, HBO/Max), or shows with large viewership. Avoid niche or cult titles that appeal to a small subset of enthusiasts.
+2. MAINSTREAM APPEAL: Wide theatrical releases, major streaming titles (Netflix, Prime, Disney+, Apple TV+, HBO/Max), or shows with large viewership numbers. No niche cult titles.
 
-3. GENRE BALANCE: Return a spread of genres. At most 1 horror or thriller title. Prioritise drama, comedy, action, sci-fi, animation, documentary. Do not return multiple titles from the same franchise or universe.
+3. GENRE BALANCE: Spread across genres. At most 1 horror or thriller. Prioritise drama, comedy, action, sci-fi, animation, documentary. No multiple titles from the same franchise.
 
-4. REGIONAL FOCUS: Prioritise English-speaking countries (US, UK, Australia, Canada, Ireland) and Western Europe. East Asian content only if it has had a major mainstream Western crossover (e.g. Squid Game, Parasite).
+4. REGIONAL FOCUS: English-speaking markets (US, UK, AU, CA, IE) and Western Europe. East Asian content only for major Western crossovers.
 
-5. NO DUPLICATES: Every title must be unique. Do not repeat a title.
-
-6. ENTHUSIASM ONLY: Focus on high-upvote threads and genuine praise, not controversy or hate-watching.
+5. NO DUPLICATES: Every title must appear exactly once.
 
 For each title return:
 - title: the film or show name
@@ -61,7 +67,7 @@ For each title return:
 - reason: why it is popular right now in 10 words or fewer
 - tags: 3–5 genre/style tags
 
-Your entire response must be the JSON object described in the output schema — 10 titles, no preamble, no extra text.`;
+Your entire response must be the JSON object described in the output schema — 12 titles, no preamble, no extra text.`;
 
   for (let attempt = 1; attempt <= 2; attempt++) {
     const res = await openai.responses.create({
