@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/db";
 import { sql, eq } from "drizzle-orm";
-import { recommendationItems, recommendationSets } from "@/db/schema";
+import { recommendationItems, recommendationSets, titles } from "@/db/schema";
 
 export const runtime = "nodejs";
 
@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
     return m ? Number(m[0]) : null;
   };
 
-  // Select items and project year from raw_json ("year": number|null) -> integer
+  // Select items, join with titles to get poster, project year from raw_json
   const rows = await db
     .select({
       id: recommendationItems.id,
@@ -107,15 +107,18 @@ export async function GET(req: NextRequest) {
       suggestedMediaType: recommendationItems.suggestedMediaType,
       suggestedTmdbId: recommendationItems.suggestedTmdbId,
       suggestedImdbId: recommendationItems.suggestedImdbId,
+      poster: titles.poster,
       rawJson: recommendationItems.rawJson,
       createdAt: recommendationItems.createdAt,
       updatedAt: recommendationItems.updatedAt,
       // pull year out of raw_json; cast to int; returns null if absent
-      year: sql<
-        number | null
-      >`(${recommendationItems.rawJson} ->> 'year')::int`,
+      year: sql<number | null>`(${recommendationItems.rawJson} ->> 'year')::int`,
     })
     .from(recommendationItems)
+    .leftJoin(
+      titles,
+      sql`${titles.tmdbId} = ${recommendationItems.suggestedTmdbId} AND ${titles.mediaType}::text = ${recommendationItems.suggestedMediaType}`
+    )
     .where(eq(recommendationItems.setId, setRow.id))
     .orderBy(recommendationItems.rank);
 

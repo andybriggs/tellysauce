@@ -4,7 +4,7 @@ import { debounce } from "lodash";
 import { useEffect, useMemo, useState } from "react";
 import Hero from "@/components/Hero";
 import RatedTitles from "@/components/RatedTitles";
-import RecommendTitles from "@/components/recommendations/RecommendTitles";
+import RecommendationsSection from "@/components/RecommendationsSection";
 import Search from "@/components/Search";
 import SearchResults from "@/components/SearchResults";
 import Watchlist from "@/components/Watchlist";
@@ -155,7 +155,7 @@ export default function Home() {
           <>
             <Watchlist />
             <RatedTitles />
-            <RecommendTitles />
+            <RecommendationsSection />
           </>
         )}
       </div>

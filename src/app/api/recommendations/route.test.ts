@@ -105,6 +105,7 @@ describe("GET /api/recommendations", () => {
         suggestedMediaType: "movie",
         suggestedTmdbId: 603,
         suggestedImdbId: null,
+        poster: "https://image.tmdb.org/t/p/w342/matrix.jpg",
         rawJson: { title: "The Matrix", year: 1999 },
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -120,14 +121,16 @@ describe("GET /api/recommendations", () => {
         where: vi.fn(),
         limit: vi.fn(),
         orderBy: vi.fn(),
+        leftJoin: vi.fn(),
       };
       chain.from.mockReturnValue(chain);
       chain.where.mockReturnValue(chain);
+      chain.leftJoin.mockReturnValue(chain);
       if (callCount === 1) {
         // First call: look up the recommendation set
         chain.limit.mockResolvedValue([fakeSet]);
       } else {
-        // Second call: look up items
+        // Second call: look up items (with leftJoin for titles poster)
         chain.orderBy.mockResolvedValue(fakeItems);
       }
       return chain;
@@ -140,5 +143,6 @@ describe("GET /api/recommendations", () => {
     expect(data.set).toBeTruthy();
     expect(data.items).toHaveLength(1);
     expect(data.items[0].title).toBe("The Matrix");
+    expect(data.items[0].poster).toBe("https://image.tmdb.org/t/p/w342/matrix.jpg");
   });
 });

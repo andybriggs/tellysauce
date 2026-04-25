@@ -12,7 +12,7 @@ import WhereToWatch from "@/components/WhereToWatch";
 import TagsList from "@/components/TagsList";
 import TitleActions from "@/components/TitleActions";
 import Container from "@/components/Container";
-import RecommendTitles from "@/components/recommendations/RecommendTitles";
+import RecommendationsSection from "@/components/RecommendationsSection";
 import TrailerWithPosterOverlay from "@/components/TrailerWithPosterOverlay";
 import { fetchTitleDetails, fetchTitleSources } from "@/server/tmdb";
 import { fetchIMDbRating } from "@/server/omdb";
@@ -193,9 +193,8 @@ export default async function TitlePage({ params }: PageProps) {
         <div className="md:hidden mt-6">{whereToWatch}</div>
 
         <div className="mt-8">
-          <RecommendTitles
+          <RecommendationsSection
             seed={seed}
-            cacheKey={recCacheKey}
             buttonLabel="More like this"
           />
         </div>
