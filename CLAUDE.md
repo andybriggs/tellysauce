@@ -24,9 +24,10 @@ Always use **yarn** (not npm). `package.json` has `"packageManager": "yarn@1.22.
 
 ## Database schema (`src/db/schema.ts`)
 - `users` — Google OAuth users + Stripe subscription fields (`stripe_customer_id`, `stripe_subscription_id`, `subscription_status`, `subscription_period_end`, `free_rec_calls_used`)
-- `titles` — TMDB title cache (tmdbId + mediaType unique)
+- `titles` — shared TMDB title cache (unique on `tmdb_id + media_type`). Written by: title detail page views, cron job, and recommendation generation. Stores `poster`, `year`, `description`.
 - `user_titles` — watchlist and ratings (status: WATCHLIST | RATED, rating 1–5)
-- `recommendation_sets` / `recommendation_items` — AI recommendation cache (7-day expiry)
+- `recommendation_sets` — one row per user per cache key (profile or seed). `user_key` = `${userId}:${key}`, unique. 7-day expiry via `expires_at`.
+- `recommendation_items` — individual recommendations within a set. `suggested_tmdb_id` and `suggested_media_type` are populated after TMDB validation; `raw_json` stores the full OpenAI response object.
 - `ai_popular_titles` — daily AI-curated popular titles from Reddit/online buzz (populated by cron)
 
 ## Key environment variables (`.env.local`)
@@ -45,10 +46,14 @@ Always use **yarn** (not npm). `package.json` has `"packageManager": "yarn@1.22.
 ### OpenAI usage
 All AI calls use the shared client from `src/lib/ai.ts` (`openai` instance, `openai` npm package).
 
-**Recommendations** (`src/app/api/recommend/route.ts`) — single `gpt-4o-mini` call per request:
-- `openai.chat.completions.create` with `response_format: { type: "json_schema", ... }` (strict structured output)
-- Returns `{ recommendations: [{ title, description, reason, tags, year }] }` directly — no intermediate text parsing
-- Seed mode: 3 recommendations based on a single title. Profile mode: 8 based on the user's rated watchlist.
+**Recommendations** (`src/app/api/recommend/route.ts`) — pipeline per request:
+1. `openai.chat.completions.create` with `response_format: { type: "json_schema", ... }` (strict structured output). Schema includes `mediaType: enum["movie","tv"]` on each item.
+2. Parallel TMDB search per recommendation (`/search/movie` or `/search/tv`) — year-constrained first, then unconstrained fallback. Unresolvable titles are filtered out.
+3. Each verified title is upserted into the shared `titles` table (`ON CONFLICT (tmdb_id, media_type) DO UPDATE`).
+4. Results saved to `recommendation_items` with `suggested_tmdb_id` and `suggested_media_type` populated.
+5. Response shape: `{ recommendations: [{ title, description, reason, tags, year, mediaType, resolvedTmdbId, poster }], key, setId }`.
+- Seed mode: 3 recommendations. Profile mode: 8 (grouped by rating tier in prompt; dominant media type inferred and included).
+- Cache read: `GET /api/recommendations?key=...` — joins `recommendation_items` with `titles` to return `poster`.
 
 **Cron** (`src/app/api/cron/ai-popular/route.ts`) — 4-stage pipeline:
 1. **Stage 1** — web search: `openai.responses.create` with model `gpt-4o-mini-search-preview` + `web_search_preview` tool. Returns pipe-delimited text of trending titles from Reddit.
@@ -83,12 +88,13 @@ await sql.query(`CREATE TABLE IF NOT EXISTS ...`);
 ### API routes
 | Route | Purpose |
 |-------|---------|
-| `GET /api/discover?type=movie|tv&timeframe=recent|all` | TMDB popular/top-rated |
-| `GET /api/discover?type=movie|tv&source=ai` | AI picks from `ai_popular_titles` DB table |
-| `POST /api/recommend` | AI recommendations via OpenAI (profile or seed mode) — subscription-gated |
+| `GET /api/discover?type=movie\|tv&timeframe=recent\|all` | TMDB popular/top-rated |
+| `GET /api/discover?type=movie\|tv&source=ai` | AI picks from `ai_popular_titles` DB table |
+| `POST /api/recommend` | AI → TMDB validation → upsert `titles` → save items (profile or seed mode) — subscription-gated |
+| `GET /api/recommendations?key=...` | Cached recommendation items, joined with `titles` for poster data |
 | `GET /api/cron/ai-popular` | Daily cron: OpenAI web search → TMDB → `ai_popular_titles` |
 | `GET /api/autocomplete` | TMDB title search |
-| `GET /api/resolve-title` | Advanced TMDB title resolution with scoring |
+| `GET /api/resolve-title` | Advanced TMDB title resolution with scoring (used by `/open/title` page) |
 | `GET /api/subscription-status` | Returns `{ subscriptionStatus, freeRecCallsUsed }` for the current user |
 | `POST /api/stripe/checkout` | Creates a Stripe Checkout session → returns `{ url }` |
 | `POST /api/stripe/portal` | Creates a Stripe Billing Portal session → returns `{ url }` |
@@ -107,7 +113,7 @@ await sql.query(`CREATE TABLE IF NOT EXISTS ...`);
 - **Gated features**: `POST /api/recommend` (both profile and seed mode). Daily AI picks are free.
 - **Free tier**: 3 lifetime recommendation generations per user (tracked via `free_rec_calls_used` on `users`). Counter only increments on fresh generation, not on cache reads (`GET /api/recommendations`).
 - **Gate logic** (`src/app/api/recommend/route.ts`): checks `subscription_status = 'active'` OR `free_rec_calls_used < 3`. Returns HTTP 402 with `{ error: 'subscription_required' }` if blocked.
-- **Paywall UI** (`src/components/PaywallModal.tsx`): modal shown when client receives 402, handled in `RecommendTitles.tsx`.
+- **Paywall UI** (`src/components/PaywallModal.tsx`): modal shown when client receives 402, handled in `RecommendationsSection.tsx`.
 - **Stripe client**: `src/lib/stripe.ts` — singleton used by all Stripe API routes.
 - **Webhook events handled**: `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`.
 - **Local dev webhook**: run `stripe listen --forward-to localhost:3000/api/stripe/webhook`. Use the `whsec_...` it prints as `STRIPE_WEBHOOK_SECRET` — this is different from the dashboard secret.
@@ -116,8 +122,8 @@ await sql.query(`CREATE TABLE IF NOT EXISTS ...`);
 ## Frontend structure
 - `src/app/page.tsx` — homepage (`"use client"` — uses search hooks). AI picks render first, then TMDB popular sections below.
 - `src/components/PopularTitles.tsx` — handles both TMDB and AI picks via `source` prop. `source="ai"` hides the timeframe tabs and shows a different title.
+- `src/components/RecommendationsSection.tsx` — on-demand AI recommendations (profile + seed mode). Loads cached recs from `GET /api/recommendations` on mount; generates fresh ones via `POST /api/recommend` on button click. Renders results using the standard `TitleList` carousel + `TitleCard` (poster art, direct `/title/{kind}/{id}` links). Handles paywall modal on 402.
 - `src/hooks/useDiscoverTitles.ts` — SWR hook, accepts `{ timeframe?, source? }` options
-- `src/components/recommendations/` — AI recommendation display components
 
 ## Known architectural note
 `page.tsx` is a client component (`"use client"`), so the AI picks are currently fetched client-side via SWR despite the data coming from our own DB. Server rendering the AI picks would require extracting the interactive search parts into separate client components — a worthwhile but separate refactor.
@@ -125,7 +131,7 @@ await sql.query(`CREATE TABLE IF NOT EXISTS ...`);
 ### Card status overlay
 - `TitleStatusBadge` (`src/components/TitleStatusBadge.tsx`) — small bottom-left badge on carousel cards showing watchlist (emerald bookmark) or rated (amber star + number) status. Only visible to logged-in users.
 - Enabled via `showStatusOverlay` prop on `TitleCard` and `TitleList`. Pass `showStatusOverlay` on `TitleList` to enable per-carousel.
-- Active on AI picks and TMDB popular carousels (`PopularTitles`). NOT active on Watchlist, RatedTitles, or RecommendationCard — those use `renderItem` or are different components entirely.
+- Active on AI picks, TMDB popular carousels (`PopularTitles`), and recommendations (`RecommendationsSection`). NOT active on Watchlist or RatedTitles — those use `renderItem`.
 
 ## Coding conventions
 - Raw SQL via `db.execute(sql\`...\`)` for complex queries; Drizzle ORM for schema definition
