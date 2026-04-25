@@ -97,10 +97,6 @@ export default async function TitlePage({ params }: PageProps) {
     },
   } as const;
 
-  const recCacheKey = `cachedRecommendations:seed:${data.type}:${
-    data.tmdb_id ?? data.id
-  }`;
-
   // Shared JSX blocks — avoids duplicating the same elements
   // for the "trailer present" vs "no trailer" layout variants.
   const metaSection = (
