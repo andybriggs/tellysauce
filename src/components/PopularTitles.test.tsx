@@ -37,6 +37,10 @@ vi.mock('@/hooks/useRatedTitles', () => ({
   })),
 }));
 
+vi.mock('./TitleStatusBadge', () => ({
+  default: () => null,
+}));
+
 vi.mock('embla-carousel-react', () => ({
   default: () => [
     vi.fn(),

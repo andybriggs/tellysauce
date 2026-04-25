@@ -36,6 +36,12 @@ vi.mock('@/hooks/useRatedTitles', () => ({
   })),
 }));
 
+vi.mock('./TitleStatusBadge', () => ({
+  default: ({ id }: { id: number }) => (
+    <div data-testid={`title-status-badge-${id}`} />
+  ),
+}));
+
 vi.mock('embla-carousel-react', () => ({
   default: () => [
     vi.fn(),
@@ -111,5 +117,31 @@ describe('TitleList', () => {
   it('defaults to carousel layout when layout prop is not provided', () => {
     render(<TitleList items={mockTitles} />);
     expect(screen.getByRole('button', { name: 'Scroll left' })).toBeInTheDocument();
+  });
+
+  it('does not render status badges when showStatusOverlay is not set', () => {
+    render(<TitleList items={mockTitles} layout="carousel" />);
+    expect(screen.queryByTestId('title-status-badge-1')).not.toBeInTheDocument();
+  });
+
+  it('renders status badges on all cards when showStatusOverlay is true', () => {
+    render(<TitleList items={mockTitles} layout="carousel" showStatusOverlay />);
+    expect(screen.getByTestId('title-status-badge-1')).toBeInTheDocument();
+    expect(screen.getByTestId('title-status-badge-2')).toBeInTheDocument();
+    expect(screen.getByTestId('title-status-badge-3')).toBeInTheDocument();
+  });
+
+  it('renders status badges in grid mode when showStatusOverlay is true', () => {
+    render(<TitleList items={mockTitles} layout="grid" showStatusOverlay />);
+    expect(screen.getByTestId('title-status-badge-1')).toBeInTheDocument();
+    expect(screen.getByTestId('title-status-badge-2')).toBeInTheDocument();
+    expect(screen.getByTestId('title-status-badge-3')).toBeInTheDocument();
+  });
+
+  it('does not render status badges when renderItem is provided even with showStatusOverlay', () => {
+    const renderItem = vi.fn((t: Title) => <div data-testid={`custom-${t.id}`}>{t.name}</div>);
+    render(<TitleList items={mockTitles} layout="grid" renderItem={renderItem} showStatusOverlay />);
+    expect(screen.queryByTestId('title-status-badge-1')).not.toBeInTheDocument();
+    expect(screen.getByTestId('custom-1')).toBeInTheDocument();
   });
 });

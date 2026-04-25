@@ -122,6 +122,11 @@ await sql.query(`CREATE TABLE IF NOT EXISTS ...`);
 ## Known architectural note
 `page.tsx` is a client component (`"use client"`), so the AI picks are currently fetched client-side via SWR despite the data coming from our own DB. Server rendering the AI picks would require extracting the interactive search parts into separate client components — a worthwhile but separate refactor.
 
+### Card status overlay
+- `TitleStatusBadge` (`src/components/TitleStatusBadge.tsx`) — small bottom-left badge on carousel cards showing watchlist (emerald bookmark) or rated (amber star + number) status. Only visible to logged-in users.
+- Enabled via `showStatusOverlay` prop on `TitleCard` and `TitleList`. Pass `showStatusOverlay` on `TitleList` to enable per-carousel.
+- Active on AI picks and TMDB popular carousels (`PopularTitles`). NOT active on Watchlist, RatedTitles, or RecommendationCard — those use `renderItem` or are different components entirely.
+
 ## Coding conventions
 - Raw SQL via `db.execute(sql\`...\`)` for complex queries; Drizzle ORM for schema definition
 - `mediaTypeEnum` ("tv" | "movie") is a shared pgEnum — reuse it for any new table with a media type column

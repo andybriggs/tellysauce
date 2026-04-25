@@ -1,6 +1,9 @@
+"use client";
+
 import Image from "next/image";
 import { Title } from "@/types/";
 import StarRating from "./StarRating";
+import TitleStatusBadge from "./TitleStatusBadge";
 import Link from "next/link";
 
 type Props = {
@@ -10,9 +13,10 @@ type Props = {
     mediaType: "tv" | "movie",
     rating: number
   ) => Promise<void>;
+  showStatusOverlay?: boolean;
 };
 
-const TitleCard = ({ title, rateTitle }: Props) => {
+const TitleCard = ({ title, rateTitle, showStatusOverlay }: Props) => {
   const { poster, name, id, type } = title;
   const titleStars = typeof rateTitle === "function";
 
@@ -50,6 +54,10 @@ const TitleCard = ({ title, rateTitle }: Props) => {
               rating={title.rating}
             />
           </div>
+        )}
+
+        {showStatusOverlay && (
+          <TitleStatusBadge id={id} type={type as "tv" | "movie"} />
         )}
       </div>
     </Link>

@@ -13,12 +13,14 @@ export interface TitleListProps {
   items: Title[];
   layout?: Layout;
   renderItem?: (title: Title) => ReactNode;
+  showStatusOverlay?: boolean;
 }
 
 const TitleList = ({
   items,
   layout = "carousel",
   renderItem,
+  showStatusOverlay,
 }: TitleListProps) => {
   const isGrid = layout === "grid";
 
@@ -58,7 +60,7 @@ const TitleList = ({
       <ul className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 py-4">
         {items.map((item) => (
           <li key={item.id} className="h-auto">
-            {renderItem ? renderItem(item) : <TitleCard title={item} />}
+            {renderItem ? renderItem(item) : <TitleCard title={item} showStatusOverlay={showStatusOverlay} />}
           </li>
         ))}
       </ul>
@@ -71,8 +73,8 @@ const TitleList = ({
         <ul className="flex items-stretch gap-4">
           {items.map((item) => (
             <li key={item.id} className="flex-[0_0_auto] mb-4">
-              {renderItem ? renderItem(item) : <TitleCard title={item} />}
-            </li>
+              {renderItem ? renderItem(item) : <TitleCard title={item} showStatusOverlay={showStatusOverlay} />}
+</li>
           ))}
         </ul>
       </div>

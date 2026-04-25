@@ -58,7 +58,7 @@ export default function PopularTitles({
       }
       headerContentAfter={pillTabs}
     >
-      <TitleList items={titles} layout={layout} />
+      <TitleList items={titles} layout={layout} showStatusOverlay />
     </Section>
   );
 }

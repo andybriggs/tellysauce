@@ -34,6 +34,12 @@ vi.mock('@/hooks/useRatedTitles', () => ({
   })),
 }));
 
+vi.mock('./TitleStatusBadge', () => ({
+  default: ({ id, type }: { id: number; type: string }) => (
+    <div data-testid="title-status-badge" data-id={String(id)} data-type={type} />
+  ),
+}));
+
 const mockTitle: Title = {
   id: 42,
   name: 'Twin Peaks',
@@ -84,5 +90,18 @@ describe('TitleCard', () => {
     render(<TitleCard title={{ ...mockTitle, rating: 3 }} rateTitle={rateTitle} />);
     expect(screen.getAllByTestId('star-filled')).toHaveLength(3);
     expect(screen.getAllByTestId('star-outline')).toHaveLength(2);
+  });
+
+  it('does not render status badge when showStatusOverlay is not set', () => {
+    render(<TitleCard title={mockTitle} />);
+    expect(screen.queryByTestId('title-status-badge')).not.toBeInTheDocument();
+  });
+
+  it('renders status badge with correct props when showStatusOverlay is true', () => {
+    render(<TitleCard title={mockTitle} showStatusOverlay />);
+    const badge = screen.getByTestId('title-status-badge');
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveAttribute('data-id', '42');
+    expect(badge).toHaveAttribute('data-type', 'tv');
   });
 });

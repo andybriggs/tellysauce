@@ -69,7 +69,7 @@ describe('TitleActions', () => {
 
   it('shows login prompt when unauthenticated', () => {
     render(<TitleActions title={mockTitle} />);
-    expect(screen.getByText(/log in to rate and save/i)).toBeInTheDocument();
+    expect(screen.getByText(/log in to rate shows and save to watchlist/i)).toBeInTheDocument();
   });
 
   it('renders AuthButton when unauthenticated', () => {
@@ -88,7 +88,7 @@ describe('TitleActions', () => {
     expect(stars).toHaveLength(5);
   });
 
-  it('renders watchlist button when authenticated and unrated', async () => {
+  it('renders star rating when authenticated and unrated', async () => {
     const { useSession } = await import('next-auth/react');
     (useSession as ReturnType<typeof vi.fn>).mockReturnValue({
       data: { user: { name: 'Alice' } },
@@ -96,7 +96,8 @@ describe('TitleActions', () => {
     });
     mockGetRating.mockReturnValue(0);
     render(<TitleActions title={mockTitle} />);
-    expect(screen.getByText('Add to watchlist')).toBeInTheDocument();
+    const stars = screen.getAllByRole('button', { name: /rate/i });
+    expect(stars).toHaveLength(5);
   });
 
   it('hides watchlist button when title is already rated', async () => {
