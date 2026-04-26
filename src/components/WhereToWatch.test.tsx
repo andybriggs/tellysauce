@@ -95,17 +95,20 @@ describe('WhereToWatch', () => {
     expect(screen.getByText('Hulu')).toBeInTheDocument();
   });
 
-  it('shows "No sources found" when stored region has no providers for this title', async () => {
+  it('shows the dropdown and "No sources found" when stored region has no providers for this title', async () => {
     localStorage.setItem('watch_region', 'JP');
     render(<WhereToWatch allSources={{ GB: [makeSource('Netflix UK', 'GB')] }} />);
     await act(async () => {});
+    expect(screen.getByRole('combobox')).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Japan' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'United Kingdom' })).toBeInTheDocument();
     expect(screen.getByText(/no sources found/i)).toBeInTheDocument();
   });
 
-  it('shows "No sources found" and hides the dropdown when allSources is empty', async () => {
+  it('shows the dropdown and "No sources found" when allSources is empty', async () => {
     render(<WhereToWatch allSources={{}} />);
     await act(async () => {});
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox')).toBeInTheDocument();
     expect(screen.getByText(/no sources found/i)).toBeInTheDocument();
   });
 

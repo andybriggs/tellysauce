@@ -48,23 +48,27 @@ export default function WhereToWatch({ allSources }: WhereToWatchProps) {
 
   const sources = allSources[region] ?? [];
 
+  // Always include the user's saved region in the dropdown even if it has no
+  // providers for this title, so they can see it's unavailable and switch to another.
+  const dropdownRegions = availableRegions.includes(region)
+    ? availableRegions
+    : [region, ...availableRegions];
+
   return (
     <div>
+      <h2 className="text-lg font-semibold text-white mb-3">Where to watch</h2>
       <div className="mb-3">
-        <h2 className="text-lg font-semibold text-white mb-3">Where to watch</h2>
-        {availableRegions.length > 0 && (
-          <select
-            value={availableRegions.includes(region) ? region : availableRegions[0]}
-            onChange={(e) => handleChange(e.target.value)}
-            className="rounded bg-slate-700 px-2 py-1 text-sm text-white"
-          >
-            {availableRegions.map((code) => (
-              <option key={code} value={code}>
-                {countryNames?.of(code) ?? code}
-              </option>
-            ))}
-          </select>
-        )}
+        <select
+          value={region}
+          onChange={(e) => handleChange(e.target.value)}
+          className="rounded bg-slate-700 px-2 py-1 text-sm text-white"
+        >
+          {dropdownRegions.map((code) => (
+            <option key={code} value={code}>
+              {countryNames?.of(code) ?? code}
+            </option>
+          ))}
+        </select>
       </div>
       {sources.length ? (
         <ResultsTable data={sources} />
