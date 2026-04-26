@@ -13,6 +13,7 @@ import AuthButton from "@/components/AuthButton";
 import Container from "@/components/Container";
 import useIsLoggedIn from "@/hooks/useIsLoggedIn";
 import PopularTitles from "@/components/PopularTitles";
+import HeroSection from "@/components/HeroSection";
 
 type SubStatus = {
   subscriptionStatus: string | null;
@@ -87,15 +88,7 @@ export default function Home() {
           </button>
         </div>
       )}
-      <section className="relative w-full z-10">
-        <div
-          className="
-      absolute inset-0
-      bg-[url('/bg1.png')] bg-repeat
-      bg-[length:220px_220px] sm:bg-[length:240px_240px] md:bg-[length:280px_280px]
-    "
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-pink-500 to-orange-400 opacity-80" />
+      <HeroSection>
         <Container>
           <div className="flex p-4 justify-end items-center gap-3 relative z-11">
             {isLoggedIn && subStatus?.subscriptionStatus === "active" && (
@@ -125,7 +118,7 @@ export default function Home() {
             )}
           </div>
         </div>
-      </section>
+      </HeroSection>
 
       {!isLoggedIn && (
         <div className="flex flex-col items-center px-4 mt-10">
