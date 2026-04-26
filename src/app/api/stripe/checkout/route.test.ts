@@ -9,6 +9,7 @@ vi.mock("@/lib/stripe", () => ({
   stripe: {
     customers: {
       create: vi.fn(),
+      retrieve: vi.fn(),
     },
     checkout: {
       sessions: {
@@ -36,6 +37,7 @@ import { POST } from "./route";
 
 const mockSession = vi.mocked(getServerSession);
 const mockStripeCustomersCreate = vi.mocked(stripe.customers.create);
+const mockStripeCustomersRetrieve = vi.mocked(stripe.customers.retrieve);
 const mockStripeCheckoutCreate = vi.mocked(stripe.checkout.sessions.create);
 const mockFindFirst = (db as unknown as { query: { users: { findFirst: ReturnType<typeof vi.fn> } }; update: ReturnType<typeof vi.fn> }).query.users.findFirst;
 const mockUpdate = (db as unknown as { query: { users: { findFirst: ReturnType<typeof vi.fn> } }; update: ReturnType<typeof vi.fn> }).update;
@@ -74,7 +76,7 @@ describe("POST /api/stripe/checkout", () => {
     expect(res.status).toBe(404);
   });
 
-  it("creates a checkout session when user has existing Stripe customer", async () => {
+  it("creates a checkout session when user has existing valid Stripe customer", async () => {
     mockSession.mockResolvedValue({ user: { id: "user-1" } } as never);
     mockFindFirst.mockResolvedValue({
       id: "user-1",
@@ -82,6 +84,7 @@ describe("POST /api/stripe/checkout", () => {
       name: "Test User",
       stripeCustomerId: "cus_existing",
     });
+    mockStripeCustomersRetrieve.mockResolvedValue({ id: "cus_existing", deleted: false } as never);
     mockStripeCheckoutCreate.mockResolvedValue({
       id: "cs_test",
       url: "https://checkout.stripe.com/pay/cs_test",
@@ -97,6 +100,40 @@ describe("POST /api/stripe/checkout", () => {
     const data = await res.json();
     expect(data.url).toBe("https://checkout.stripe.com/pay/cs_test");
     expect(mockStripeCustomersCreate).not.toHaveBeenCalled();
+  });
+
+  it("clears stale customer ID and creates a new one when Stripe returns resource_missing", async () => {
+    mockSession.mockResolvedValue({ user: { id: "user-1" } } as never);
+    mockFindFirst.mockResolvedValue({
+      id: "user-1",
+      email: "stale@example.com",
+      name: "Stale User",
+      stripeCustomerId: "cus_stale_live_id",
+    });
+    // Simulate Stripe test-mode rejecting a live-mode customer ID
+    const stripeError = Object.assign(new Error("No such customer"), { code: "resource_missing" });
+    mockStripeCustomersRetrieve.mockRejectedValue(stripeError);
+    mockStripeCustomersCreate.mockResolvedValue({ id: "cus_new" } as never);
+    mockStripeCheckoutCreate.mockResolvedValue({
+      id: "cs_test",
+      url: "https://checkout.stripe.com/pay/cs_new",
+    } as never);
+
+    const req = new NextRequest("http://localhost/api/stripe/checkout", {
+      method: "POST",
+      headers: { origin: "http://localhost:3000" },
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    // Should have created a fresh customer after the stale one failed
+    expect(mockStripeCustomersCreate).toHaveBeenCalledWith({
+      email: "stale@example.com",
+      name: "Stale User",
+      metadata: { userId: "user-1" },
+    });
+    const data = await res.json();
+    expect(data.url).toBe("https://checkout.stripe.com/pay/cs_new");
   });
 
   it("creates a new Stripe customer when user has none, then creates checkout", async () => {

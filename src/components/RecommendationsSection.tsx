@@ -122,6 +122,7 @@ export default function RecommendationsSection({
   const [titles, setTitles] = useState<Title[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallReason, setPaywallReason] = useState<"free_exhausted" | "monthly_limit" | undefined>(undefined);
 
   const isSeedMode = !!seed;
   const key = useMemo(() => buildKey(seed), [seed]);
@@ -180,6 +181,8 @@ export default function RecommendationsSection({
       });
 
       if (res.status === 402) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        setPaywallReason(body.error === "monthly_limit_reached" ? "monthly_limit" : "free_exhausted");
         setShowPaywall(true);
         return;
       }
@@ -209,7 +212,12 @@ export default function RecommendationsSection({
 
   return (
     <>
-      {showPaywall && <PaywallModal onClose={() => setShowPaywall(false)} />}
+      {showPaywall && (
+        <PaywallModal
+          reason={paywallReason}
+          onClose={() => { setShowPaywall(false); setPaywallReason(undefined); }}
+        />
+      )}
       <section className="rounded-3xl p-6 sm:p-8 md:p-10 bg-gradient-to-r from-pink-500 to-orange-400 opacity-80 ring-1 ring-white/10">
         {/* Header */}
         <div className="flex items-center justify-between gap-3">

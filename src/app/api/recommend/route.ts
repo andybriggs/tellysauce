@@ -60,6 +60,7 @@ type ExecResult = { rows?: Array<{ id?: string }> };
 type UserSubRow = {
   subscription_status: string | null;
   free_rec_calls_used: number;
+  pro_rec_calls_this_period: number;
 };
 
 const ensureTablesOnce = (async () => {
@@ -414,17 +415,25 @@ export async function POST(req: NextRequest) {
   try {
     // Subscription gate: check free call allowance
     const subResult = await db.execute(
-      sql`SELECT subscription_status, free_rec_calls_used FROM users WHERE id = ${userId}`
+      sql`SELECT subscription_status, free_rec_calls_used, pro_rec_calls_this_period FROM users WHERE id = ${userId}`
     );
     const userRow = (
       (subResult as unknown as { rows?: UserSubRow[] }).rows ?? []
     )[0];
     const isSubscribed = userRow?.subscription_status === "active";
     const freeCallsUsed = userRow?.free_rec_calls_used ?? 0;
+    const proCallsThisPeriod = userRow?.pro_rec_calls_this_period ?? 0;
 
     if (!isSubscribed && freeCallsUsed >= 3) {
       return Response.json(
         { error: "subscription_required", freeCallsUsed },
+        { status: 402 }
+      );
+    }
+
+    if (isSubscribed && proCallsThisPeriod >= 100) {
+      return Response.json(
+        { error: "monthly_limit_reached" },
         { status: 402 }
       );
     }
@@ -478,7 +487,7 @@ SEED TITLE:
 - Genres: ${(seed.genres ?? []).join(", ") || "unknown"}
 - Overview: ${brief(seed.overview) || "none"}
 
-TITLES TO EXCLUDE — the user has already seen or saved all of these. Do not suggest any of them under any circumstances:
+TITLES TO EXCLUDE - the user has already seen or saved all of these. Do not suggest any of them under any circumstances:
 ${avoidLines}
 
 Return EXACTLY ${targetCount} titles that share the STRONGEST match with the seed across:
@@ -490,7 +499,7 @@ Return EXACTLY ${targetCount} titles that share the STRONGEST match with the see
 Prefer ${formatPreference} to match the seed format, unless a cross-format title is an exceptional match.
 If the seed is acclaimed for a specific quality (e.g. dark humour, unreliable narrator, slow burn tension), bias toward titles with that same quality.
 Prefer titles from the past 5 years but include older classics if they are a strong match.
-For each title provide: description (max 15 words), reason it matches the seed (max 10 words), 3–5 genre/style tags, release year (or null), and mediaType ("movie" or "tv").
+For each title provide: description (max 15 words), reason it matches the seed (max 10 words), 3-5 genre/style tags, release year (or null), and mediaType ("movie" or "tv").
 Double-check your response against the exclusion list before returning it.`;
 
       const recommendations = await callOpenAI(prompt);
@@ -518,7 +527,11 @@ Double-check your response against the exclusion list before returning it.`;
       });
       await replaceRecommendationItems(setId, verified);
 
-      if (!isSubscribed) {
+      if (isSubscribed) {
+        await db.execute(
+          sql`UPDATE users SET pro_rec_calls_this_period = pro_rec_calls_this_period + 1 WHERE id = ${userId}`
+        );
+      } else {
         await db.execute(
           sql`UPDATE users SET free_rec_calls_used = free_rec_calls_used + 1 WHERE id = ${userId}`
         );
@@ -541,17 +554,17 @@ Double-check your response against the exclusion list before returning it.`;
         typeof s.title === "string"
           ? s.title
           : typeof s.name === "string"
-          ? s.name
-          : String(s.title ?? s.name ?? ""),
+            ? s.name
+            : String(s.title ?? s.name ?? ""),
       type: typeof s.type === "string" ? s.type : null,
       rating:
         typeof s.rating === "number"
           ? s.rating
           : typeof s.score === "number"
-          ? s.score
-          : typeof s.userRating === "number"
-          ? s.userRating
-          : null,
+            ? s.score
+            : typeof s.userRating === "number"
+              ? s.userRating
+              : null,
     }));
 
     const favoriteTitles = compact.map((s) => s.title);
@@ -590,13 +603,13 @@ Double-check your response against the exclusion list before returning it.`;
 
     const prompt = `You are a TV and film expert.
 
-User's rated titles — higher rating = stronger preference signal:
+User's rated titles - higher rating = stronger preference signal:
 
 ${tierLines}
 
 User's dominant preference: ${dominant}.
 
-TITLES TO EXCLUDE — the user has already seen or saved all of these. Do not suggest any of them under any circumstances:
+TITLES TO EXCLUDE - the user has already seen or saved all of these. Do not suggest any of them under any circumstances:
 ${avoidLines}
 
 Return EXACTLY ${targetCount} titles the user is likely to rate 4 or 5 stars.
@@ -604,7 +617,7 @@ Weight your choices heavily toward the 5-star and 4-star titles as taste signals
 Mirror the dominant media type (${dominant}) unless a cross-type title is an exceptional match.
 Focus on taste alignment, not general popularity.
 Prefer titles from the past 5 years but include older titles if they are a strong match.
-For each title provide: description (max 15 words), reason it suits this user (max 10 words), 3–5 genre/style tags, release year (or null), and mediaType ("movie" or "tv").
+For each title provide: description (max 15 words), reason it suits this user (max 10 words), 3-5 genre/style tags, release year (or null), and mediaType ("movie" or "tv").
 Double-check your response against the exclusion list before returning it.`;
 
     const recommendations = await callOpenAI(prompt);
@@ -628,7 +641,11 @@ Double-check your response against the exclusion list before returning it.`;
     });
     await replaceRecommendationItems(setId, verified);
 
-    if (!isSubscribed) {
+    if (isSubscribed) {
+      await db.execute(
+        sql`UPDATE users SET pro_rec_calls_this_period = pro_rec_calls_this_period + 1 WHERE id = ${userId}`
+      );
+    } else {
       await db.execute(
         sql`UPDATE users SET free_rec_calls_used = free_rec_calls_used + 1 WHERE id = ${userId}`
       );

@@ -71,7 +71,7 @@ describe("POST /api/stripe/webhook", () => {
     expect(data.error).toBe("Invalid signature");
   });
 
-  it("handles customer.subscription.created event", async () => {
+  it("handles customer.subscription.created event and resets pro call counter", async () => {
     const sub = {
       id: "sub_123",
       customer: "cus_abc",
@@ -90,12 +90,13 @@ describe("POST /api/stripe/webhook", () => {
     const data = await res.json();
     expect(data.received).toBe(true);
     expect(mockDbExecute).toHaveBeenCalledOnce();
-    // Verify the SQL updates the right customer
-    const sqlArg = mockDbExecute.mock.calls[0][0];
-    expect(JSON.stringify(sqlArg)).toContain("cus_abc");
+    const sqlArg = JSON.stringify(mockDbExecute.mock.calls[0][0]);
+    expect(sqlArg).toContain("cus_abc");
+    // Must reset the monthly Pro counter on subscription creation
+    expect(sqlArg).toContain("pro_rec_calls_this_period");
   });
 
-  it("handles customer.subscription.updated event", async () => {
+  it("handles customer.subscription.updated event and resets pro call counter", async () => {
     const sub = {
       id: "sub_123",
       customer: "cus_abc",
@@ -112,6 +113,9 @@ describe("POST /api/stripe/webhook", () => {
     const res = await POST(req);
     expect(res.status).toBe(200);
     expect(mockDbExecute).toHaveBeenCalledOnce();
+    const sqlArg = JSON.stringify(mockDbExecute.mock.calls[0][0]);
+    // Must reset the monthly Pro counter on each renewal
+    expect(sqlArg).toContain("pro_rec_calls_this_period");
   });
 
   it("handles customer.subscription.deleted event", async () => {

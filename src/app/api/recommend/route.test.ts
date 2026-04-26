@@ -89,6 +89,7 @@ function stubTmdbSuccess() {
 function setupSubscriptionExec(row: {
   subscription_status: string | null;
   free_rec_calls_used: number;
+  pro_rec_calls_this_period?: number;
 }) {
   mockDb.execute.mockImplementation((sqlArg: unknown) => {
     const sqlStr = JSON.stringify(sqlArg);
@@ -96,7 +97,7 @@ function setupSubscriptionExec(row: {
       sqlStr.includes("subscription_status") &&
       sqlStr.includes("free_rec_calls_used")
     ) {
-      return Promise.resolve({ rows: [row] });
+      return Promise.resolve({ rows: [{ pro_rec_calls_this_period: 0, ...row }] });
     }
     if (sqlStr.includes("recommendation_sets") && sqlStr.includes("RETURNING")) {
       return Promise.resolve({ rows: [{ id: "set-uuid-1" }] });
@@ -132,7 +133,7 @@ describe("POST /api/recommend", () => {
     expect(data.error).toBe("Unauthorized");
   });
 
-  it("returns 402 when free tier exhausted and no active subscription", async () => {
+  it("returns 402 subscription_required when free tier exhausted and no active subscription", async () => {
     mockSession.mockResolvedValue({ user: { id: "user-1" } } as never);
     setupSubscriptionExec({ subscription_status: null, free_rec_calls_used: 3 });
 
@@ -146,6 +147,22 @@ describe("POST /api/recommend", () => {
     expect(res.status).toBe(402);
     const data = await res.json();
     expect(data.error).toBe("subscription_required");
+  });
+
+  it("returns 402 monthly_limit_reached when Pro subscriber hits 100 calls this period", async () => {
+    mockSession.mockResolvedValue({ user: { id: "user-1" } } as never);
+    setupSubscriptionExec({ subscription_status: "active", free_rec_calls_used: 0, pro_rec_calls_this_period: 100 });
+
+    const req = new NextRequest("http://localhost/api/recommend", {
+      method: "POST",
+      body: JSON.stringify({ titles: [{ title: "Inception", rating: 5 }] }),
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(402);
+    const data = await res.json();
+    expect(data.error).toBe("monthly_limit_reached");
   });
 
   it("succeeds for active subscriber and returns TMDB-verified recommendations", async () => {
@@ -176,7 +193,7 @@ describe("POST /api/recommend", () => {
   it("filters out recommendations that cannot be resolved in TMDB", async () => {
     mockSession.mockResolvedValue({ user: { id: "user-1" } } as never);
     setupSubscriptionExec({ subscription_status: "active", free_rec_calls_used: 0 });
-    // MSW default returns { results: [] } — all recs will be filtered out
+    // MSW default returns { results: [] } - all recs will be filtered out
 
     const mockCreate = await getMockCreate();
     mockCreate.mockResolvedValueOnce(
@@ -200,7 +217,7 @@ describe("POST /api/recommend", () => {
     setupSubscriptionExec({ subscription_status: "active", free_rec_calls_used: 0 });
 
     const mockCreate = await getMockCreate();
-    // Omit mediaType — should be rejected by the schema filter in callOpenAI
+    // Omit mediaType - should be rejected by the schema filter in callOpenAI
     mockCreate.mockResolvedValueOnce(
       makeOpenAIResponse([
         { title: "The Matrix", description: "A hacker.", reason: "Good", tags: ["sci-fi"], year: 1999 },

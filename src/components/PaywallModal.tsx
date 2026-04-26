@@ -4,9 +4,10 @@ import { useState } from "react";
 
 type Props = {
   onClose: () => void;
+  reason?: "free_exhausted" | "monthly_limit";
 };
 
-export default function PaywallModal({ onClose }: Props) {
+export default function PaywallModal({ onClose, reason }: Props) {
   const [loading, setLoading] = useState(false);
 
   const handleSubscribe = async () => {
@@ -19,6 +20,8 @@ export default function PaywallModal({ onClose }: Props) {
       setLoading(false);
     }
   };
+
+  const isMonthlyLimit = reason === "monthly_limit";
 
   return (
     <div
@@ -36,46 +39,54 @@ export default function PaywallModal({ onClose }: Props) {
 
         <div className="text-4xl mb-4">✨</div>
         <h2 className="text-2xl font-bold text-white mb-2">
-          Free recommendations used up
+          {isMonthlyLimit ? "Monthly limit reached" : "Free recommendations used up"}
         </h2>
         <p className="text-gray-300 mb-6 text-sm">
-          You&apos;ve used your 3 free AI recommendations. Upgrade to TellySauce
-          Pro for unlimited personalised picks based on your ratings, refreshed
-          weekly.
+          {isMonthlyLimit
+            ? "You've used all 100 AI recommendations included in your Pro plan this month. Your allowance resets at the start of your next billing period."
+            : "You've used your 3 free AI recommendations. Upgrade to TellySauce Pro for personalised picks based on your ratings, refreshed weekly."}
         </p>
 
-        <div className="bg-gradient-to-r from-pink-500 to-orange-400 rounded-2xl p-[1px] mb-6">
-          <div className="bg-gray-900 rounded-2xl py-4">
-            <div className="text-3xl font-extrabold text-white">£1.99</div>
-            <div className="text-gray-400 text-sm">per month</div>
-          </div>
-        </div>
+        {isMonthlyLimit ? (
+          <p className="text-sm text-gray-400 mt-2">
+            Your limit resets automatically - no action needed.
+          </p>
+        ) : (
+          <>
+            <div className="bg-gradient-to-r from-pink-500 to-orange-400 rounded-2xl p-[1px] mb-6">
+              <div className="bg-gray-900 rounded-2xl py-4">
+                <div className="text-3xl font-extrabold text-white">£1.99</div>
+                <div className="text-gray-400 text-sm">per month</div>
+              </div>
+            </div>
 
-        <ul className="text-sm text-gray-300 text-left mb-6 space-y-2 px-2">
-          <li className="flex items-center gap-2">
-            <span className="text-green-400 shrink-0">✓</span>
-            Unlimited AI profile recommendations
-          </li>
-          <li className="flex items-center gap-2">
-            <span className="text-green-400 shrink-0">✓</span>
-            Find similar titles for any show or film
-          </li>
-          <li className="flex items-center gap-2">
-            <span className="text-green-400 shrink-0">✓</span>
-            Recommendations refreshed weekly
-          </li>
-        </ul>
+            <ul className="text-sm text-gray-300 text-left mb-6 space-y-2 px-2">
+              <li className="flex items-center gap-2">
+                <span className="text-green-400 shrink-0">✓</span>
+                Up to 100 AI recommendations per month
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="text-green-400 shrink-0">✓</span>
+                Find similar titles for any show or film
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="text-green-400 shrink-0">✓</span>
+                Recommendations refreshed weekly
+              </li>
+            </ul>
 
-        <button
-          onClick={handleSubscribe}
-          disabled={loading}
-          className="w-full py-3 rounded-2xl font-bold text-white bg-gradient-to-r from-pink-500 to-orange-400 hover:opacity-90 transition disabled:opacity-60"
-        >
-          {loading ? "Redirecting…" : "Subscribe for £1.99/month"}
-        </button>
-        <p className="text-xs text-gray-500 mt-3">
-          Cancel anytime via your account settings.
-        </p>
+            <button
+              onClick={handleSubscribe}
+              disabled={loading}
+              className="w-full py-3 rounded-2xl font-bold text-white bg-gradient-to-r from-pink-500 to-orange-400 hover:opacity-90 transition disabled:opacity-60"
+            >
+              {loading ? "Redirecting…" : "Subscribe for £1.99/month"}
+            </button>
+            <p className="text-xs text-gray-500 mt-3">
+              Cancel anytime via your account settings.
+            </p>
+          </>
+        )}
       </div>
     </div>
   );

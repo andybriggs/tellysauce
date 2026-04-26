@@ -16,6 +16,9 @@ export default function Footer() {
           <Image src="/tmdb-logo.svg" alt="The Movie Database (TMDB)" width={80} height={11} />
         </a>
         <nav className="flex items-center gap-6">
+          <Link href="/pricing" className="hover:text-gray-300 transition">
+            Pricing
+          </Link>
           <Link href="/privacy" className="hover:text-gray-300 transition">
             Privacy Policy
           </Link>

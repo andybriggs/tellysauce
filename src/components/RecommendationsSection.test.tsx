@@ -163,7 +163,7 @@ describe("RecommendationsSection", () => {
     });
   });
 
-  it("shows paywall modal when API returns 402", async () => {
+  it("shows free-exhausted paywall modal when API returns 402 subscription_required", async () => {
     server.use(
       http.get("/api/recommendations", () =>
         HttpResponse.json({ set: null, items: [] })
@@ -177,8 +177,25 @@ describe("RecommendationsSection", () => {
     fireEvent.click(screen.getByRole("button"));
 
     await waitFor(() => {
-      // PaywallModal contains subscription text
-      expect(screen.getByText(/TellySauce Pro/i)).toBeInTheDocument();
+      expect(screen.getByText(/free recommendations used up/i)).toBeInTheDocument();
+    });
+  });
+
+  it("shows monthly-limit paywall modal when API returns 402 monthly_limit_reached", async () => {
+    server.use(
+      http.get("/api/recommendations", () =>
+        HttpResponse.json({ set: null, items: [] })
+      ),
+      http.post("/api/recommend", () =>
+        HttpResponse.json({ error: "monthly_limit_reached" }, { status: 402 })
+      )
+    );
+
+    render(<RecommendationsSection />);
+    fireEvent.click(screen.getByRole("button"));
+
+    await waitFor(() => {
+      expect(screen.getByText(/monthly limit reached/i)).toBeInTheDocument();
     });
   });
 

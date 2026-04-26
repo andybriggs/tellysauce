@@ -49,9 +49,10 @@ export async function POST(req: NextRequest) {
         await db.execute(sql`
           UPDATE users
           SET
-            stripe_subscription_id  = ${sub.id},
-            subscription_status     = ${status},
-            subscription_period_end = ${periodEnd}
+            stripe_subscription_id    = ${sub.id},
+            subscription_status       = ${status},
+            subscription_period_end   = ${periodEnd},
+            pro_rec_calls_this_period = 0
           WHERE stripe_customer_id = ${customerId}
         `);
         break;

@@ -26,6 +26,7 @@ export const users = pgTable("users", {
     .notNull(),
   // Subscription fields
   freeRecCallsUsed: integer("free_rec_calls_used").notNull().default(0),
+  proRecCallsThisPeriod: integer("pro_rec_calls_this_period").notNull().default(0),
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
   subscriptionStatus: text("subscription_status"), // 'active' | 'canceled' | 'past_due' | null
