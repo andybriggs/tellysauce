@@ -2,15 +2,15 @@
 
 A Next.js 15 web app for discovering, rating, and getting AI-powered recommendations for TV shows and movies.
 
-Users can search for titles, maintain a watchlist, rate shows/movies 1–5 stars, and receive personalised AI recommendations. The homepage also features daily AI-curated picks sourced from online community buzz.
+Users can search for titles, maintain a watchlist, rate shows/movies 1-5 stars, and receive personalised AI recommendations. The homepage also features daily AI-curated picks sourced from online community buzz.
 
 ## Tech Stack
 
 - **Framework**: Next.js 15 (App Router), React 19, TypeScript
 - **Database**: PostgreSQL via [Neon](https://neon.tech) (serverless), Drizzle ORM
 - **Auth**: NextAuth.js v4, Google OAuth
-- **AI**: OpenAI (`openai`) — single-call structured output for recommendations; Responses API with `web_search_preview` for cron
-- **Payments**: Stripe — £1.99/month subscription gating AI recommendations
+- **AI**: OpenAI (`openai`) - single-call structured output for recommendations; Responses API with `web_search_preview` for cron
+- **Payments**: Stripe - £1.99/month subscription gating AI recommendations
 - **Data fetching**: SWR (client-side), Next.js fetch with ISR (server-side)
 - **Styling**: TailwindCSS, Embla Carousel
 - **Deployment**: Vercel (includes cron jobs via `vercel.json`)
@@ -39,7 +39,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `TMDB_API_KEY`              | TMDB v3 API key                                                                                                                                                                                                     |
 | `TMDB_ACCESS_TOKEN`         | TMDB v4 Bearer token (used for all requests)                                                                                                                                                                        |
-| `OPENAI_API_KEY`            | OpenAI API key — used for recommendations and cron web search                                                                                                                                                       |
+| `OPENAI_API_KEY`            | OpenAI API key - used for recommendations and cron web search                                                                                                                                                       |
 | `DATABASE_URL`              | Neon PostgreSQL connection string (pooled)                                                                                                                                                                          |
 | `DATABASE_URL_UNPOOLED`     | Neon PostgreSQL connection string (direct, for migrations)                                                                                                                                                          |
 | `NEXTAUTH_SECRET`           | NextAuth secret                                                                                                                                                                                                     |
@@ -51,7 +51,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | `STRIPE_SECRET_KEY`         | Stripe secret key (`sk_test_...` locally, `sk_live_...` on Vercel)                                                                                                                                                  |
 | `STRIPE_WEBHOOK_SECRET`     | Stripe webhook signing secret (see note below)                                                                                                                                                                      |
 | `STRIPE_PRICE_ID`           | Stripe Price ID for the £1.99/month Pro plan (`price_...`)                                                                                                                                                          |
-| `OMDB_API_KEY`              | OMDb API key for fetching IMDb ratings on title pages — free tier (1,000 req/day) at [omdbapi.com](https://www.omdbapi.com/apikey.aspx). If unset, rating buttons show "Rating unavailable" but still link through. |
+| `OMDB_API_KEY`              | OMDb API key for fetching IMDb and Rotten Tomatoes ratings on title pages - free tier (1,000 req/day) at [omdbapi.com](https://www.omdbapi.com/apikey.aspx). If unset, both rating pills are hidden. |
 
 ## Database
 
@@ -63,7 +63,7 @@ The project uses Drizzle ORM with a Neon PostgreSQL database.
 | ---------------------- | ------------------------------------------------------------------------------- |
 | `users`                | Google OAuth users + Stripe subscription state                                  |
 | `titles`               | TMDB title cache (keyed by `tmdb_id` + `media_type`)                            |
-| `user_titles`          | Watchlist entries and ratings (`status`: `WATCHLIST` \| `RATED`, `rating`: 1–5) |
+| `user_titles`          | Watchlist entries and ratings (`status`: `WATCHLIST` \| `RATED`, `rating`: 1-5) |
 | `recommendation_sets`  | Cached AI recommendation batches (7-day expiry)                                 |
 | `recommendation_items` | Individual titles within a recommendation set                                   |
 | `ai_popular_titles`    | Daily AI-curated popular titles populated by the cron job                       |
@@ -91,24 +91,24 @@ yarn db:studio     # Open Drizzle Studio (database browser)
 
 ### Authenticated (requires session)
 
-| Method   | Route                                    | Description                                                                                       |
-| -------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `GET`    | `/api/watchlist`                         | Get the current user's watchlist                                                                  |
-| `POST`   | `/api/watchlist`                         | Add a title to the watchlist                                                                      |
-| `DELETE` | `/api/watchlist`                         | Remove a title from the watchlist                                                                 |
-| `GET`    | `/api/rated`                             | Get all titles the current user has rated                                                         |
-| `POST`   | `/api/rated`                             | Rate a title (1–5 stars)                                                                          |
-| `GET`    | `/api/rating?tmdbId={id}&type=movie\|tv` | Get the current user's rating for a specific title                                                |
-| `GET`    | `/api/recommendations`                   | Fetch cached AI recommendations for the current user                                              |
-| `POST`   | `/api/recommend`                         | Generate AI recommendations via OpenAI — subscription-gated (3 free lifetime calls, then £1.99/month) |
-| `GET`    | `/api/subscription-status`               | Returns current user's subscription status and free call count                                    |
-| `POST`   | `/api/stripe/checkout`                   | Create a Stripe Checkout session for TellySauce Pro                                               |
-| `POST`   | `/api/stripe/portal`                     | Create a Stripe Billing Portal session (manage/cancel subscription)                               |
+| Method   | Route                                    | Description                                                                                           |
+| -------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `GET`    | `/api/watchlist`                         | Get the current user's watchlist                                                                      |
+| `POST`   | `/api/watchlist`                         | Add a title to the watchlist                                                                          |
+| `DELETE` | `/api/watchlist`                         | Remove a title from the watchlist                                                                     |
+| `GET`    | `/api/rated`                             | Get all titles the current user has rated                                                             |
+| `POST`   | `/api/rated`                             | Rate a title (1-5 stars)                                                                              |
+| `GET`    | `/api/rating?tmdbId={id}&type=movie\|tv` | Get the current user's rating for a specific title                                                    |
+| `GET`    | `/api/recommendations`                   | Fetch cached AI recommendations for the current user                                                  |
+| `POST`   | `/api/recommend`                         | Generate AI recommendations via OpenAI - subscription-gated (3 free lifetime calls, then £1.99/month) |
+| `GET`    | `/api/subscription-status`               | Returns current user's subscription status and free call count                                        |
+| `POST`   | `/api/stripe/checkout`                   | Create a Stripe Checkout session for TellySauce Pro                                                   |
+| `POST`   | `/api/stripe/portal`                     | Create a Stripe Billing Portal session (manage/cancel subscription)                                   |
 
 ### Cron (Vercel internal)
 
-| Method | Route                  | Description                                                         |
-| ------ | ---------------------- | ------------------------------------------------------------------- |
+| Method | Route                  | Description                                                                    |
+| ------ | ---------------------- | ------------------------------------------------------------------------------ |
 | `GET`  | `/api/cron/ai-popular` | Daily job: fetch AI picks via OpenAI web search, resolve via TMDB, store in DB |
 
 The cron route requires `Authorization: Bearer $CRON_SECRET`. Vercel adds this header automatically when the env var is set. To trigger manually:
@@ -123,13 +123,14 @@ curl -H "Authorization: Bearer <CRON_SECRET>" https://<your-domain>/api/cron/ai-
 
 All AI calls use the shared `openai` client from `src/lib/ai.ts`.
 
-**Recommendations** (`src/app/api/recommend/route.ts`): a single `gpt-4o-mini` call using `response_format: json_schema` (strict structured output). Returns `{ recommendations: [...] }` directly — no intermediate text parsing or retry loops.
+**Recommendations** (`src/app/api/recommend/route.ts`): a single `gpt-4o-mini` call using `response_format: json_schema` (strict structured output). Returns `{ recommendations: [...] }` directly - no intermediate text parsing or retry loops.
 
 **Cron** (`src/app/api/cron/ai-popular/route.ts`): a 4-stage pipeline:
-1. **Web search** — `openai.responses.create` with `gpt-4o-mini` + `web_search_preview` tool. Finds trending titles from Reddit.
-2. **JSON structuring** — `gpt-4o-mini` chat completions with `json_schema`. Parses the Stage 1 text into structured title objects.
-3. **TMDB resolution** — enriches each title with poster, description, and year from TMDB.
-4. **Quote generation** — `gpt-4o-mini` chat completions with `json_schema`. Generates Reddit-style viewer quotes per title.
+
+1. **Web search** - `openai.responses.create` with `gpt-4o-mini` + `web_search_preview` tool. Finds trending titles from Reddit.
+2. **JSON structuring** - `gpt-4o-mini` chat completions with `json_schema`. Parses the Stage 1 text into structured title objects.
+3. **TMDB resolution** - enriches each title with poster, description, and year from TMDB.
+4. **Quote generation** - `gpt-4o-mini` chat completions with `json_schema`. Generates Reddit-style viewer quotes per title.
 
 ### Daily AI Picks (Cron)
 
@@ -151,9 +152,9 @@ The `/api/recommend` route uses the user's rating history to generate a personal
 
 All TMDB requests use the v4 Bearer token (`TMDB_ACCESS_TOKEN`).
 
-- `fetchTMDBTitle(tmdbId, mediaType)` — `src/server/tmdb.ts` — canonical function for fetching full title details
+- `fetchTMDBTitle(tmdbId, mediaType)` - `src/server/tmdb.ts` - canonical function for fetching full title details
 - Title search year params differ by media type: movies use `year`, TV shows use `first_air_date_year`
-- `fetchTitleSources(kind, id, revalidate)` — returns streaming providers for **all regions** as `Record<string, TitleSource[]>`. The title page passes this to `WhereToWatch`, which lets users pick their country from a dropdown. The selected region persists in `localStorage` (`watch_region` key) and auto-detects from `navigator.language` on first visit.
+- `fetchTitleSources(kind, id, revalidate)` - returns streaming providers for **all regions** as `Record<string, TitleSource[]>`. The title page passes this to `WhereToWatch`, which lets users pick their country from a dropdown. The selected region persists in `localStorage` (`watch_region` key) and auto-detects from `navigator.language` on first visit.
 
 ## Stripe Subscription
 
@@ -189,4 +190,4 @@ Test files live next to the code they test (`*.test.ts` / `*.test.tsx`). Global 
 
 ## Deployment
 
-Deployed on Vercel. The `vercel.json` at the project root configures the daily cron job. Make sure `CRON_SECRET` is set in your Vercel project environment variables — Vercel uses it to authenticate cron requests automatically.
+Deployed on Vercel. The `vercel.json` at the project root configures the daily cron job. Make sure `CRON_SECRET` is set in your Vercel project environment variables - Vercel uses it to authenticate cron requests automatically.

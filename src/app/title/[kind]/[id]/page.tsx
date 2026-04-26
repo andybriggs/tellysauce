@@ -37,7 +37,7 @@ export async function generateMetadata({
   const pieces = [
     data.title,
     data.year
-      ? `(${data.year}${data.end_year ? `–${data.end_year}` : ""})`
+      ? `(${data.year}${data.end_year ? `-${data.end_year}` : ""})`
       : undefined,
   ].filter(Boolean) as string[];
 
@@ -50,8 +50,8 @@ export async function generateMetadata({
       images: data.backdrop
         ? [data.backdrop]
         : data.posterLarge
-        ? [data.posterLarge]
-        : undefined,
+          ? [data.posterLarge]
+          : undefined,
     },
   };
 }
@@ -67,9 +67,9 @@ export default async function TitlePage({ params }: PageProps) {
 
   if (!data) notFound();
 
-  const imdbRating = data.imdb_id
+  const { imdbRating, rtRating } = data.imdb_id
     ? await fetchIMDbRating(data.imdb_id, revalidate)
-    : null;
+    : { imdbRating: null, rtRating: null };
 
   const title = data.title || data.original_title || "Untitled";
   const poster =
@@ -97,7 +97,7 @@ export default async function TitlePage({ params }: PageProps) {
     },
   } as const;
 
-  // Shared JSX blocks — avoids duplicating the same elements
+  // Shared JSX blocks - avoids duplicating the same elements
   // for the "trailer present" vs "no trailer" layout variants.
   const metaSection = (
     <div className="space-y-4">
@@ -130,7 +130,7 @@ export default async function TitlePage({ params }: PageProps) {
           <BackLink href="/" label="Back" />
         </div>
 
-        {/* Title — full-width block above the grid */}
+        {/* Title - full-width block above the grid */}
         <div className="mb-6 space-y-3">
           <TitleHeader title={title} />
           {/* Ratings + watchlist/star actions in a line below the title */}
@@ -138,9 +138,8 @@ export default async function TitlePage({ params }: PageProps) {
             <ExternalLinks
               imdbId={data.imdb_id ?? undefined}
               imdbRating={imdbRating}
-              tmdbType={data.tmdb_type ?? undefined}
-              tmdbId={data.tmdb_id ?? undefined}
-              tmdbVoteAverage={data.tmdb_vote_average ?? undefined}
+              rtRating={rtRating}
+              rtSearchTitle={title}
             />
             <WatchlistButton title={titleToSave} />
             <TitleActions title={titleToSave} />
@@ -149,7 +148,7 @@ export default async function TitlePage({ params }: PageProps) {
 
         {/* Tablet: two columns (1:3). Desktop: three columns (1:3:1). Mobile: stacked. */}
         <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-8">
-          {/* Column 1: Poster — hidden on mobile only when a trailer is available (poster overlaid on video instead) */}
+          {/* Column 1: Poster - hidden on mobile only when a trailer is available (poster overlaid on video instead) */}
           <aside className={`${data.trailerKey ? "hidden md:block" : ""} md:col-span-1 lg:col-span-1 mx-auto md:mx-0 w-full max-w-xs aspect-[2/3]`}>
             <PosterCard posterUrl={poster} title={title} />
           </aside>
@@ -167,25 +166,25 @@ export default async function TitlePage({ params }: PageProps) {
             )}
           </div>
 
-          {/* Meta — shown inside the grid at mobile + md when trailer is present so it sits
+          {/* Meta - shown inside the grid at mobile + md when trailer is present so it sits
               above the providers row. Hidden at lg where it renders after the grid instead. */}
           {data.trailerKey && (
             <div className="md:col-span-4 lg:hidden">{metaSection}</div>
           )}
 
-          {/* Column 3: Providers — hidden on mobile (rendered below instead), stacked on md, side column on lg */}
+          {/* Column 3: Providers - hidden on mobile (rendered below instead), stacked on md, side column on lg */}
           <aside className="hidden md:block md:col-span-4 lg:col-span-1 lg:aspect-[2/3] lg:overflow-y-auto">
             {whereToWatch}
           </aside>
         </div>
 
-        {/* Meta pills + genre/network tags + overview — only shown at lg+ when a trailer is present
+        {/* Meta pills + genre/network tags + overview - only shown at lg+ when a trailer is present
             (at smaller sizes it renders inside the grid above, before the providers row) */}
         {data.trailerKey && (
           <div className="hidden lg:block mt-6">{metaSection}</div>
         )}
 
-        {/* Where to watch — mobile only (hidden on md+, where it renders inside the grid) */}
+        {/* Where to watch - mobile only (hidden on md+, where it renders inside the grid) */}
         <div className="md:hidden mt-6">{whereToWatch}</div>
 
         <div className="mt-8">

@@ -1,27 +1,20 @@
 import Link from "next/link";
+import Image from "next/image";
 
 interface ExternalLinksProps {
   imdbId?: string | null;
   imdbRating?: string | null;
-  tmdbType?: string | null;
-  tmdbId?: number | null;
-  tmdbVoteAverage?: number | null;
+  rtRating?: string | null;
+  rtSearchTitle?: string;
 }
 
 export default function ExternalLinks({
   imdbId,
   imdbRating,
-  tmdbType,
-  tmdbId,
-  tmdbVoteAverage,
+  rtRating,
+  rtSearchTitle,
 }: ExternalLinksProps) {
-  const hasAny = imdbId || (tmdbId && tmdbType);
-  if (!hasAny) return null;
-
-  const tmdbScore =
-    tmdbVoteAverage != null && tmdbVoteAverage > 0
-      ? tmdbVoteAverage.toFixed(1)
-      : null;
+  if (!imdbId && !rtRating) return null;
 
   return (
     <div className="flex flex-wrap gap-3">
@@ -31,8 +24,9 @@ export default function ExternalLinks({
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-2 rounded-xl bg-yellow-500/20 px-4 py-2 text-yellow-100 ring-1 ring-yellow-400/30 transition hover:bg-yellow-500/30"
+          title="View on IMDb"
         >
-          <span>IMDb</span>
+          <Image src="/imdb.png" alt="IMDb" width={24} height={12} className="rounded-sm" />
           {imdbRating ? (
             <span className="font-semibold">★ {imdbRating}</span>
           ) : (
@@ -41,19 +35,16 @@ export default function ExternalLinks({
         </Link>
       )}
 
-      {tmdbId && tmdbType && (
+      {rtRating && (
         <Link
-          href={`https://www.themoviedb.org/${tmdbType}/${tmdbId}`}
+          href={`https://www.rottentomatoes.com/search?search=${encodeURIComponent(rtSearchTitle ?? "")}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 rounded-xl bg-green-500/20 px-4 py-2 text-green-100 ring-1 ring-green-400/30 transition hover:bg-green-500/30"
+          className="inline-flex items-center gap-2 rounded-xl bg-red-500/20 px-4 py-2 text-red-100 ring-1 ring-red-400/30 transition hover:bg-red-500/30"
+          title="View on Rotten Tomatoes"
         >
-          <span>TMDB</span>
-          {tmdbScore ? (
-            <span className="font-semibold">★ {tmdbScore}</span>
-          ) : (
-            <span className="text-sm opacity-60">Rating unavailable</span>
-          )}
+          <Image src="/rt-logo.svg" alt="Rotten Tomatoes" width={20} height={20} />
+          <span className="font-semibold">{rtRating}</span>
         </Link>
       )}
     </div>

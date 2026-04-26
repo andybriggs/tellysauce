@@ -45,7 +45,7 @@ Always use **yarn** (not npm). `package.json` has `"packageManager": "yarn@1.22.
 - `STRIPE_SECRET_KEY` - Stripe secret key (`sk_test_...` locally, `sk_live_...` on Vercel)
 - `STRIPE_WEBHOOK_SECRET` - Stripe webhook signing secret. **Local dev**: use the `whsec_...` printed by `stripe listen` (different from the dashboard secret). **Vercel**: use the secret from the dashboard webhook endpoint.
 - `STRIPE_PRICE_ID` - Stripe Price ID (`price_...`) for the £1.99/month TellySauce Pro plan
-- `OMDB_API_KEY` - OMDb API key for IMDb ratings on the title detail page. Free (1,000 req/day) from omdbapi.com. If absent, rating buttons gracefully show "Rating unavailable".
+- `OMDB_API_KEY` - OMDb API key for IMDb and Rotten Tomatoes ratings on the title detail page. Free (1,000 req/day) from omdbapi.com. If absent, both rating pills are hidden.
 
 ## Important patterns
 
@@ -94,12 +94,13 @@ await sql.query(`CREATE TABLE IF NOT EXISTS ...`);
 - `fetchTitleSources(kind, id, revalidate)` - `src/server/tmdb.ts` - returns `Record<string, TitleSource[]>` keyed by ISO country code (e.g. `"GB"`, `"US"`). TMDB returns all regions in one call; we return them all.
 - `src/components/WhereToWatch.tsx` - client component. Reads selected region from `localStorage` key `"watch_region"`, falling back to country derived from `navigator.language`, then `"GB"`. Shows a dropdown listing only countries that have provider data for the current title. Priority order: GB, US, CA, AU, IE, then alphabetical.
 
-### OMDb API (IMDb ratings)
+### OMDb API (IMDb + Rotten Tomatoes ratings)
 
-- `fetchIMDbRating(imdbId)` in `src/app/title/[kind]/[id]/page.tsx` - server-side fetch to `https://www.omdbapi.com/?i={imdbId}&apikey={OMDB_API_KEY}`
-- Returns the `imdbRating` string (e.g. `"8.9"`) or `null` when unavailable or key is absent
+- `fetchIMDbRating(imdbId)` in `src/server/omdb.ts` - server-side fetch to `https://www.omdbapi.com/?i={imdbId}&apikey={OMDB_API_KEY}`
+- Returns `{ imdbRating: string | null, rtRating: string | null }` - `imdbRating` from the top-level field (e.g. `"8.9"`), `rtRating` from the `Ratings` array entry where `Source === "Rotten Tomatoes"` (e.g. `"92%"`)
 - Cached via Next.js ISR (`next: { revalidate }`) - same 1-hour window as the TMDB fetch
-- Result is passed to `ExternalLinks` as `imdbRating`; the component shows "Rating unavailable" when null
+- Results passed to `ExternalLinks` as `imdbRating` / `rtRating`; IMDb pill shows "Rating unavailable" when null, RT pill is omitted entirely when null
+- TMDB rating is no longer displayed on the title page
 
 ### API routes
 
