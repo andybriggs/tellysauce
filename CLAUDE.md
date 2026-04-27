@@ -126,6 +126,7 @@ await sql.query(`CREATE TABLE IF NOT EXISTS ...`);
 - **Regional focus**: English-speaking countries (US, UK, AU, CA, IE) + Western Europe. East Asian content only if major Western crossover (e.g. Squid Game).
 - Resolves AI-returned title strings to TMDB IDs, enriches with poster/description, stores in `ai_popular_titles`
 - Guard: skips DB write if 0 titles resolved (preserves previous day's data)
+- **New-first ordering**: before inserting, the previous day's `tmdb_id`s are queried. Titles absent from the previous batch get lower rank values (appear first in the carousel); returning/duplicate titles follow in their original AI-returned order. Logic lives in exported `prioritiseNewTitles(resolved, prevTmdbIds)` in `src/app/api/cron/ai-popular/route.ts`.
 
 ### Feature tiers
 

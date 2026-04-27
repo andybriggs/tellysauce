@@ -144,6 +144,8 @@ Scheduled daily at 06:00 UTC. The job:
 
 **Guard**: if 0 titles resolve successfully, the DB write is skipped and the previous day's data is preserved.
 
+**New-first ordering**: before writing today's batch, the previous day's titles are queried. Titles not seen yesterday are assigned lower rank values and appear at the start of the carousel; duplicate/returning titles follow in their AI-returned order.
+
 ### Personalised Recommendations
 
 The `/api/recommend` route uses the user's rating history to generate a personalised recommendation list via OpenAI. Results are cached in `recommendation_sets` / `recommendation_items` for 7 days.

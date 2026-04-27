@@ -30,6 +30,8 @@ vi.mock("@/lib/ai", () => {
 import { db } from "@/db";
 import { fetchTMDBTitle } from "@/server/tmdb";
 import { GET } from "./route";
+import { prioritiseNewTitles } from "./helpers";
+import type { ResolvedTitle } from "./helpers";
 
 const mockDb = db as unknown as { execute: ReturnType<typeof vi.fn> };
 const mockFetchTMDBTitle = vi.mocked(fetchTMDBTitle);
@@ -150,3 +152,58 @@ describe("GET /api/cron/ai-popular", () => {
     expect(data.error).toBe("Cron job failed");
   });
 });
+
+/** ------------------------------------------------------------------ */
+/** prioritiseNewTitles — pure ordering logic                          */
+/** ------------------------------------------------------------------ */
+
+function makeTitle(tmdbId: number, title = `Title ${tmdbId}`): ResolvedTitle {
+  return {
+    tmdbId,
+    title,
+    poster: null,
+    year: 2024,
+    description: null,
+    reason: "Popular",
+    redditQuotes: [],
+  };
+}
+
+describe("prioritiseNewTitles", () => {
+  it("returns all titles unchanged when the previous batch is empty", () => {
+    const titles = [makeTitle(1), makeTitle(2), makeTitle(3)];
+    const result = prioritiseNewTitles(titles, new Set());
+    expect(result.map((t) => t.tmdbId)).toEqual([1, 2, 3]);
+  });
+
+  it("ranks new titles before returning titles", () => {
+    // AI order: 100 (returning), 300 (new), 200 (returning)
+    const titles = [makeTitle(100), makeTitle(300), makeTitle(200)];
+    const prev = new Set([100, 200]);
+    const result = prioritiseNewTitles(titles, prev);
+    expect(result.map((t) => t.tmdbId)).toEqual([300, 100, 200]);
+  });
+
+  it("preserves AI order within each group", () => {
+    // AI order: 10 (new), 50 (returning), 20 (new), 30 (new)
+    const titles = [makeTitle(10), makeTitle(50), makeTitle(20), makeTitle(30)];
+    const prev = new Set([50]);
+    const result = prioritiseNewTitles(titles, prev);
+    expect(result.map((t) => t.tmdbId)).toEqual([10, 20, 30, 50]);
+  });
+
+  it("preserves original order when all titles are returning", () => {
+    const titles = [makeTitle(1), makeTitle(2), makeTitle(3)];
+    const prev = new Set([1, 2, 3]);
+    const result = prioritiseNewTitles(titles, prev);
+    expect(result.map((t) => t.tmdbId)).toEqual([1, 2, 3]);
+  });
+
+  it("preserves original order when all titles are new", () => {
+    const titles = [makeTitle(7), makeTitle(8), makeTitle(9)];
+    const prev = new Set([1, 2, 3]); // none overlap
+    const result = prioritiseNewTitles(titles, prev);
+    expect(result.map((t) => t.tmdbId)).toEqual([7, 8, 9]);
+  });
+});
+

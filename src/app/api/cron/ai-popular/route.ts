@@ -4,6 +4,8 @@ import { randomUUID } from "crypto";
 import { TMDB_BASE, fetchTMDBTitle } from "@/server/tmdb";
 import type { RedditQuote } from "@/types/reddit";
 import { openai } from "@/lib/ai";
+import { prioritiseNewTitles } from "./helpers";
+import type { ResolvedTitle } from "./helpers";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -19,16 +21,6 @@ type CronRec = {
   tags: string[];
   year: number | null;
   quotes: RedditQuote[];
-};
-
-type ResolvedTitle = {
-  tmdbId: number;
-  title: string;
-  poster: string | null;
-  year: number | null;
-  description: string | null;
-  reason: string;
-  redditQuotes: RedditQuote[];
 };
 
 /** ------------------------------------------------------------------ */
@@ -269,13 +261,24 @@ async function saveBatch(
     return;
   }
 
+  // Query the previous batch before deleting, so new titles can be ranked first.
+  const prevRows = await db.execute(sql`
+    SELECT tmdb_id FROM ai_popular_titles
+    WHERE media_type = ${mediaType}
+      AND fetched_date = (
+        SELECT MAX(fetched_date) FROM ai_popular_titles WHERE media_type = ${mediaType}
+      )
+  `);
+  const prevIds = new Set((prevRows?.rows ?? []).map((r) => r.tmdb_id as number));
+  const ordered = prioritiseNewTitles(resolved, prevIds);
+
   await db.execute(sql`
     DELETE FROM ai_popular_titles
     WHERE media_type = ${mediaType} AND fetched_date = ${fetchedDate}
   `);
 
-  for (let i = 0; i < resolved.length; i++) {
-    const r = resolved[i];
+  for (let i = 0; i < ordered.length; i++) {
+    const r = ordered[i];
     const quotesJson =
       r.redditQuotes.length > 0 ? JSON.stringify(r.redditQuotes) : null;
     await db.execute(sql`
