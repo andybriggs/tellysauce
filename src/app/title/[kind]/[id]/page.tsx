@@ -127,7 +127,7 @@ export default async function TitlePage({ params }: PageProps) {
 
       <Container>
         <div className="col-span-full my-8">
-          <BackLink href="/" label="Back" />
+          <BackLink label="Back" />
         </div>
 
         {/* Title - full-width block above the grid */}

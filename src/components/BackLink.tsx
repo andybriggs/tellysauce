@@ -1,15 +1,30 @@
+"use client";
+
 import { ChevronLeftIcon } from "@heroicons/react/24/solid";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 interface BackLinkProps {
-  href: string;
+  fallbackHref?: string;
   label?: string;
 }
 
-export default function BackLink({ href, label = "Back" }: BackLinkProps) {
+export default function BackLink({
+  fallbackHref = "/",
+  label = "Back",
+}: BackLinkProps) {
+  const router = useRouter();
+
+  function handleClick() {
+    if (window.history.length > 1) {
+      router.back();
+    } else {
+      router.push(fallbackHref);
+    }
+  }
+
   return (
-    <Link
-      href={href}
+    <button
+      onClick={handleClick}
       className="
       ml-auto inline-flex items-center gap-1.5
       rounded-full border border-white/10
@@ -23,6 +38,6 @@ export default function BackLink({ href, label = "Back" }: BackLinkProps) {
     >
       <ChevronLeftIcon className="h-4 w-4" />
       {label}
-    </Link>
+    </button>
   );
 }
