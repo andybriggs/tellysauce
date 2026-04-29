@@ -78,6 +78,7 @@ function stubTmdbSuccess() {
             poster_path: "/matrix.jpg",
             release_date: "1999-03-31",
             overview: "A hacker discovers the truth.",
+            popularity: 200,
           },
         ],
       })

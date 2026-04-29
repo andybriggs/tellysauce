@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
-import { TMDB_BASE, fetchTMDBTitle } from "@/server/tmdb";
+import { searchTmdbByTitle, tmdbImg } from "@/server/tmdb";
 import type { RedditQuote } from "@/types/reddit";
 import { openai } from "@/lib/ai";
 import { prioritiseNewTitles } from "./helpers";
@@ -157,55 +157,6 @@ Your entire response must be the JSON object described in the output schema — 
 }
 
 /** ------------------------------------------------------------------ */
-/** TMDB: search by title string to get TMDB ID                         */
-/** ------------------------------------------------------------------ */
-
-async function searchTmdbId(
-  title: string,
-  mediaType: "movie" | "tv",
-  year?: number | null
-): Promise<number | null> {
-  const yearKey = mediaType === "tv" ? "first_air_date_year" : "year";
-  const MIN_POPULARITY = 2;
-
-  const search = async (withYear: boolean): Promise<number | null> => {
-    const params = new URLSearchParams({ query: title, language: "en-US" });
-    if (withYear && year) params.set(yearKey, String(year));
-
-    const res = await fetch(`${TMDB_BASE}/search/${mediaType}?${params.toString()}`, {
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${process.env.TMDB_ACCESS_TOKEN}`,
-      },
-      cache: "no-store",
-    });
-
-    if (!res.ok) return null;
-    const data = await res.json();
-
-    // Pick the most popular result from the top 5 candidates above the minimum
-    // threshold. Taking results[0] blindly can resolve to obscure documentaries
-    // or clickbait titles that happen to match the query string exactly.
-    const candidates: Array<{ id: number; popularity: number }> = (data.results ?? []).slice(0, 5);
-    const best = candidates
-      .filter((r) => (r.popularity ?? 0) >= MIN_POPULARITY)
-      .sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0))[0];
-
-    return best?.id ?? null;
-  };
-
-  // Try with year first; if nothing comes back (common for TV shows where the
-  // model returns a recent season year rather than the first-air year), retry
-  // without the year filter.
-  if (year) {
-    const id = await search(true);
-    if (id) return id;
-  }
-
-  return search(false);
-}
-
-/** ------------------------------------------------------------------ */
 /** Resolve recs to enriched TMDB titles                                */
 /** ------------------------------------------------------------------ */
 
@@ -218,37 +169,29 @@ async function resolveRecs(
   for (let i = 0; i < recs.length; i += 5) {
     const batch = recs.slice(i, i + 5);
     const results = await Promise.all(
-      batch.map(async (rec) => {
+      batch.map(async (rec): Promise<ResolvedTitle | null> => {
         try {
-          const tmdbId = await searchTmdbId(rec.title, mediaType, rec.year);
-          if (!tmdbId) {
-            console.warn(
-              `[ai-popular] Could not resolve TMDB ID for: ${rec.title}`
-            );
+          const hit = await searchTmdbByTitle(rec.title, mediaType, rec.year);
+          if (!hit) {
+            console.warn(`[ai-popular] Could not resolve TMDB ID for: ${rec.title}`);
             return null;
           }
-          const tmdb = await fetchTMDBTitle(tmdbId, mediaType);
-          if (!tmdb) {
+          const poster = tmdbImg.posterLarge(hit.posterPath);
+          if (!poster) {
             console.warn(
-              `[ai-popular] fetchTMDBTitle returned null for id=${tmdbId}`
-            );
-            return null;
-          }
-          if (!tmdb.poster) {
-            console.warn(
-              `[ai-popular] Skipping "${rec.title}" — resolved to "${tmdb.title}" with no poster (likely wrong resolution)`
+              `[ai-popular] Skipping "${rec.title}" — resolved to "${hit.title}" with no poster (likely wrong resolution)`
             );
             return null;
           }
           return {
-            tmdbId,
-            title: tmdb.title,
-            poster: tmdb.poster,
-            year: tmdb.year,
-            description: tmdb.description,
+            tmdbId: hit.id,
+            title: hit.title,
+            poster,
+            year: hit.year,
+            description: hit.overview,
             reason: rec.reason,
             redditQuotes: rec.quotes,
-          } satisfies ResolvedTitle;
+          };
         } catch (err) {
           console.warn(`[ai-popular] Error resolving "${rec.title}":`, err);
           return null;

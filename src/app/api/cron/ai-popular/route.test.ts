@@ -1,7 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
-import { http, HttpResponse } from "msw";
-import { server } from "@/test/mocks/server";
 
 // ---- Mocks ----
 vi.mock("@/db", () => ({
@@ -12,7 +10,12 @@ vi.mock("@/db", () => ({
 
 vi.mock("@/server/tmdb", () => ({
   TMDB_BASE: "https://api.themoviedb.org/3",
-  fetchTMDBTitle: vi.fn(),
+  searchTmdbByTitle: vi.fn(),
+  tmdbImg: {
+    posterLarge: vi.fn((p: string | null) =>
+      p ? `https://image.tmdb.org/t/p/w500${p}` : null
+    ),
+  },
 }));
 
 // Mock @/lib/ai — only responses.create is used (web search + structured output in one call)
@@ -28,13 +31,13 @@ vi.mock("@/lib/ai", () => {
 });
 
 import { db } from "@/db";
-import { fetchTMDBTitle } from "@/server/tmdb";
+import { searchTmdbByTitle } from "@/server/tmdb";
 import { GET } from "./route";
 import { prioritiseNewTitles } from "./helpers";
 import type { ResolvedTitle } from "./helpers";
 
 const mockDb = db as unknown as { execute: ReturnType<typeof vi.fn> };
-const mockFetchTMDBTitle = vi.mocked(fetchTMDBTitle);
+const mockSearchTmdbByTitle = vi.mocked(searchTmdbByTitle);
 
 async function getMocks() {
   const mod = await import("@/lib/ai");
@@ -98,35 +101,20 @@ describe("GET /api/cron/ai-popular", () => {
       reason: "Hugely popular",
       tags: ["sci-fi", "action"],
       year: 1999,
-      reddit_quote: "A masterpiece of sci-fi cinema that still holds up.",
-      reddit_url: "https://reddit.com/r/movies/comments/abc123/the_matrix/",
-      subreddit: "movies",
     };
 
     const { mockResponsesCreate } = await getMocks();
-
-    // Stage 1: single structured web search call per media type
     mockResponsesCreate
       .mockResolvedValueOnce(makeStructuredResponse([structuredTitle])) // movie
       .mockResolvedValueOnce(makeStructuredResponse([structuredTitle])); // tv
 
-    server.use(
-      http.get("https://api.themoviedb.org/3/search/movie", () =>
-        HttpResponse.json({ results: [{ id: 603, popularity: 200 }] })
-      ),
-      http.get("https://api.themoviedb.org/3/search/tv", () =>
-        HttpResponse.json({ results: [{ id: 1399, popularity: 150 }] })
-      )
-    );
-
-    mockFetchTMDBTitle.mockResolvedValue({
-      tmdbId: 603,
-      mediaType: "movie",
+    mockSearchTmdbByTitle.mockResolvedValue({
+      id: 603,
       title: "The Matrix",
-      poster: "https://image.tmdb.org/t/p/w500/poster.jpg",
+      posterPath: "/poster.jpg",
+      overview: "A computer hacker learns about the true nature of reality.",
       year: 1999,
-      description: "A computer hacker learns about the true nature of reality.",
-    } as never);
+    });
 
     const req = makeRequest("Bearer test-cron-secret");
     const res = await GET(req);
@@ -137,11 +125,10 @@ describe("GET /api/cron/ai-popular", () => {
     expect(typeof data.fetchedDate).toBe("string");
     expect(typeof data.movies).toBe("number");
     expect(typeof data.tv).toBe("number");
-    // Only responses.create should have been called (no chat completions)
     expect(mockResponsesCreate).toHaveBeenCalledTimes(2);
   });
 
-  it("selects the highest-popularity TMDB result, not results[0]", async () => {
+  it("passes the AI title and year to searchTmdbByTitle and uses the returned hit", async () => {
     const structuredTitle = {
       title: "Bridgerton",
       description: "Regency-era drama",
@@ -155,46 +142,26 @@ describe("GET /api/cron/ai-popular", () => {
       .mockResolvedValueOnce(makeStructuredResponse([structuredTitle])) // movie
       .mockResolvedValueOnce(makeStructuredResponse([structuredTitle])); // tv
 
-    // First result is a low-popularity documentary; second is the real show.
-    server.use(
-      http.get("https://api.themoviedb.org/3/search/movie", () =>
-        HttpResponse.json({
-          results: [
-            { id: 9999, popularity: 1 },  // obscure documentary — below threshold
-            { id: 46952, popularity: 320 }, // real show — should win
-          ],
-        })
-      ),
-      http.get("https://api.themoviedb.org/3/search/tv", () =>
-        HttpResponse.json({
-          results: [
-            { id: 9999, popularity: 1 },
-            { id: 46952, popularity: 320 },
-          ],
-        })
-      )
-    );
-
-    mockFetchTMDBTitle.mockResolvedValue({
-      tmdbId: 46952,
-      mediaType: "tv",
+    mockSearchTmdbByTitle.mockResolvedValue({
+      id: 46952,
       title: "Bridgerton",
-      poster: "https://image.tmdb.org/t/p/w500/bridgerton.jpg",
+      posterPath: "/bridgerton.jpg",
+      overview: "Regency-era drama.",
       year: 2020,
-      description: "Regency-era drama.",
-    } as never);
+    });
 
     const req = makeRequest("Bearer test-cron-secret");
     const res = await GET(req);
     expect(res.status).toBe(200);
 
-    // fetchTMDBTitle should have been called with the popular result's id (46952),
-    // not the documentary's id (9999).
-    expect(mockFetchTMDBTitle).toHaveBeenCalledWith(46952, expect.any(String));
-    expect(mockFetchTMDBTitle).not.toHaveBeenCalledWith(9999, expect.any(String));
+    // searchTmdbByTitle should be called with the AI-returned title and year.
+    expect(mockSearchTmdbByTitle).toHaveBeenCalledWith("Bridgerton", expect.any(String), 2020);
+    const data = await res.json();
+    expect(data.movies).toBe(1);
+    expect(data.tv).toBe(1);
   });
 
-  it("skips titles where all TMDB results are below the popularity threshold", async () => {
+  it("skips titles when searchTmdbByTitle returns null (no popular match)", async () => {
     const structuredTitle = {
       title: "Some Obscure Doc",
       description: "Clickbait documentary",
@@ -208,28 +175,18 @@ describe("GET /api/cron/ai-popular", () => {
       .mockResolvedValueOnce(makeStructuredResponse([structuredTitle]))
       .mockResolvedValueOnce(makeStructuredResponse([structuredTitle]));
 
-    // All results below the MIN_POPULARITY threshold of 2.
-    server.use(
-      http.get("https://api.themoviedb.org/3/search/movie", () =>
-        HttpResponse.json({ results: [{ id: 8888, popularity: 0.5 }] })
-      ),
-      http.get("https://api.themoviedb.org/3/search/tv", () =>
-        HttpResponse.json({ results: [{ id: 8888, popularity: 0.5 }] })
-      )
-    );
+    mockSearchTmdbByTitle.mockResolvedValue(null);
 
     const req = makeRequest("Bearer test-cron-secret");
     const res = await GET(req);
     expect(res.status).toBe(200);
     const data = await res.json();
 
-    // No titles should have been resolved or saved.
     expect(data.movies).toBe(0);
     expect(data.tv).toBe(0);
-    expect(mockFetchTMDBTitle).not.toHaveBeenCalled();
   });
 
-  it("skips titles that resolve to a TMDB entry with no poster", async () => {
+  it("skips titles that resolve to a TMDB hit with no poster", async () => {
     const structuredTitle = {
       title: "No Poster Show",
       description: "A show",
@@ -243,24 +200,14 @@ describe("GET /api/cron/ai-popular", () => {
       .mockResolvedValueOnce(makeStructuredResponse([structuredTitle]))
       .mockResolvedValueOnce(makeStructuredResponse([structuredTitle]));
 
-    server.use(
-      http.get("https://api.themoviedb.org/3/search/movie", () =>
-        HttpResponse.json({ results: [{ id: 7777, popularity: 50 }] })
-      ),
-      http.get("https://api.themoviedb.org/3/search/tv", () =>
-        HttpResponse.json({ results: [{ id: 7777, popularity: 50 }] })
-      )
-    );
-
-    // fetchTMDBTitle returns a result with no poster.
-    mockFetchTMDBTitle.mockResolvedValue({
-      tmdbId: 7777,
-      mediaType: "movie",
+    // searchTmdbByTitle resolves but has no poster_path.
+    mockSearchTmdbByTitle.mockResolvedValue({
+      id: 7777,
       title: "No Poster Show",
-      poster: null,
+      posterPath: null,
+      overview: "A show with no poster art.",
       year: 2024,
-      description: "A show with no poster art.",
-    } as never);
+    });
 
     const req = makeRequest("Bearer test-cron-secret");
     const res = await GET(req);

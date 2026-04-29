@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { server } from "@/test/mocks/server";
-import { fetchTMDBTitle, TMDB_BASE } from "./tmdb";
+import { fetchTMDBTitle, searchTmdbByTitle, TMDB_BASE } from "./tmdb";
 
 // Ensure a TMDB_ACCESS_TOKEN is set so tmdbRequest doesn't throw
 beforeEach(() => {
@@ -175,6 +175,114 @@ describe("fetchTMDBTitle", () => {
       await expect(fetchTMDBTitle(550, "movie")).rejects.toThrow(
         /Missing TMDB credentials/
       );
+    });
+  });
+})
+
+describe("searchTmdbByTitle", () => {
+  const makeResults = (items: Array<{ id: number; popularity: number; poster_path?: string | null; name?: string; title?: string }>) =>
+    HttpResponse.json({ results: items });
+
+  it("returns the highest-popularity result above the minimum threshold", async () => {
+    server.use(
+      http.get(`${TMDB_BASE}/search/tv`, () =>
+        makeResults([
+          { id: 9999, popularity: 1, title: "Unbuttoning Bridgerton" },
+          { id: 46952, popularity: 320, name: "Bridgerton" },
+        ])
+      )
+    );
+
+    const hit = await searchTmdbByTitle("Bridgerton", "tv");
+    expect(hit?.id).toBe(46952);
+  });
+
+  it("ignores results[0] when it has lower popularity than a later result", async () => {
+    server.use(
+      http.get(`${TMDB_BASE}/search/movie`, () =>
+        makeResults([
+          { id: 1, popularity: 5, title: "Low Ranked First" },
+          { id: 2, popularity: 500, title: "High Ranked Second" },
+        ])
+      )
+    );
+
+    const hit = await searchTmdbByTitle("test", "movie");
+    expect(hit?.id).toBe(2);
+  });
+
+  it("returns null when all results are below the minimum popularity threshold", async () => {
+    server.use(
+      http.get(`${TMDB_BASE}/search/movie`, () =>
+        makeResults([{ id: 8888, popularity: 0.5, title: "Obscure Documentary" }])
+      )
+    );
+
+    const hit = await searchTmdbByTitle("Obscure Documentary", "movie");
+    expect(hit).toBeNull();
+  });
+
+  it("returns null when TMDB returns empty results", async () => {
+    server.use(
+      http.get(`${TMDB_BASE}/search/tv`, () => HttpResponse.json({ results: [] }))
+    );
+
+    const hit = await searchTmdbByTitle("Unknown Show", "tv");
+    expect(hit).toBeNull();
+  });
+
+  it("tries year-constrained search first and falls back to unconstrained", async () => {
+    let yearSearchCalled = false;
+    server.use(
+      http.get(`${TMDB_BASE}/search/tv`, ({ request }) => {
+        const url = new URL(request.url);
+        if (url.searchParams.has("first_air_date_year")) {
+          yearSearchCalled = true;
+          return HttpResponse.json({ results: [] }); // year search returns nothing
+        }
+        return makeResults([{ id: 1396, popularity: 200, name: "Breaking Bad" }]);
+      })
+    );
+
+    const hit = await searchTmdbByTitle("Breaking Bad", "tv", 2010);
+    expect(yearSearchCalled).toBe(true);
+    expect(hit?.id).toBe(1396);
+  });
+
+  it("returns null when the fetch fails", async () => {
+    server.use(
+      http.get(`${TMDB_BASE}/search/movie`, () => new HttpResponse(null, { status: 500 }))
+    );
+
+    const hit = await searchTmdbByTitle("Anything", "movie");
+    expect(hit).toBeNull();
+  });
+
+  it("maps poster_path, overview, and year onto the returned hit", async () => {
+    server.use(
+      http.get(`${TMDB_BASE}/search/movie`, () =>
+        HttpResponse.json({
+          results: [
+            {
+              id: 550,
+              popularity: 100,
+              title: "Fight Club",
+              poster_path: "/poster.jpg",
+              overview: "An insomniac forms a fight club.",
+              release_date: "1999-10-15",
+            },
+          ],
+        })
+      )
+    );
+
+    const hit = await searchTmdbByTitle("Fight Club", "movie");
+    expect(hit).toEqual({
+      id: 550,
+      title: "Fight Club",
+      posterPath: "/poster.jpg",
+      overview: "An insomniac forms a fight club.",
+      year: 1999,
     });
   });
 });

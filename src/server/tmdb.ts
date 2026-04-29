@@ -325,6 +325,84 @@ function tmdbRequest(endpoint: string) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Title search — AI-to-TMDB resolution
+// ---------------------------------------------------------------------------
+
+export type TmdbSearchHit = {
+  id: number;
+  title: string;
+  posterPath: string | null;
+  overview: string | null;
+  year: number | null;
+};
+
+const SEARCH_MIN_POPULARITY = 2;
+
+/**
+ * Search TMDB for a title string and return the best-matching result.
+ * "Best" means the highest-popularity result among the top 5 candidates
+ * that clears a minimum threshold — this avoids resolving to obscure
+ * documentaries or clickbait titles that happen to match verbatim.
+ * Tries a year-constrained search first, falls back to unconstrained.
+ */
+export async function searchTmdbByTitle(
+  title: string,
+  mediaType: "movie" | "tv",
+  year?: number | null
+): Promise<TmdbSearchHit | null> {
+  const yearKey = mediaType === "tv" ? "first_air_date_year" : "year";
+
+  const search = async (withYear: boolean): Promise<TmdbSearchHit | null> => {
+    const params = new URLSearchParams({ query: title, language: "en-US" });
+    if (withYear && year) params.set(yearKey, String(year));
+
+    const res = await fetch(`${TMDB_BASE}/search/${mediaType}?${params}`, {
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${process.env.TMDB_ACCESS_TOKEN}`,
+      },
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+
+    type RawHit = {
+      id: number;
+      popularity: number;
+      poster_path?: string | null;
+      overview?: string | null;
+      release_date?: string;
+      first_air_date?: string;
+      title?: string;
+      name?: string;
+    };
+
+    const data = (await res.json()) as { results?: RawHit[] };
+    const candidates = (data.results ?? []).slice(0, 5);
+    const best = candidates
+      .filter((r) => (r.popularity ?? 0) >= SEARCH_MIN_POPULARITY)
+      .sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0))[0];
+
+    if (!best) return null;
+
+    const releaseDate = best.release_date ?? best.first_air_date ?? null;
+    return {
+      id: best.id,
+      title: best.title ?? best.name ?? "",
+      posterPath: best.poster_path ?? null,
+      overview: best.overview ?? null,
+      year: releaseDate ? Number(releaseDate.slice(0, 4)) || null : null,
+    };
+  };
+
+  if (year) {
+    const hit = await search(true);
+    if (hit) return hit;
+  }
+
+  return search(false);
+}
+
 export async function fetchTMDBTitle(
   tmdbId: number,
   mediaType: MediaType

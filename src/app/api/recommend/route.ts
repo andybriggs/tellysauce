@@ -8,6 +8,7 @@ import { randomUUID } from "crypto";
 import { buildRecKey } from "@/lib/recs";
 import { SeedInput } from "@/types";
 import { openai } from "@/lib/ai";
+import { searchTmdbByTitle, tmdbImg } from "@/server/tmdb";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -205,46 +206,18 @@ async function callOpenAI(prompt: string): Promise<Rec[]> {
   );
 }
 
-/** Searches TMDB for a title, returning the first result with poster/year/description.
- *  Tries year-constrained first, falls back to unconstrained if no match. */
 async function fetchAndResolveTmdb(
   title: string,
   mediaType: "movie" | "tv",
   year?: number | null
 ): Promise<{ resolvedTmdbId: number; poster: string | null; year: number | null; description: string | null } | null> {
-  const yearKey = mediaType === "tv" ? "first_air_date_year" : "year";
-  const base = `https://api.themoviedb.org/3/search/${mediaType}`;
-  const headers = { Authorization: `Bearer ${process.env.TMDB_ACCESS_TOKEN}` };
-
-  const trySearch = async (withYear: boolean) => {
-    const p = new URLSearchParams({ query: title, language: "en-US" });
-    if (withYear && year) p.set(yearKey, String(year));
-    try {
-      const r = await fetch(`${base}?${p}`, { headers });
-      if (!r.ok) return null;
-      const d = await r.json() as { results?: Record<string, unknown>[] };
-      return d.results?.[0] ?? null;
-    } catch {
-      return null;
-    }
-  };
-
-  const result = year ? (await trySearch(true) ?? await trySearch(false)) : await trySearch(false);
-  if (!result || typeof result.id !== "number") return null;
-
-  const releaseDate = (result.release_date ?? result.first_air_date) as string | undefined;
-  const resolvedYear = releaseDate ? Number(releaseDate.slice(0, 4)) || null : null;
-
-  const rawPosterPath = result.poster_path as string | null | undefined;
-  const poster = rawPosterPath
-    ? `https://image.tmdb.org/t/p/w342${rawPosterPath}`
-    : null;
-
+  const hit = await searchTmdbByTitle(title, mediaType, year);
+  if (!hit) return null;
   return {
-    resolvedTmdbId: result.id,
-    poster,
-    year: resolvedYear,
-    description: (result.overview as string | null) ?? null,
+    resolvedTmdbId: hit.id,
+    poster: tmdbImg.posterMedium(hit.posterPath),
+    year: hit.year,
+    description: hit.overview,
   };
 }
 
