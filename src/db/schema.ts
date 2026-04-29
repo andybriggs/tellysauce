@@ -47,6 +47,7 @@ export const titles = pgTable("titles", {
   poster: text("poster"),
   year: integer("year"),
   description: text("description"),
+  genres: text("genres"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

@@ -335,11 +335,12 @@ async function upsertTitle(r: {
   description: string | null;
 }) {
   await db.execute(sql`
-    INSERT INTO titles (id, tmdb_id, media_type, title, poster, year, description, created_at, updated_at)
-    VALUES (${randomUUID()}, ${r.resolvedTmdbId}, ${r.mediaType}, ${r.title}, ${r.poster}, ${r.year}, ${r.description}, now(), now())
+    INSERT INTO titles (id, tmdb_id, media_type, title, poster, year, description, genres, created_at, updated_at)
+    VALUES (${randomUUID()}, ${r.resolvedTmdbId}, ${r.mediaType}, ${r.title}, ${r.poster}, ${r.year}, ${r.description}, NULL, now(), now())
     ON CONFLICT (tmdb_id, media_type) DO UPDATE SET
       poster      = EXCLUDED.poster,
       description = EXCLUDED.description,
+      genres      = COALESCE(titles.genres, EXCLUDED.genres),
       updated_at  = now()
   `);
 }

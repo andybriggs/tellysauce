@@ -15,6 +15,7 @@ export type Title = {
   rating: number;
   description: string | null;
   year?: number;
+  genres?: string[] | null;
 };
 
 export type TitleMeta = Omit<Title, "rating">;

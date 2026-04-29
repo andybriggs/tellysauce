@@ -300,6 +300,7 @@ export type TMDBTitle = {
   poster: string | null;
   year: number | null;
   description: string | null;
+  genres: string[] | null;
 };
 
 function yearFrom(dateStr?: string | null) {
@@ -442,5 +443,8 @@ export async function fetchTMDBTitle(
     poster: posterPath ? `https://image.tmdb.org/t/p/w500${posterPath}` : null,
     year: yearFrom(release ?? null),
     description: json.overview ?? null,
+    genres: Array.isArray(json.genres)
+      ? (json.genres as { name: string }[]).map((g) => g.name)
+      : null,
   };
 }

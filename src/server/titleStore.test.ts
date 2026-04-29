@@ -82,6 +82,7 @@ const FAKE_TITLE_ROW = {
   poster: "https://image.tmdb.org/t/p/w500/poster.jpg",
   year: 1999,
   description: "First rule: you do not talk about fight club.",
+  genres: '["Drama","Thriller"]',
 };
 
 beforeEach(() => {
@@ -105,6 +106,7 @@ describe("ensureTitle", () => {
       poster: null,
       year: 1999,
       description: "First rule.",
+      genres: ["Drama", "Thriller"],
     };
     mockFetchTMDB.mockResolvedValue(tmdbData);
 
@@ -122,7 +124,7 @@ describe("ensureTitle", () => {
     const row = await ensureTitle(550, "movie");
 
     expect(mockFetchTMDB).toHaveBeenCalledWith(550, "movie");
-    expect(mockDb.insert).toHaveBeenCalled();
+    expect(mockDb.execute).toHaveBeenCalled();
     expect(row).toEqual(FAKE_TITLE_ROW);
   });
 

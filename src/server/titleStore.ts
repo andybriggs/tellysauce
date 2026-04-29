@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { titles, userTitles } from "@/db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
+import { randomUUID } from "crypto";
 import { fetchTMDBTitle } from "./tmdb";
 import type { MediaType } from "@/types/title";
 
@@ -13,36 +14,38 @@ export type UpsertTitleArgs = {
   poster?: string | null;
   year?: number | null;
   description?: string | null;
+  genres?: string[] | null;
 };
 
 export async function ensureTitle(tmdbId: number, mediaType: MediaType) {
-  // 1) try DB
+  // 1) try DB — skip TMDB fetch only if genres are already stored
   const existing = await db
     .select()
     .from(titles)
     .where(and(eq(titles.tmdbId, tmdbId), eq(titles.mediaType, mediaType)))
     .limit(1);
 
-  if (existing.length > 0) return existing[0];
+  if (existing.length > 0 && existing[0].genres !== null) return existing[0];
 
-  // 2) fetch from TMDB
+  // 2) fetch from TMDB (new title or existing row missing genres)
   const fetched = await fetchTMDBTitle(tmdbId, mediaType);
   if (!fetched || !fetched.title || fetched.title.trim() === "") {
     throw new Error(`Title ${mediaType}:${tmdbId} not found on TMDB`);
   }
 
-  // 3) insert minimal row (no overwrite risk)
-  await db
-    .insert(titles)
-    .values({
-      tmdbId: fetched.tmdbId,
-      mediaType: fetched.mediaType,
-      title: fetched.title,
-      poster: fetched.poster,
-      year: fetched.year,
-      description: fetched.description,
-    })
-    .onConflictDoNothing();
+  const genresJson = fetched.genres ? JSON.stringify(fetched.genres) : null;
+
+  // 3) upsert — on conflict, update genres (and only genres, to avoid clobbering other fields)
+  await db.execute(sql`
+    INSERT INTO titles (id, tmdb_id, media_type, title, poster, year, description, genres, created_at, updated_at)
+    VALUES (
+      ${randomUUID()}, ${fetched.tmdbId}, ${fetched.mediaType}, ${fetched.title},
+      ${fetched.poster}, ${fetched.year}, ${fetched.description}, ${genresJson}, now(), now()
+    )
+    ON CONFLICT (tmdb_id, media_type) DO UPDATE SET
+      genres     = EXCLUDED.genres,
+      updated_at = now()
+  `);
 
   const [row] = await db
     .select()
@@ -122,6 +125,7 @@ export async function getWatchlist(userId: string) {
       poster: titles.poster,
       year: titles.year,
       description: titles.description,
+      genres: titles.genres,
     })
     .from(userTitles)
     .innerJoin(titles, eq(userTitles.titleId, titles.id))
@@ -130,7 +134,15 @@ export async function getWatchlist(userId: string) {
     )
     .orderBy(desc(userTitles.addedAt));
 
-  return rows;
+  return rows.map((r) => ({
+    id: r.id,
+    type: r.type,
+    name: r.name,
+    poster: r.poster,
+    year: r.year ?? undefined,
+    description: r.description,
+    genres: r.genres ? (JSON.parse(r.genres) as string[]) : null,
+  }));
 }
 
 export async function getRated(userId: string) {
@@ -142,6 +154,7 @@ export async function getRated(userId: string) {
       poster: titles.poster,
       year: titles.year,
       description: titles.description,
+      genres: titles.genres,
       rating: userTitles.rating,
       ratedAt: userTitles.ratedAt,
     })
@@ -156,6 +169,7 @@ export async function getRated(userId: string) {
     poster: r.poster,
     type: r.type,
     description: r.description,
+    genres: r.genres ? (JSON.parse(r.genres) as string[]) : null,
     rating: r.rating ?? 0,
     year: r.year ?? undefined,
   }));
