@@ -23,14 +23,14 @@ const TYPE_OPTIONS = [
 ];
 
 const GENRE_PILL_BASE =
-  "flex-shrink-0 rounded-full px-3 py-1.5 text-sm font-medium transition " +
+  "flex-shrink-0 rounded-full px-3 py-1.5 text-sm font-bold transition " +
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 dark:focus-visible:ring-zinc-600";
 
 const GENRE_PILL_ACTIVE =
   "bg-gradient-to-r from-pink-500 to-orange-400 text-zinc-50";
 
 const GENRE_PILL_INACTIVE =
-  "bg-zinc-100 text-zinc-600 hover:text-zinc-900 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-50";
+  "bg-white/10 text-white/60 hover:bg-white/15 hover:text-white";
 
 export default function TitleGridFilters({
   title,
