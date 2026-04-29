@@ -39,6 +39,7 @@ type TMDBVideo = {
   site: "YouTube" | "Vimeo" | string;
   type: "Trailer" | "Teaser" | string;
   official?: boolean;
+  published_at?: string | null;
 };
 
 type TMDBExternalIds = { imdb_id: string | null };
@@ -118,11 +119,20 @@ type TMDBProvidersResponse = {
 
 function extractTrailer(videos?: { results?: TMDBVideo[] }): string | null {
   const list = videos?.results ?? [];
+
+  // Sort by published_at descending so the most recently uploaded video wins
+  // within each tier. For older films TMDB often has early VHS/regional uploads
+  // before the proper theatrical trailer; the theatrical trailer is usually
+  // uploaded later (or re-uploaded by the studio) and will have a newer date.
+  const byRecency = [...list].sort((a, b) => {
+    const da = a.published_at ? new Date(a.published_at).getTime() : 0;
+    const db = b.published_at ? new Date(b.published_at).getTime() : 0;
+    return db - da;
+  });
+
   const pick =
-    list.find(
-      (v) => v.site === "YouTube" && v.type === "Trailer" && v.official
-    ) ||
-    list.find((v) => v.site === "YouTube" && v.type === "Trailer") ||
+    byRecency.find((v) => v.site === "YouTube" && v.type === "Trailer" && v.official) ||
+    byRecency.find((v) => v.site === "YouTube" && v.type === "Trailer") ||
     null;
   return pick?.key ?? null;
 }

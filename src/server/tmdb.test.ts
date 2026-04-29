@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { server } from "@/test/mocks/server";
-import { fetchTMDBTitle, searchTmdbByTitle, TMDB_BASE } from "./tmdb";
+import { fetchTMDBTitle, fetchTitleDetails, searchTmdbByTitle, TMDB_BASE } from "./tmdb";
 
 // Ensure a TMDB_ACCESS_TOKEN is set so tmdbRequest doesn't throw
 beforeEach(() => {
@@ -284,5 +284,63 @@ describe("searchTmdbByTitle", () => {
       overview: "An insomniac forms a fight club.",
       year: 1999,
     });
+  });
+});
+
+describe("extractTrailer (via fetchTitleDetails)", () => {
+  const baseMovie = {
+    id: 473033,
+    title: "Uncut Gems",
+    overview: "A jeweler makes a series of high-stakes bets.",
+    poster_path: "/poster.jpg",
+    backdrop_path: null,
+    release_date: "2019-12-13",
+    genres: [],
+    original_language: "en",
+    vote_average: 7.4,
+    vote_count: 12000,
+    external_ids: { imdb_id: "tt5727208" },
+    images: {},
+    release_dates: { results: [] },
+  };
+
+  function stubMovie(videos: object[]) {
+    server.use(
+      http.get(`${TMDB_BASE}/movie/473033`, () =>
+        HttpResponse.json({ ...baseMovie, videos: { results: videos } })
+      )
+    );
+  }
+
+  it("prefers the most recently published official trailer", async () => {
+    stubMovie([
+      { key: "old-vhs", site: "YouTube", type: "Trailer", official: true, published_at: "2019-01-01T00:00:00.000Z" },
+      { key: "theatrical", site: "YouTube", type: "Trailer", official: true, published_at: "2019-11-01T00:00:00.000Z" },
+    ]);
+    const result = await fetchTitleDetails("movie", "473033");
+    expect(result?.trailerKey).toBe("theatrical");
+  });
+
+  it("falls back to non-official trailer sorted by recency when no official trailer exists", async () => {
+    stubMovie([
+      { key: "fan-upload-old", site: "YouTube", type: "Trailer", official: false, published_at: "2018-01-01T00:00:00.000Z" },
+      { key: "studio-upload", site: "YouTube", type: "Trailer", official: false, published_at: "2019-10-01T00:00:00.000Z" },
+    ]);
+    const result = await fetchTitleDetails("movie", "473033");
+    expect(result?.trailerKey).toBe("studio-upload");
+  });
+
+  it("returns null when there are no YouTube trailers", async () => {
+    stubMovie([
+      { key: "vimeo-key", site: "Vimeo", type: "Trailer", official: true, published_at: "2019-11-01T00:00:00.000Z" },
+    ]);
+    const result = await fetchTitleDetails("movie", "473033");
+    expect(result?.trailerKey).toBeNull();
+  });
+
+  it("returns null when videos list is empty", async () => {
+    stubMovie([]);
+    const result = await fetchTitleDetails("movie", "473033");
+    expect(result?.trailerKey).toBeNull();
   });
 });
