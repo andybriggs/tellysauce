@@ -147,4 +147,45 @@ describe('Watchlist', () => {
     const { container } = render(<Watchlist layout="grid" />, { wrapper });
     expect(container.querySelector('.grid')).toBeInTheDocument();
   });
+
+  it('shows type filter pills in grid mode', () => {
+    mockUseWatchList.mockReturnValue({
+      watchList: mockWatchList,
+      hasMounted: true,
+      isSaved: vi.fn(() => false),
+      toggle: vi.fn(),
+      add: vi.fn(),
+      remove: vi.fn(),
+      isLoading: false,
+      error: null,
+    });
+    render(<Watchlist layout="grid" />, { wrapper });
+    expect(screen.getByRole('tab', { name: 'TV' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Movies' })).toBeInTheDocument();
+  });
+
+  it('shows empty state with heading in grid mode when watchlist is empty', () => {
+    render(<Watchlist layout="grid" />, { wrapper });
+    expect(screen.getByRole('heading', { name: /My Watchlist/i })).toBeInTheDocument();
+    expect(screen.getByText(/Add titles to your watchlist/i)).toBeInTheDocument();
+  });
+
+  it('shows genre pills in grid mode when items have genres', () => {
+    const withGenres: Title[] = [
+      { id: 1, name: 'Twin Peaks', poster: null, type: 'tv', rating: 0, description: null, genres: ['Mystery', 'Drama'] },
+    ];
+    mockUseWatchList.mockReturnValue({
+      watchList: withGenres,
+      hasMounted: true,
+      isSaved: vi.fn(() => false),
+      toggle: vi.fn(),
+      add: vi.fn(),
+      remove: vi.fn(),
+      isLoading: false,
+      error: null,
+    });
+    render(<Watchlist layout="grid" />, { wrapper });
+    expect(screen.getByRole('button', { name: 'Mystery' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Drama' })).toBeInTheDocument();
+  });
 });

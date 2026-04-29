@@ -38,11 +38,48 @@ export default function Watchlist({
     setGenreFilter("all");
   }
 
+  // Grid mode: render full filter header + list directly (no Section wrapper)
+  if (isGrid) {
+    if (!watchList.length) {
+      return (
+        <div className="mb-8">
+          <h2 className="text-2xl text-white font-bold leading-normal mb-2">
+            🍿 My Watchlist
+          </h2>
+          <EmptyStateCard>
+            <p className="text-center text-sm font-medium">
+              Add titles to your watchlist
+            </p>
+          </EmptyStateCard>
+        </div>
+      );
+    }
+
+    return (
+      <div className="mb-12">
+        <TitleGridFilters
+          title="🍿 My Watchlist"
+          items={watchList}
+          typeFilter={typeFilter}
+          genreFilter={genreFilter}
+          onTypeChange={handleTypeChange}
+          onGenreChange={setGenreFilter}
+          resultCount={filtered.length}
+        />
+        <TitleList
+          items={filtered}
+          layout="grid"
+          renderItem={(t, layout) => <TitleCard title={t} fill={layout === "grid"} />}
+        />
+      </div>
+    );
+  }
+
   return (
     <Section
       title="🍿 My Watchlist"
       isEmpty={!watchList.length}
-      showViewAll={!isGrid}
+      showViewAll
       viewAllHref="/watchlist"
       emptyContent={
         <EmptyStateCard>
@@ -52,19 +89,9 @@ export default function Watchlist({
         </EmptyStateCard>
       }
     >
-      {isGrid && (
-        <TitleGridFilters
-          items={watchList}
-          typeFilter={typeFilter}
-          genreFilter={genreFilter}
-          onTypeChange={handleTypeChange}
-          onGenreChange={setGenreFilter}
-          resultCount={filtered.length}
-        />
-      )}
       <TitleList
-        items={isGrid ? filtered : watchList}
-        layout={layout}
+        items={watchList}
+        layout="carousel"
         renderItem={(t, layout) => <TitleCard title={t} fill={layout === "grid"} />}
       />
     </Section>

@@ -133,4 +133,43 @@ describe('RatedTitles', () => {
     const { container } = render(<RatedTitles layout="grid" />, { wrapper });
     expect(container.querySelector('.grid')).toBeInTheDocument();
   });
+
+  it('shows type filter pills in grid mode', () => {
+    mockUseRatedTitles.mockReturnValue({
+      ratedTitles: mockRatedTitles,
+      rateTitle: vi.fn(),
+      hasMounted: true,
+      isSubmittingId: vi.fn(() => false),
+      getRating: vi.fn(() => 0),
+      isLoading: false,
+      error: null,
+    });
+    render(<RatedTitles layout="grid" />, { wrapper });
+    expect(screen.getByRole('tab', { name: 'TV' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Movies' })).toBeInTheDocument();
+  });
+
+  it('shows empty state with heading in grid mode when no titles are rated', () => {
+    render(<RatedTitles layout="grid" />, { wrapper });
+    expect(screen.getByRole('heading', { name: /My Rated Titles/i })).toBeInTheDocument();
+    expect(screen.getByText(/Search and rate some titles/i)).toBeInTheDocument();
+  });
+
+  it('shows genre pills in grid mode when items have genres', () => {
+    const withGenres: Title[] = [
+      { id: 1, name: 'Breaking Bad', poster: null, type: 'tv', rating: 5, description: null, genres: ['Drama', 'Crime'] },
+    ];
+    mockUseRatedTitles.mockReturnValue({
+      ratedTitles: withGenres,
+      rateTitle: vi.fn(),
+      hasMounted: true,
+      isSubmittingId: vi.fn(() => false),
+      getRating: vi.fn(() => 0),
+      isLoading: false,
+      error: null,
+    });
+    render(<RatedTitles layout="grid" />, { wrapper });
+    expect(screen.getByRole('button', { name: 'Drama' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Crime' })).toBeInTheDocument();
+  });
 });

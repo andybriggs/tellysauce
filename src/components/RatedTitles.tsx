@@ -38,11 +38,48 @@ export default function RatedTitles({
     setGenreFilter("all");
   }
 
+  // Grid mode: render full filter header + list directly (no Section wrapper)
+  if (isGrid) {
+    if (!ratedTitles.length) {
+      return (
+        <div className="mb-8">
+          <h2 className="text-2xl text-white font-bold leading-normal mb-2">
+            ⭐ My Rated Titles
+          </h2>
+          <EmptyStateCard>
+            <p className="text-center text-sm font-medium">
+              Search and rate some titles
+            </p>
+          </EmptyStateCard>
+        </div>
+      );
+    }
+
+    return (
+      <div className="mb-12">
+        <TitleGridFilters
+          title="⭐ My Rated Titles"
+          items={ratedTitles}
+          typeFilter={typeFilter}
+          genreFilter={genreFilter}
+          onTypeChange={handleTypeChange}
+          onGenreChange={setGenreFilter}
+          resultCount={filtered.length}
+        />
+        <TitleList
+          items={filtered}
+          layout="grid"
+          renderItem={(t, layout) => <TitleCard title={t} rateTitle={rateTitle} fill={layout === "grid"} />}
+        />
+      </div>
+    );
+  }
+
   return (
     <Section
       title="⭐ My Rated Titles"
       isEmpty={!ratedTitles?.length}
-      showViewAll={!isGrid}
+      showViewAll
       viewAllHref="/all-rated-titles"
       emptyContent={
         <EmptyStateCard>
@@ -52,19 +89,9 @@ export default function RatedTitles({
         </EmptyStateCard>
       }
     >
-      {isGrid && (
-        <TitleGridFilters
-          items={ratedTitles}
-          typeFilter={typeFilter}
-          genreFilter={genreFilter}
-          onTypeChange={handleTypeChange}
-          onGenreChange={setGenreFilter}
-          resultCount={filtered.length}
-        />
-      )}
       <TitleList
-        items={isGrid ? filtered : ratedTitles}
-        layout={layout}
+        items={ratedTitles}
+        layout="carousel"
         renderItem={(t, layout) => <TitleCard title={t} rateTitle={rateTitle} fill={layout === "grid"} />}
       />
     </Section>
