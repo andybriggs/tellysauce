@@ -114,6 +114,27 @@ describe('TitleList', () => {
     expect(renderItem).toHaveBeenCalledTimes(3);
   });
 
+  it('passes "grid" as layout argument to renderItem in grid mode', () => {
+    const renderItem = vi.fn((t: Title) => <div data-testid={`custom-${t.id}`}>{t.name}</div>);
+    render(<TitleList items={mockTitles} layout="grid" renderItem={renderItem} />);
+    expect(renderItem).toHaveBeenCalledWith(expect.any(Object), 'grid');
+  });
+
+  it('passes "carousel" as layout argument to renderItem in carousel mode', () => {
+    const renderItem = vi.fn((t: Title) => <div data-testid={`custom-${t.id}`}>{t.name}</div>);
+    render(<TitleList items={mockTitles} layout="carousel" renderItem={renderItem} />);
+    expect(renderItem).toHaveBeenCalledWith(expect.any(Object), 'carousel');
+  });
+
+  it('grid list items have aspect-ratio and full-width classes', () => {
+    const { container } = render(<TitleList items={mockTitles} layout="grid" />);
+    const lis = container.querySelectorAll('ul > li');
+    lis.forEach((li) => {
+      expect(li.className).toContain('aspect-[3/4]');
+      expect(li.className).toContain('w-full');
+    });
+  });
+
   it('defaults to carousel layout when layout prop is not provided', () => {
     render(<TitleList items={mockTitles} />);
     expect(screen.getByRole('button', { name: 'Scroll left' })).toBeInTheDocument();

@@ -8,8 +8,8 @@ vi.mock('next/image', () => ({
 }));
 
 vi.mock('next/link', () => ({
-  default: ({ href, children }: { href: string; children: React.ReactNode }) => (
-    <a href={href}>{children}</a>
+  default: ({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) => (
+    <a href={href} className={className}>{children}</a>
   ),
 }));
 
@@ -103,5 +103,26 @@ describe('TitleCard', () => {
     expect(badge).toBeInTheDocument();
     expect(badge).toHaveAttribute('data-id', '42');
     expect(badge).toHaveAttribute('data-type', 'tv');
+  });
+
+  it('applies fixed size classes when fill is not set', () => {
+    const { container } = render(<TitleCard title={mockTitle} />);
+    const link = container.querySelector('a')!;
+    const card = link.firstElementChild!;
+    expect(link.className).toContain('flex-none');
+    expect(card.className).toContain('w-48');
+    expect(card.className).toContain('h-64');
+  });
+
+  it('applies fill size classes when fill prop is true', () => {
+    const { container } = render(<TitleCard title={mockTitle} fill />);
+    const link = container.querySelector('a')!;
+    const card = link.firstElementChild!;
+    expect(link.className).toContain('w-full');
+    expect(link.className).toContain('h-full');
+    expect(card.className).toContain('w-full');
+    expect(card.className).toContain('h-full');
+    expect(link.className).not.toContain('flex-none');
+    expect(card.className).not.toContain('w-48');
   });
 });

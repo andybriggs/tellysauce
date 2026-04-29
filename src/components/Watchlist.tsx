@@ -32,7 +32,7 @@ export default function Watchlist({
       <TitleList
         items={watchList}
         layout={layout}
-        renderItem={(t) => <TitleCard title={t} />}
+        renderItem={(t, layout) => <TitleCard title={t} fill={layout === "grid"} />}
       />
     </Section>
   );

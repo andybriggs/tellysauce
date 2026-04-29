@@ -14,15 +14,16 @@ type Props = {
     rating: number
   ) => Promise<void>;
   showStatusOverlay?: boolean;
+  fill?: boolean;
 };
 
-const TitleCard = ({ title, rateTitle, showStatusOverlay }: Props) => {
+const TitleCard = ({ title, rateTitle, showStatusOverlay, fill }: Props) => {
   const { poster, name, id, type } = title;
   const titleStars = typeof rateTitle === "function";
 
   return (
-    <Link href={`/title/${type}/${id}`} className="block flex-none">
-      <div className="relative w-48 h-64 flex-none rounded-xl shadow-md overflow-hidden snap-start select-none">
+    <Link href={`/title/${type}/${id}`} className={fill ? "block w-full h-full" : "block flex-none"}>
+      <div className={`relative ${fill ? "w-full h-full" : "w-48 h-64 flex-none"} rounded-xl shadow-md overflow-hidden snap-start select-none`}>
         {poster ? (
           <Image
             src={poster}

@@ -32,7 +32,7 @@ export default function RatedTitles({
       <TitleList
         items={ratedTitles}
         layout={layout}
-        renderItem={(t) => <TitleCard title={t} rateTitle={rateTitle} />}
+        renderItem={(t, layout) => <TitleCard title={t} rateTitle={rateTitle} fill={layout === "grid"} />}
       />
     </Section>
   );
