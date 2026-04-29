@@ -312,22 +312,22 @@ describe("extractTrailer (via fetchTitleDetails)", () => {
     );
   }
 
-  it("prefers the most recently published official trailer", async () => {
+  it("prefers the earliest published official trailer (the theatrical one)", async () => {
     stubMovie([
-      { key: "old-vhs", site: "YouTube", type: "Trailer", official: true, published_at: "2019-01-01T00:00:00.000Z" },
-      { key: "theatrical", site: "YouTube", type: "Trailer", official: true, published_at: "2019-11-01T00:00:00.000Z" },
+      { key: "theatrical", site: "YouTube", type: "Trailer", official: true, published_at: "2019-09-24T00:00:00.000Z" },
+      { key: "vhs-promo", site: "YouTube", type: "Trailer", official: true, published_at: "2020-09-08T00:00:00.000Z" },
     ]);
     const result = await fetchTitleDetails("movie", "473033");
     expect(result?.trailerKey).toBe("theatrical");
   });
 
-  it("falls back to non-official trailer sorted by recency when no official trailer exists", async () => {
+  it("falls back to non-official trailer, picking the earliest uploaded", async () => {
     stubMovie([
-      { key: "fan-upload-old", site: "YouTube", type: "Trailer", official: false, published_at: "2018-01-01T00:00:00.000Z" },
-      { key: "studio-upload", site: "YouTube", type: "Trailer", official: false, published_at: "2019-10-01T00:00:00.000Z" },
+      { key: "theatrical", site: "YouTube", type: "Trailer", official: false, published_at: "2019-09-24T00:00:00.000Z" },
+      { key: "later-upload", site: "YouTube", type: "Trailer", official: false, published_at: "2020-01-01T00:00:00.000Z" },
     ]);
     const result = await fetchTitleDetails("movie", "473033");
-    expect(result?.trailerKey).toBe("studio-upload");
+    expect(result?.trailerKey).toBe("theatrical");
   });
 
   it("returns null when there are no YouTube trailers", async () => {

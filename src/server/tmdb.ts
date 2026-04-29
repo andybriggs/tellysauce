@@ -120,14 +120,15 @@ type TMDBProvidersResponse = {
 function extractTrailer(videos?: { results?: TMDBVideo[] }): string | null {
   const list = videos?.results ?? [];
 
-  // Sort by published_at descending so the most recently uploaded video wins
-  // within each tier. For older films TMDB often has early VHS/regional uploads
-  // before the proper theatrical trailer; the theatrical trailer is usually
-  // uploaded later (or re-uploaded by the studio) and will have a newer date.
+  // Sort by published_at ascending so the earliest upload wins within each
+  // tier. The theatrical trailer is uploaded during the marketing campaign
+  // (before or around release); post-release uploads tend to be stylised
+  // promos, anniversary cuts, or retrospectives — not what we want.
+  // Entries with no date fall to the end.
   const byRecency = [...list].sort((a, b) => {
-    const da = a.published_at ? new Date(a.published_at).getTime() : 0;
-    const db = b.published_at ? new Date(b.published_at).getTime() : 0;
-    return db - da;
+    const da = a.published_at ? new Date(a.published_at).getTime() : Infinity;
+    const db = b.published_at ? new Date(b.published_at).getTime() : Infinity;
+    return da - db;
   });
 
   const pick =
