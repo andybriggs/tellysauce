@@ -166,6 +166,7 @@ async function searchTmdbId(
   year?: number | null
 ): Promise<number | null> {
   const yearKey = mediaType === "tv" ? "first_air_date_year" : "year";
+  const MIN_POPULARITY = 2;
 
   const search = async (withYear: boolean): Promise<number | null> => {
     const params = new URLSearchParams({ query: title, language: "en-US" });
@@ -181,7 +182,16 @@ async function searchTmdbId(
 
     if (!res.ok) return null;
     const data = await res.json();
-    return data.results?.[0]?.id ?? null;
+
+    // Pick the most popular result from the top 5 candidates above the minimum
+    // threshold. Taking results[0] blindly can resolve to obscure documentaries
+    // or clickbait titles that happen to match the query string exactly.
+    const candidates: Array<{ id: number; popularity: number }> = (data.results ?? []).slice(0, 5);
+    const best = candidates
+      .filter((r) => (r.popularity ?? 0) >= MIN_POPULARITY)
+      .sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0))[0];
+
+    return best?.id ?? null;
   };
 
   // Try with year first; if nothing comes back (common for TV shows where the
@@ -221,6 +231,12 @@ async function resolveRecs(
           if (!tmdb) {
             console.warn(
               `[ai-popular] fetchTMDBTitle returned null for id=${tmdbId}`
+            );
+            return null;
+          }
+          if (!tmdb.poster) {
+            console.warn(
+              `[ai-popular] Skipping "${rec.title}" — resolved to "${tmdb.title}" with no poster (likely wrong resolution)`
             );
             return null;
           }

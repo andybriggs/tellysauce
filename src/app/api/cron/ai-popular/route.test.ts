@@ -112,10 +112,10 @@ describe("GET /api/cron/ai-popular", () => {
 
     server.use(
       http.get("https://api.themoviedb.org/3/search/movie", () =>
-        HttpResponse.json({ results: [{ id: 603 }] })
+        HttpResponse.json({ results: [{ id: 603, popularity: 200 }] })
       ),
       http.get("https://api.themoviedb.org/3/search/tv", () =>
-        HttpResponse.json({ results: [{ id: 1399 }] })
+        HttpResponse.json({ results: [{ id: 1399, popularity: 150 }] })
       )
     );
 
@@ -139,6 +139,136 @@ describe("GET /api/cron/ai-popular", () => {
     expect(typeof data.tv).toBe("number");
     // Only responses.create should have been called (no chat completions)
     expect(mockResponsesCreate).toHaveBeenCalledTimes(2);
+  });
+
+  it("selects the highest-popularity TMDB result, not results[0]", async () => {
+    const structuredTitle = {
+      title: "Bridgerton",
+      description: "Regency-era drama",
+      reason: "Hugely popular",
+      tags: ["drama", "romance"],
+      year: 2020,
+    };
+
+    const { mockResponsesCreate } = await getMocks();
+    mockResponsesCreate
+      .mockResolvedValueOnce(makeStructuredResponse([structuredTitle])) // movie
+      .mockResolvedValueOnce(makeStructuredResponse([structuredTitle])); // tv
+
+    // First result is a low-popularity documentary; second is the real show.
+    server.use(
+      http.get("https://api.themoviedb.org/3/search/movie", () =>
+        HttpResponse.json({
+          results: [
+            { id: 9999, popularity: 1 },  // obscure documentary — below threshold
+            { id: 46952, popularity: 320 }, // real show — should win
+          ],
+        })
+      ),
+      http.get("https://api.themoviedb.org/3/search/tv", () =>
+        HttpResponse.json({
+          results: [
+            { id: 9999, popularity: 1 },
+            { id: 46952, popularity: 320 },
+          ],
+        })
+      )
+    );
+
+    mockFetchTMDBTitle.mockResolvedValue({
+      tmdbId: 46952,
+      mediaType: "tv",
+      title: "Bridgerton",
+      poster: "https://image.tmdb.org/t/p/w500/bridgerton.jpg",
+      year: 2020,
+      description: "Regency-era drama.",
+    } as never);
+
+    const req = makeRequest("Bearer test-cron-secret");
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+
+    // fetchTMDBTitle should have been called with the popular result's id (46952),
+    // not the documentary's id (9999).
+    expect(mockFetchTMDBTitle).toHaveBeenCalledWith(46952, expect.any(String));
+    expect(mockFetchTMDBTitle).not.toHaveBeenCalledWith(9999, expect.any(String));
+  });
+
+  it("skips titles where all TMDB results are below the popularity threshold", async () => {
+    const structuredTitle = {
+      title: "Some Obscure Doc",
+      description: "Clickbait documentary",
+      reason: "Web search hallucination",
+      tags: ["documentary"],
+      year: 2023,
+    };
+
+    const { mockResponsesCreate } = await getMocks();
+    mockResponsesCreate
+      .mockResolvedValueOnce(makeStructuredResponse([structuredTitle]))
+      .mockResolvedValueOnce(makeStructuredResponse([structuredTitle]));
+
+    // All results below the MIN_POPULARITY threshold of 2.
+    server.use(
+      http.get("https://api.themoviedb.org/3/search/movie", () =>
+        HttpResponse.json({ results: [{ id: 8888, popularity: 0.5 }] })
+      ),
+      http.get("https://api.themoviedb.org/3/search/tv", () =>
+        HttpResponse.json({ results: [{ id: 8888, popularity: 0.5 }] })
+      )
+    );
+
+    const req = makeRequest("Bearer test-cron-secret");
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+
+    // No titles should have been resolved or saved.
+    expect(data.movies).toBe(0);
+    expect(data.tv).toBe(0);
+    expect(mockFetchTMDBTitle).not.toHaveBeenCalled();
+  });
+
+  it("skips titles that resolve to a TMDB entry with no poster", async () => {
+    const structuredTitle = {
+      title: "No Poster Show",
+      description: "A show",
+      reason: "Popular",
+      tags: ["drama"],
+      year: 2024,
+    };
+
+    const { mockResponsesCreate } = await getMocks();
+    mockResponsesCreate
+      .mockResolvedValueOnce(makeStructuredResponse([structuredTitle]))
+      .mockResolvedValueOnce(makeStructuredResponse([structuredTitle]));
+
+    server.use(
+      http.get("https://api.themoviedb.org/3/search/movie", () =>
+        HttpResponse.json({ results: [{ id: 7777, popularity: 50 }] })
+      ),
+      http.get("https://api.themoviedb.org/3/search/tv", () =>
+        HttpResponse.json({ results: [{ id: 7777, popularity: 50 }] })
+      )
+    );
+
+    // fetchTMDBTitle returns a result with no poster.
+    mockFetchTMDBTitle.mockResolvedValue({
+      tmdbId: 7777,
+      mediaType: "movie",
+      title: "No Poster Show",
+      poster: null,
+      year: 2024,
+      description: "A show with no poster art.",
+    } as never);
+
+    const req = makeRequest("Bearer test-cron-secret");
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+
+    expect(data.movies).toBe(0);
+    expect(data.tv).toBe(0);
   });
 
   it("returns 500 when OpenAI web search throws", async () => {
