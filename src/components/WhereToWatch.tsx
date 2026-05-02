@@ -46,7 +46,12 @@ export default function WhereToWatch({ allSources }: WhereToWatchProps) {
     } catch { }
   };
 
-  const sources = allSources[region] ?? [];
+  const TYPE_ORDER = ["free", "ads", "sub", "rent", "buy"];
+  const sources = (allSources[region] ?? []).slice().sort((a, b) => {
+    const ai = TYPE_ORDER.indexOf(a.type);
+    const bi = TYPE_ORDER.indexOf(b.type);
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
 
   // Always include the user's saved region in the dropdown even if it has no
   // providers for this title, so they can see it's unavailable and switch to another.

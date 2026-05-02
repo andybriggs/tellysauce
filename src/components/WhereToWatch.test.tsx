@@ -112,6 +112,23 @@ describe('WhereToWatch', () => {
     expect(screen.getByText(/no sources found/i)).toBeInTheDocument();
   });
 
+  it('sorts free and ads sources before sub, rent, and buy', async () => {
+    const sources = {
+      GB: [
+        makeSource('Prime Video', 'GB', 'buy'),
+        makeSource('Netflix UK', 'GB', 'sub'),
+        makeSource('BBC iPlayer', 'GB', 'free'),
+        makeSource('ITVX', 'GB', 'ads'),
+        makeSource('Curzon', 'GB', 'rent'),
+      ],
+    };
+    render(<WhereToWatch allSources={sources} />);
+    await act(async () => {});
+    const items = screen.getAllByRole('listitem');
+    const names = items.map((el) => el.textContent);
+    expect(names).toEqual(['BBC iPlayer', 'ITVX', 'Netflix UK', 'Curzon', 'Prime Video']);
+  });
+
   it('sorts priority regions (GB, US, CA, AU) before others', () => {
     const sources = {
       DE: [makeSource('Joyn', 'DE')],
