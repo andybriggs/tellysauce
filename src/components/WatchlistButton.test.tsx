@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { vi } from 'vitest';
 import WatchlistButton from './WatchlistButton';
 
@@ -8,7 +8,7 @@ vi.mock('@heroicons/react/24/solid', () => ({
   ),
 }));
 
-const mockToggle = vi.fn();
+const mockToggle = vi.fn(() => Promise.resolve());
 const mockIsSaved = vi.fn(() => false);
 const mockIsRated = vi.fn(() => false);
 
@@ -41,6 +41,7 @@ const mockTitle = {
 describe('WatchlistButton', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockToggle.mockReturnValue(Promise.resolve());
     mockIsSaved.mockReturnValue(false);
     mockIsRated.mockReturnValue(false);
   });
@@ -67,9 +68,9 @@ describe('WatchlistButton', () => {
     expect(screen.getByRole('button')).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('calls toggle with the title when clicked', () => {
+  it('calls toggle with the title when clicked', async () => {
     render(<WatchlistButton title={mockTitle} />);
-    fireEvent.click(screen.getByRole('button'));
+    await act(async () => { fireEvent.click(screen.getByRole('button')); });
     expect(mockToggle).toHaveBeenCalledWith(mockTitle);
   });
 
@@ -81,15 +82,15 @@ describe('WatchlistButton', () => {
     expect(btn).toHaveAttribute('title', 'Title not available');
   });
 
-  it('renders the bookmark icon', () => {
+  it('renders the bookmark icon when not pending', () => {
     render(<WatchlistButton title={mockTitle} />);
     expect(screen.getByTestId('bookmark-icon')).toBeInTheDocument();
   });
 
-  it('does not call toggle when title has no valid id', () => {
+  it('does not call toggle when title has no valid id', async () => {
     const titleNoId = { name: 'Unknown', poster: null, type: 'tv' as const, description: null } as unknown as typeof mockTitle;
     render(<WatchlistButton title={titleNoId} />);
-    fireEvent.click(screen.getByRole('button'));
+    await act(async () => { fireEvent.click(screen.getByRole('button')); });
     expect(mockToggle).not.toHaveBeenCalled();
   });
 
@@ -103,5 +104,22 @@ describe('WatchlistButton', () => {
     mockIsRated.mockReturnValue(false);
     render(<WatchlistButton title={mockTitle} />);
     expect(screen.getByRole('button')).toBeInTheDocument();
+  });
+
+  it('shows spinner and disables button while toggle is pending', async () => {
+    let resolve!: () => void;
+    mockToggle.mockReturnValue(new Promise<void>((res) => { resolve = res; }));
+
+    render(<WatchlistButton title={mockTitle} />);
+    act(() => { fireEvent.click(screen.getByRole('button')); });
+
+    // spinner visible, bookmark gone, button disabled
+    expect(screen.queryByTestId('bookmark-icon')).not.toBeInTheDocument();
+    expect(screen.getByRole('button')).toBeDisabled();
+
+    // resolve and verify restored state
+    await act(async () => { resolve(); });
+    expect(screen.getByTestId('bookmark-icon')).toBeInTheDocument();
+    expect(screen.getByRole('button')).not.toBeDisabled();
   });
 });
