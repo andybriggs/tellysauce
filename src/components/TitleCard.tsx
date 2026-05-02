@@ -6,6 +6,12 @@ import StarRating from "./StarRating";
 import TitleStatusBadge from "./TitleStatusBadge";
 import Link from "next/link";
 
+const POSTER_BLUR_PLACEHOLDER =
+  "data:image/svg+xml;base64," +
+  btoa(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="2" height="3"><rect width="2" height="3" fill="#1e293b"/></svg>'
+  );
+
 type Props = {
   title: Title;
   rateTitle?: (
@@ -31,6 +37,8 @@ const TitleCard = ({ title, rateTitle, showStatusOverlay, fill }: Props) => {
             fill
             className="object-cover transition-transform duration-300 will-change-transform hover:scale-105"
             sizes="256px"
+            placeholder="blur"
+            blurDataURL={POSTER_BLUR_PLACEHOLDER}
           />
         ) : (
           <div className="absolute inset-0 bg-slate-800" />

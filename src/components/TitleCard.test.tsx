@@ -4,7 +4,9 @@ import TitleCard from './TitleCard';
 import type { Title } from '@/types';
 
 vi.mock('next/image', () => ({
-  default: ({ src, alt }: { src: string; alt: string }) => <img src={src} alt={alt} />,
+  default: ({ src, alt, placeholder, blurDataURL }: { src: string; alt: string; placeholder?: string; blurDataURL?: string }) => (
+    <img src={src} alt={alt} data-placeholder={placeholder} data-blur-data-url={blurDataURL} />
+  ),
 }));
 
 vi.mock('next/link', () => ({
@@ -112,6 +114,13 @@ describe('TitleCard', () => {
     expect(link.className).toContain('flex-none');
     expect(card.className).toContain('w-48');
     expect(card.className).toContain('h-64');
+  });
+
+  it('renders poster image with blur placeholder props', () => {
+    render(<TitleCard title={mockTitle} />);
+    const img = screen.getByRole('img', { name: 'Twin Peaks' });
+    expect(img).toHaveAttribute('data-placeholder', 'blur');
+    expect(img.getAttribute('data-blur-data-url')).toMatch(/^data:image\/svg\+xml;base64,/);
   });
 
   it('applies fill size classes when fill prop is true', () => {
