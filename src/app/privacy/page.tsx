@@ -23,8 +23,8 @@ export default function PrivacyPolicy() {
         </p>
         <p className="mt-3">
           For any privacy enquiries, contact us at:{" "}
-          <a href="mailto:andybriggs84@gmail.com" className="text-white underline hover:text-gray-200 transition">
-            andybriggs84@gmail.com
+          <a href="mailto:hello@tellysauce.com" className="text-white underline hover:text-gray-200 transition">
+            hello@tellysauce.com
           </a>
         </p>
       </Section>
@@ -146,8 +146,8 @@ export default function PrivacyPolicy() {
         </ul>
         <p className="mt-3">
           To exercise any of these rights, please contact us at{" "}
-          <a href="mailto:andybriggs84@gmail.com" className="text-white underline hover:text-gray-200 transition">
-            andybriggs84@gmail.com
+          <a href="mailto:hello@tellysauce.com" className="text-white underline hover:text-gray-200 transition">
+            hello@tellysauce.com
           </a>.
           You also have the right to lodge a complaint with the{" "}
           <a href="https://ico.org.uk" target="_blank" rel="noopener noreferrer" className="underline hover:text-white transition">

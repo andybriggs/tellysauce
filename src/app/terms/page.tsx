@@ -64,8 +64,8 @@ export default function TermsOfService() {
           cancel within 14 days of your first subscription purchase for a full
           refund, unless you have already used the Pro features during that
           period. To request a refund, contact us at{" "}
-          <a href="mailto:andybriggs84@gmail.com" className="text-white underline hover:text-gray-200 transition">
-            andybriggs84@gmail.com
+          <a href="mailto:hello@tellysauce.com" className="text-white underline hover:text-gray-200 transition">
+            hello@tellysauce.com
           </a>.
         </p>
       </Section>
@@ -145,8 +145,8 @@ export default function TermsOfService() {
       <Section title="Contact">
         <p>
           For any questions about these terms, contact us at{" "}
-          <a href="mailto:andybriggs84@gmail.com" className="text-white underline hover:text-gray-200 transition">
-            andybriggs84@gmail.com
+          <a href="mailto:hello@tellysauce.com" className="text-white underline hover:text-gray-200 transition">
+            hello@tellysauce.com
           </a>.
         </p>
       </Section>
