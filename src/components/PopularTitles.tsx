@@ -7,21 +7,25 @@ import TitleList from "./TitleList";
 import { useDiscoverTitles } from "@/hooks/useDiscoverTitles";
 import { useState } from "react";
 import { PillTabs } from "./PillTabs";
+import type { Title } from "@/types";
 
 export default function PopularTitles({
   layout = "carousel",
   type = "movie",
   source,
+  initialTitles,
 }: {
   layout?: Layout;
   type?: "movie" | "tv";
   source?: "ai";
+  initialTitles?: Title[];
 }) {
   const [timeframe, setTimeframe] = useState<string>("recent");
   const isAi = source === "ai";
   const { titles } = useDiscoverTitles(type, {
     timeframe: isAi ? undefined : timeframe,
     source,
+    initialData: initialTitles,
   });
   const isGrid = layout === "grid";
 

@@ -12,6 +12,7 @@ type DiscoverTitlesResponse = {
 type Options = {
   timeframe?: string;
   source?: "ai" | "tmdb";
+  initialData?: Title[];
 };
 
 const fetcher = (url: string) =>
@@ -31,10 +32,10 @@ export function useDiscoverTitles(type?: "movie" | "tv", options?: Options) {
     key += `&source=${options.source}`;
   }
 
-  const { data, isLoading, error } = useSWR<DiscoverTitlesResponse>(
-    key,
-    fetcher
-  );
+  const { data, isLoading, error } = useSWR<DiscoverTitlesResponse>(key, fetcher, {
+    fallbackData: options?.initialData ? { titles: options.initialData } : undefined,
+    revalidateOnMount: options?.initialData ? false : undefined,
+  });
 
   return {
     titles: data?.titles ?? [],

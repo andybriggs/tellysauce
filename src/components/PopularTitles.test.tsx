@@ -138,6 +138,11 @@ describe('PopularTitles', () => {
     expect(mockUseDiscoverTitles).toHaveBeenCalledWith('tv', expect.objectContaining({ source: 'ai', timeframe: undefined }));
   });
 
+  it('passes initialTitles as initialData to useDiscoverTitles', () => {
+    render(<PopularTitles type="movie" source="ai" initialTitles={mockTitles} />, { wrapper });
+    expect(mockUseDiscoverTitles).toHaveBeenCalledWith('movie', expect.objectContaining({ initialData: mockTitles }));
+  });
+
   it('switches timeframe when All time tab is clicked', () => {
     mockUseDiscoverTitles.mockReturnValue({ titles: mockTitles, isLoading: false, error: null });
     render(<PopularTitles type="movie" />, { wrapper });

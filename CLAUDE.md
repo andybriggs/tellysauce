@@ -162,14 +162,15 @@ await sql.query(`CREATE TABLE IF NOT EXISTS ...`);
 
 ## Frontend structure
 
-- `src/app/page.tsx` - homepage (`"use client"` - uses search hooks). AI picks render first, then TMDB popular sections below.
-- `src/components/PopularTitles.tsx` - handles both TMDB and AI picks via `source` prop. `source="ai"` hides the timeframe tabs and shows a different title.
+- `src/app/page.tsx` - homepage (async server component). Fetches AI picks directly from the DB in parallel and passes them as props to `HomeClient`.
+- `src/components/HomeClient.tsx` - client component (`"use client"`) containing all the interactive homepage logic: search, auth state, subscription banner/portal. Receives `aiMovies` and `aiTv` as props from `page.tsx`.
+- `src/components/PopularTitles.tsx` - handles both TMDB and AI picks via `source` prop. `source="ai"` hides the timeframe tabs and shows a different title. Accepts optional `initialTitles` prop (passed as SWR `fallbackData` with `revalidateOnMount: false`) so AI picks render from server data without a client fetch.
 - `src/components/RecommendationsSection.tsx` - on-demand AI recommendations (profile + seed mode). Loads cached recs from `GET /api/recommendations` on mount; generates fresh ones via `POST /api/recommend` on button click. Renders results using the standard `TitleList` carousel + `TitleCard` (poster art, direct `/title/{kind}/{id}` links). Handles paywall modal on 402.
-- `src/hooks/useDiscoverTitles.ts` - SWR hook, accepts `{ timeframe?, source? }` options
+- `src/hooks/useDiscoverTitles.ts` - SWR hook, accepts `{ timeframe?, source?, initialData? }` options. When `initialData` is set, it is used as SWR `fallbackData` and `revalidateOnMount` is disabled.
 
-## Known architectural note
+### Session pre-loading (eliminates auth flash)
 
-`page.tsx` is a client component (`"use client"`), so the AI picks are currently fetched client-side via SWR despite the data coming from our own DB. Server rendering the AI picks would require extracting the interactive search parts into separate client components - a worthwhile but separate refactor.
+`src/app/layout.tsx` calls `getServerSession(authOptions)` and passes the result to `Providers`. `src/app/providers.tsx` forwards it to `SessionProvider` as the `session` prop. This means `useSession()` starts with the correct status on first render — no "loading" phase and no flash of unauthenticated UI.
 
 ### Card status overlay
 

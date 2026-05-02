@@ -1,157 +1,47 @@
-"use client";
+import { db } from "@/db";
+import { sql } from "drizzle-orm";
+import type { Title } from "@/types";
+import HomeClient from "@/components/HomeClient";
 
-import { debounce } from "lodash";
-import { useEffect, useMemo, useState } from "react";
-import Hero from "@/components/Hero";
-import RatedTitles from "@/components/RatedTitles";
-import RecommendationsSection from "@/components/RecommendationsSection";
-import Search from "@/components/Search";
-import SearchResults from "@/components/SearchResults";
-import Watchlist from "@/components/Watchlist";
-import { useStreamingSearch } from "@/hooks/useStreamingSearch";
-import AuthButton from "@/components/AuthButton";
-import Container from "@/components/Container";
-import useIsLoggedIn from "@/hooks/useIsLoggedIn";
-import PopularTitles from "@/components/PopularTitles";
-import HeroSection from "@/components/HeroSection";
+export default async function Home() {
+  const [movieRows, tvRows] = await Promise.all([
+    db
+      .execute(sql`
+        SELECT tmdb_id, title, poster, year, description
+        FROM ai_popular_titles
+        WHERE media_type = 'movie'
+          AND fetched_date = (SELECT MAX(fetched_date) FROM ai_popular_titles WHERE media_type = 'movie')
+        ORDER BY rank ASC
+        LIMIT 10
+      `)
+      .catch(() => ({ rows: [] })),
+    db
+      .execute(sql`
+        SELECT tmdb_id, title, poster, year, description
+        FROM ai_popular_titles
+        WHERE media_type = 'tv'
+          AND fetched_date = (SELECT MAX(fetched_date) FROM ai_popular_titles WHERE media_type = 'tv')
+        ORDER BY rank ASC
+        LIMIT 10
+      `)
+      .catch(() => ({ rows: [] })),
+  ]);
 
-type SubStatus = {
-  subscriptionStatus: string | null;
-  freeRecCallsUsed: number;
-};
-
-export default function Home() {
-  const { state, dispatch, fetchAutoCompleteResults } = useStreamingSearch();
-
-  const isLoggedIn = useIsLoggedIn();
-  const [showSuccessBanner, setShowSuccessBanner] = useState(false);
-  const [subStatus, setSubStatus] = useState<SubStatus | null>(null);
-
-  // Detect ?subscription=success redirect from Stripe
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("subscription") === "success") {
-      setShowSuccessBanner(true);
-      window.history.replaceState({}, "", "/");
-    }
-  }, []);
-
-  // Fetch subscription status once logged in
-  useEffect(() => {
-    if (!isLoggedIn) return;
-    fetch("/api/subscription-status")
-      .then((r) => r.ok ? r.json() : null)
-      .then((d: SubStatus | null) => { if (d) setSubStatus(d); })
-      .catch(() => {});
-  }, [isLoggedIn]);
-
-  const handleManageSubscription = async () => {
-    const res = await fetch("/api/stripe/portal", { method: "POST" });
-    const data = (await res.json()) as { url?: string };
-    if (data.url) window.location.href = data.url;
-  };
-
-  const { searchQuery, autoCompleteResults, isLoading } = state;
-
-  const debouncedSubmit = useMemo(() => {
-    return debounce((query: string) => {
-      fetchAutoCompleteResults(query);
-    }, 500);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      debouncedSubmit.cancel();
-    };
-  }, [debouncedSubmit]);
-
-  const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const query = e.target.value;
-    dispatch({ type: "SET_QUERY", payload: query });
-    debouncedSubmit(query);
-  };
-
-  const handleClearSearch = () => {
-    dispatch({ type: "CLEAR_RESULTS" });
-  };
+  const toTitles = (rows: unknown[], type: "movie" | "tv"): Title[] =>
+    (rows as Record<string, unknown>[]).map((r) => ({
+      id: r.tmdb_id as number,
+      type,
+      name: r.title as string,
+      description: (r.description as string | null) ?? "",
+      poster: r.poster as string | null,
+      year: r.year as number | undefined,
+      rating: 0,
+    }));
 
   return (
-    <>
-      {showSuccessBanner && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-600 text-white px-6 py-3 rounded-2xl shadow-lg flex items-center gap-3">
-          <span>You&apos;re now subscribed to TellySauce Pro!</span>
-          <button
-            onClick={() => setShowSuccessBanner(false)}
-            className="text-white/70 hover:text-white text-lg leading-none"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-      <HeroSection>
-        <Container>
-          <div className="flex p-4 justify-end items-center gap-3 relative z-11">
-            {isLoggedIn && subStatus?.subscriptionStatus === "active" && (
-              <button
-                onClick={handleManageSubscription}
-                className="text-xs font-semibold text-white/80 hover:text-white bg-white/10 hover:bg-white/20 px-3 py-1 rounded-full transition"
-              >
-                ✨ Pro · Manage
-              </button>
-            )}
-            <AuthButton />
-          </div>
-        </Container>
-        <div className="relative px-6 py-20 text-center isolate sm:px-16 ">
-          <Hero />
-          <div className="max-w-2xl mx-auto relative overflow-visible">
-            <Search
-              handleSearchInputChange={handleSearchInputChange}
-              searchQuery={searchQuery}
-              isLoading={isLoading}
-              showClearResults={searchQuery !== ""}
-              handleSubmit={fetchAutoCompleteResults}
-              handleClearSearch={handleClearSearch}
-            />
-            {searchQuery && !isLoading && (
-              <SearchResults data={autoCompleteResults} />
-            )}
-          </div>
-        </div>
-      </HeroSection>
-
-      {!isLoggedIn && (
-        <div className="flex flex-col items-center px-4 mt-10">
-          <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 rounded-3xl p-[1px] shadow-2xl w-full max-w-screen-xl">
-            <div className="bg-gray-900 rounded-3xl p-8 flex flex-col items-center text-center">
-              <h1 className="text-3xl font-extrabold text-white mb-4">
-                Welcome!👋
-              </h1>
-              <p className="text-gray-300 mb-8">
-                Log in to access{" "}
-                <span className="text-indigo-400 font-semibold">
-                  AI-powered recommendations
-                </span>
-                , personalized watchlists, and all your rated shows.
-              </p>
-              <AuthButton />
-            </div>
-          </div>
-        </div>
-      )}
-      <div className="max-w-screen-xl mx-auto p-8">
-        <PopularTitles source="ai" />
-        <PopularTitles source="ai" type="tv" />
-        <PopularTitles />
-        <PopularTitles type="tv" />
-        {isLoggedIn && (
-          <>
-            <Watchlist />
-            <RatedTitles />
-            <RecommendationsSection />
-          </>
-        )}
-      </div>
-    </>
+    <HomeClient
+      aiMovies={toTitles(movieRows.rows ?? [], "movie")}
+      aiTv={toTitles(tvRows.rows ?? [], "tv")}
+    />
   );
 }

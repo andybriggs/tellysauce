@@ -145,6 +145,26 @@ describe("useDiscoverTitles", () => {
     expect(result.current.isLoading).toBe(true);
   });
 
+  it("returns initialData immediately when provided and does not fetch", async () => {
+    let fetchCalled = false;
+    server.use(
+      http.get("/api/discover", () => {
+        fetchCalled = true;
+        return HttpResponse.json({ titles: [mockTvShow] });
+      })
+    );
+
+    const { result } = renderHook(
+      () => useDiscoverTitles("movie", { source: "ai", initialData: [mockMovie] }),
+      { wrapper }
+    );
+
+    expect(result.current.titles).toEqual([mockMovie]);
+    // Allow any microtasks to flush before asserting no fetch occurred
+    await new Promise((r) => setTimeout(r, 50));
+    expect(fetchCalled).toBe(false);
+  });
+
   it("returns empty titles when response has no titles field", async () => {
     server.use(
       http.get("/api/discover", () => HttpResponse.json({}))

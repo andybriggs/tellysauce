@@ -5,6 +5,8 @@ import "./globals.css";
 import Providers from "./providers";
 import Footer from "@/components/Footer";
 import CookieBanner from "@/components/CookieBanner";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -21,17 +23,19 @@ export const metadata: Metadata = {
   description: "AI Generated TV and Film recommendations",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const session = await getServerSession(authOptions);
+
   return (
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <Providers>{children}</Providers>
+        <Providers session={session}>{children}</Providers>
         <Footer />
         <CookieBanner />
         <Analytics />
