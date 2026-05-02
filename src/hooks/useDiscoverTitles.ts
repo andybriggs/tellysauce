@@ -5,8 +5,6 @@ import type { Title } from "@/types";
 
 type DiscoverTitlesResponse = {
   titles: Title[];
-  isLoading: boolean;
-  error: string | null;
 };
 
 type Options = {
