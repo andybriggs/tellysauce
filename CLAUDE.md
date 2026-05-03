@@ -193,6 +193,7 @@ Import with full paths: `@/components/title/TitleCard`, `@/components/common/Sec
 - `src/hooks/useDiscoverTitles.ts` - SWR hook, accepts `{ timeframe?, source?, initialData? }` options. When `initialData` is set, it is used as SWR `fallbackData` and `revalidateOnMount` is disabled.
 - `src/hooks/useRecommendations.ts` - hook encapsulating recommendation fetch/cache/generate/paywall logic. Returns `{ titles, isLoading, paywallError, clearPaywall, generate, key }`.
 - `src/hooks/useSubscriptionStatus.ts` - fetches `GET /api/subscription-status` once when the user logs in. Returns `{ subscriptionStatus, freeRecCallsUsed } | null`.
+- `src/server/aiPopular.ts` - two server-only DB helpers: `fetchAiPopularTitles(mediaType)` (used by the homepage to SSR the AI picks carousels) and `fetchAiPopularData(tmdbId, mediaType)` (used by the title detail page for the Reddit quotes / AI reason panel). Both query `ai_popular_titles` and return `[]` / `null` on error rather than throwing.
 
 ### Session pre-loading (eliminates auth flash)
 
