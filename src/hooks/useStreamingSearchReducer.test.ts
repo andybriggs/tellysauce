@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   streamingSearchReducer,
   StreamingSearchState,
-} from "./useStreamingSearchReducer";
-import { initialState } from "./useStreamingSearch";
+  initialState,
+} from "./useStreamingSearch";
 
 // Helper: produce a custom state for testing transitions
 function makeState(overrides: Partial<StreamingSearchState> = {}): StreamingSearchState {

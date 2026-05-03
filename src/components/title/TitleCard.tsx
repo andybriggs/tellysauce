@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { Title } from "@/types/";
-import StarRating from "./StarRating";
+import StarRating from "@/components/watchlist/StarRating";
 import TitleStatusBadge from "./TitleStatusBadge";
 import Link from "next/link";
 

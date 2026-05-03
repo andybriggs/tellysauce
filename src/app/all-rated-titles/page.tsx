@@ -1,6 +1,6 @@
-import RatedTitles from "@/components/RatedTitles";
-import Container from "@/components/Container";
-import BackLink from "@/components/BackLink";
+import RatedTitles from "@/components/watchlist/RatedTitles";
+import Container from "@/components/common/Container";
+import BackLink from "@/components/layout/BackLink";
 
 export default function AllRatedTitlesPage() {
   return (

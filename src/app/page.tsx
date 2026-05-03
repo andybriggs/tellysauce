@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
 import type { Title } from "@/types";
-import HomeClient from "@/components/HomeClient";
+import HomeClient from "@/components/layout/HomeClient";
 
 export default async function Home() {
   const [movieRows, tvRows] = await Promise.all([

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { PillTabs } from "./PillTabs";
+import { PillTabs } from "@/components/common/PillTabs";
 import type { Title } from "@/types";
 
 type TypeFilter = "all" | "tv" | "movie";

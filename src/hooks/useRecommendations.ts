@@ -1,112 +1,144 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { signIn } from "next-auth/react";
-import { Recommendation } from "../types";
-import {
-  readVersioned,
-  writeVersioned,
-  parseEventValue,
-} from "@/lib/versionedStorage";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { buildRecKey } from "@/lib/recs";
+import type { SeedInput, Title } from "@/types";
 
-type Seed = {
+/* ---------- Types ---------- */
+
+export type RecItem = {
   title: string;
-  overview?: string;
-  genres?: string[];
-  year?: number;
-  type?: "movie" | "tv";
-  external?: { tmdbId?: number; imdbId?: string | null };
+  description?: string | null;
+  reason?: string | null;
+  tags?: string[] | null;
+  year?: number | null;
+  // POST response uses resolvedTmdbId + mediaType
+  resolvedTmdbId?: number | null;
+  mediaType?: string | null;
+  // GET (cache) response uses suggestedTmdbId + suggestedMediaType
+  suggestedTmdbId?: number | null;
+  suggestedMediaType?: string | null;
+  poster?: string | null;
 };
 
-const DEFAULT_KEY = "cachedRecommendations";
+type GetResponse = {
+  set: unknown | null;
+  items: RecItem[];
+};
 
-export function useGeminiRecommendations(cacheKey?: string) {
-  const key = cacheKey ?? DEFAULT_KEY;
+type PostResponse = {
+  recommendations?: RecItem[];
+  key?: string;
+  setId?: string;
+};
 
-  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+type GenerateArgs = {
+  ratedTitles?: { name: string; type: string | undefined; rating: number }[] | null;
+  watchList?: unknown[] | null;
+};
+
+/* ---------- Helpers ---------- */
+
+export function recToTitle(r: RecItem): Title | null {
+  const tmdbId = r.resolvedTmdbId ?? r.suggestedTmdbId ?? null;
+  const mediaType = r.mediaType ?? r.suggestedMediaType ?? null;
+  if (!tmdbId || !mediaType) return null;
+  return {
+    id: tmdbId,
+    name: r.title,
+    poster: r.poster ?? null,
+    type: mediaType,
+    rating: 0,
+    description: r.description ?? null,
+    year: typeof r.year === "number" ? r.year : undefined,
+  };
+}
+
+function isIdName(v: unknown): v is { id?: number; name?: string } {
+  if (typeof v !== "object" || v === null) return false;
+  const obj = v as Record<string, unknown>;
+  return typeof obj.name === "string" || typeof obj.id === "number";
+}
+
+async function fetchJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T | null> {
+  try {
+    const res = await fetch(input, init);
+    if (!res.ok) return null;
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
+/* ---------- Hook ---------- */
+
+export function useRecommendations({ seed }: { seed?: SeedInput } = {}) {
+  const [titles, setTitles] = useState<Title[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [paywallError, setPaywallError] = useState<"free_exhausted" | "monthly_limit" | null>(null);
 
-  const mountedRef = useRef(true);
-  useEffect(
-    () => () => {
-      mountedRef.current = false;
-    },
-    []
+  const key = useMemo(
+    () => buildRecKey(seed ? { mode: "seed", seed } : { mode: "profile" }),
+    [seed]
   );
 
+  // Load cached recommendations on mount
   useEffect(() => {
-    setRecommendations(readVersioned<Recommendation[]>(key, []));
+    let cancelled = false;
+    (async () => {
+      const data = await fetchJson<GetResponse>(`/api/recommendations?key=${encodeURIComponent(key)}`);
+      if (!data || cancelled || !Array.isArray(data.items)) return;
+      const mapped = data.items
+        .map((item) => recToTitle(item))
+        .filter((t): t is Title => t !== null);
+      if (mapped.length > 0) setTitles(mapped);
+    })();
+    return () => { cancelled = true; };
   }, [key]);
 
-  useEffect(() => {
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === key) {
-        setRecommendations(parseEventValue<Recommendation[]>(e.newValue, []));
-      }
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, [key]);
-
-  const requestRecommendations = async (payload: unknown) => {
+  const generate = useCallback(async ({ ratedTitles, watchList }: GenerateArgs = {}) => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
+      const watchListTitles = Array.isArray(watchList)
+        ? watchList.filter(isIdName).map((w) => w.name).filter(Boolean)
+        : [];
+
+      const body = seed
+        ? JSON.stringify({ mode: "seed", seed, watchList: watchListTitles })
+        : JSON.stringify({
+            mode: "profile",
+            titles: (ratedTitles ?? []).map((s) => ({
+              name: s.name,
+              type: s.type,
+              rating: s.rating,
+            })),
+            watchList: watchListTitles,
+          });
 
       const res = await fetch("/api/recommend", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body,
       });
 
-      if (res.status === 401) {
-        const callbackUrl =
-          typeof window !== "undefined" ? window.location.href : "/";
-        signIn("google", { callbackUrl });
-        return null;
+      if (res.status === 402) {
+        const json = await res.json().catch(() => ({})) as { error?: string };
+        setPaywallError(json.error === "monthly_limit_reached" ? "monthly_limit" : "free_exhausted");
+        return;
       }
+      if (!res.ok) return;
 
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(
-          `Recommend request failed: ${res.status} ${res.statusText} ${text}`
-        );
-      }
-
-      const data = await res.json();
-      const recs: Recommendation[] = Array.isArray(data.recommendations)
-        ? data.recommendations
-        : [];
-
-      console.log("RECS", recs);
-
-      if (!mountedRef.current) return;
-      setRecommendations(recs);
-      writeVersioned(key, recs);
+      const data = (await res.json()) as PostResponse;
+      const mapped = (data.recommendations ?? [])
+        .map((r) => recToTitle(r))
+        .filter((t): t is Title => t !== null);
+      setTitles(mapped);
     } finally {
-      if (mountedRef.current) setIsLoading(false);
+      setIsLoading(false);
     }
-  };
+  }, [seed]);
 
-  const getFromProfile = async (
-    titleList: { name: string; rating: number }[],
-    watchList: string[]
-  ) => {
-    if (!titleList.length) return;
-    await requestRecommendations({
-      mode: "profile",
-      titles: titleList,
-      watchList,
-    });
-  };
+  const clearPaywall = useCallback(() => setPaywallError(null), []);
 
-  const getFromSeed = async (seed: Seed, watchList?: string[]) => {
-    if (!seed?.title) return;
-    await requestRecommendations({
-      mode: "seed",
-      seed,
-      watchList: watchList ?? [],
-    });
-  };
-
-  return { recommendations, isLoading, getFromProfile, getFromSeed };
+  return { titles, isLoading, paywallError, clearPaywall, generate, key };
 }

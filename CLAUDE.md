@@ -63,6 +63,7 @@ All AI calls use the shared client from `src/lib/ai.ts` (`openai` instance, `ope
 
 - Seed mode: 3 recommendations. Profile mode: 8 (grouped by rating tier in prompt; dominant media type inferred and included).
 - Cache read: `GET /api/recommendations?key=...` - joins `recommendation_items` with `titles` to return `poster`.
+- Service functions (`callOpenAI`, `validateAndEnrich`, `upsertTitle`, `upsertRecommendationSet`, `replaceRecommendationItems`) live in `src/server/recommendations.ts` and are imported by the route. The `Rec` type is exported from there too.
 
 **Cron** (`src/app/api/cron/ai-popular/route.ts`) - 4-stage pipeline:
 
@@ -92,7 +93,7 @@ await sql.query(`CREATE TABLE IF NOT EXISTS ...`);
 ### Watch providers (Where to watch)
 
 - `fetchTitleSources(kind, id, revalidate)` - `src/server/tmdb.ts` - returns `Record<string, TitleSource[]>` keyed by ISO country code (e.g. `"GB"`, `"US"`). TMDB returns all regions in one call; we return them all.
-- `src/components/WhereToWatch.tsx` - client component. Reads selected region from `localStorage` key `"watch_region"`, falling back to country derived from `navigator.language`, then `"GB"`. Shows a dropdown listing only countries that have provider data for the current title. Priority order: GB, US, CA, AU, IE, then alphabetical.
+- `src/components/title/WhereToWatch.tsx` - client component. Reads selected region from `localStorage` key `"watch_region"`, falling back to country derived from `navigator.language`, then `"GB"`. Shows a dropdown listing only countries that have provider data for the current title. Priority order: GB, US, CA, AU, IE, then alphabetical.
 
 ### OMDb API (IMDb + Rotten Tomatoes ratings)
 
@@ -153,7 +154,7 @@ await sql.query(`CREATE TABLE IF NOT EXISTS ...`);
 - **Free tier**: 3 lifetime recommendation generations per user (tracked via `free_rec_calls_used` on `users`). Counter only increments on fresh generation, not on cache reads (`GET /api/recommendations`).
 - **Pro tier**: 100 recommendation generations per billing period (tracked via `pro_rec_calls_this_period` on `users`). Resets on Stripe renewal webhook.
 - **Gate logic** (`src/app/api/recommend/route.ts`): free users blocked at 3 calls (`{ error: 'subscription_required' }`); Pro users blocked at 100 calls (`{ error: 'monthly_limit_reached' }`). Both return HTTP 402.
-- **Paywall UI** (`src/components/PaywallModal.tsx`): modal shown when client receives 402. Accepts `reason` prop (`'free_exhausted'` | `'monthly_limit'`) to show appropriate copy. Handled in `RecommendationsSection.tsx`.
+- **Paywall UI** (`src/components/recommendations/PaywallModal.tsx`): modal shown when client receives 402. Accepts `reason` prop (`'free_exhausted'` | `'monthly_limit'`) to show appropriate copy. Handled in `RecommendationsSection.tsx` via `useRecommendations` hook's `paywallError` / `clearPaywall`.
 - **Stripe client**: `src/lib/stripe.ts` - singleton used by all Stripe API routes.
 - **Webhook events handled**: `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`.
 - **Local dev webhook**: run `stripe listen --forward-to localhost:3000/api/stripe/webhook`. Use the `whsec_...` it prints as `STRIPE_WEBHOOK_SECRET` - this is different from the dashboard secret.
@@ -162,11 +163,36 @@ await sql.query(`CREATE TABLE IF NOT EXISTS ...`);
 
 ## Frontend structure
 
+### Component directory layout
+
+Components are organised by domain under `src/components/`:
+
+```
+src/components/
+├── common/          # Container, Section, SectionHeader, SectionList, PillTabs,
+│                    # Footer, CookieBanner, EmptyStateCard, AuthButton
+├── layout/          # Hero, HeroSection, Backdrop, BackLink, HomeClient
+├── title/           # TitleCard, TitleList, TitleHeader, TitleStatusBadge, MetaPills,
+│                    # TitleActions, TitleGridFilters, Overview, TagsList, ExternalLinks,
+│                    # WhereToWatch, TrailerWithPosterOverlay, RedditQuotes, ResultsTable,
+│                    # PosterCard, PopularTitles
+├── search/          # Search, SearchResults
+├── recommendations/ # RecommendationsSection, PaywallModal
+└── watchlist/       # Watchlist, RatedTitles, UserTitleList, StarRating, WatchlistButton
+```
+
+Import with full paths: `@/components/title/TitleCard`, `@/components/common/Section`, etc.
+
+### Key components
+
 - `src/app/page.tsx` - homepage (async server component). Fetches AI picks directly from the DB in parallel and passes them as props to `HomeClient`.
-- `src/components/HomeClient.tsx` - client component (`"use client"`) containing all the interactive homepage logic: search, auth state, subscription banner/portal. Receives `aiMovies` and `aiTv` as props from `page.tsx`.
-- `src/components/PopularTitles.tsx` - handles both TMDB and AI picks via `source` prop. `source="ai"` hides the timeframe tabs and shows a different title. Accepts optional `initialTitles` prop (passed as SWR `fallbackData` with `revalidateOnMount: false`) so AI picks render from server data without a client fetch.
-- `src/components/RecommendationsSection.tsx` - on-demand AI recommendations (profile + seed mode). Loads cached recs from `GET /api/recommendations` on mount; generates fresh ones via `POST /api/recommend` on button click. Renders results using the standard `TitleList` carousel + `TitleCard` (poster art, direct `/title/{kind}/{id}` links). Handles paywall modal on 402.
+- `src/components/layout/HomeClient.tsx` - client component (`"use client"`) containing all the interactive homepage logic: search, auth state, subscription banner/portal. Receives `aiMovies` and `aiTv` as props from `page.tsx`.
+- `src/components/title/PopularTitles.tsx` - handles both TMDB and AI picks via `source` prop. `source="ai"` hides the timeframe tabs and shows a different title. Accepts optional `initialTitles` prop (passed as SWR `fallbackData` with `revalidateOnMount: false`) so AI picks render from server data without a client fetch.
+- `src/components/recommendations/RecommendationsSection.tsx` - on-demand AI recommendations (profile + seed mode). Delegates all fetch/cache/POST/paywall logic to `useRecommendations` hook. Renders results using the standard `TitleList` carousel + `TitleCard`.
+- `src/components/watchlist/UserTitleList.tsx` - shared parameterised component used by both `Watchlist` and `RatedTitles`. Contains filter state and grid/carousel rendering. `Watchlist` and `RatedTitles` are thin wrappers that supply their hook data and config props.
 - `src/hooks/useDiscoverTitles.ts` - SWR hook, accepts `{ timeframe?, source?, initialData? }` options. When `initialData` is set, it is used as SWR `fallbackData` and `revalidateOnMount` is disabled.
+- `src/hooks/useRecommendations.ts` - hook encapsulating recommendation fetch/cache/generate/paywall logic. Returns `{ titles, isLoading, paywallError, clearPaywall, generate, key }`.
+- `src/hooks/useSubscriptionStatus.ts` - fetches `GET /api/subscription-status` once when the user logs in. Returns `{ subscriptionStatus, freeRecCallsUsed } | null`.
 
 ### Session pre-loading (eliminates auth flash)
 
@@ -174,7 +200,7 @@ await sql.query(`CREATE TABLE IF NOT EXISTS ...`);
 
 ### Card status overlay
 
-- `TitleStatusBadge` (`src/components/TitleStatusBadge.tsx`) - small bottom-left badge on carousel cards showing watchlist (emerald bookmark) or rated (amber star + number) status. Only visible to logged-in users.
+- `TitleStatusBadge` (`src/components/title/TitleStatusBadge.tsx`) - small bottom-left badge on carousel cards showing watchlist (emerald bookmark) or rated (amber star + number) status. Only visible to logged-in users.
 - Enabled via `showStatusOverlay` prop on `TitleCard` and `TitleList`. Pass `showStatusOverlay` on `TitleList` to enable per-carousel.
 - Active on AI picks, TMDB popular carousels (`PopularTitles`), and recommendations (`RecommendationsSection`). NOT active on Watchlist or RatedTitles - those use `renderItem`.
 

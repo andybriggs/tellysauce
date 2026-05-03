@@ -2,24 +2,20 @@
 
 import { debounce } from "lodash";
 import { useEffect, useMemo, useState } from "react";
-import Hero from "@/components/Hero";
-import RatedTitles from "@/components/RatedTitles";
-import RecommendationsSection from "@/components/RecommendationsSection";
-import Search from "@/components/Search";
-import SearchResults from "@/components/SearchResults";
-import Watchlist from "@/components/Watchlist";
+import Hero from "@/components/layout/Hero";
+import RatedTitles from "@/components/watchlist/RatedTitles";
+import RecommendationsSection from "@/components/recommendations/RecommendationsSection";
+import Search from "@/components/search/Search";
+import SearchResults from "@/components/search/SearchResults";
+import Watchlist from "@/components/watchlist/Watchlist";
 import { useStreamingSearch } from "@/hooks/useStreamingSearch";
-import AuthButton from "@/components/AuthButton";
-import Container from "@/components/Container";
+import AuthButton from "@/components/common/AuthButton";
+import Container from "@/components/common/Container";
 import useIsLoggedIn from "@/hooks/useIsLoggedIn";
-import PopularTitles from "@/components/PopularTitles";
-import HeroSection from "@/components/HeroSection";
+import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
+import PopularTitles from "@/components/title/PopularTitles";
+import HeroSection from "@/components/layout/HeroSection";
 import type { Title } from "@/types";
-
-type SubStatus = {
-  subscriptionStatus: string | null;
-  freeRecCallsUsed: number;
-};
 
 export default function HomeClient({
   aiMovies,
@@ -31,8 +27,8 @@ export default function HomeClient({
   const { state, dispatch, fetchAutoCompleteResults } = useStreamingSearch();
 
   const isLoggedIn = useIsLoggedIn();
+  const subStatus = useSubscriptionStatus();
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
-  const [subStatus, setSubStatus] = useState<SubStatus | null>(null);
 
   // Detect ?subscription=success redirect from Stripe
   useEffect(() => {
@@ -42,15 +38,6 @@ export default function HomeClient({
       window.history.replaceState({}, "", "/");
     }
   }, []);
-
-  // Fetch subscription status once logged in
-  useEffect(() => {
-    if (!isLoggedIn) return;
-    fetch("/api/subscription-status")
-      .then((r) => r.ok ? r.json() : null)
-      .then((d: SubStatus | null) => { if (d) setSubStatus(d); })
-      .catch(() => {});
-  }, [isLoggedIn]);
 
   const handleManageSubscription = async () => {
     const res = await fetch("/api/stripe/portal", { method: "POST" });

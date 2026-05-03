@@ -15,6 +15,7 @@ vi.mock("@/db", () => ({
 
 vi.mock("@/lib/recs", () => ({
   buildRecKey: vi.fn().mockReturnValue("profile-key"),
+  slugTitle: vi.fn((s: string) => s.toLowerCase().trim()),
 }));
 
 // OpenAI mock via @/lib/ai

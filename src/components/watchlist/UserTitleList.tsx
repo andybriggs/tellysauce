@@ -1,22 +1,35 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Layout } from "./TitleList";
-import Section from "./Section";
-import EmptyStateCard from "./EmptyStateCard";
-import TitleList from "./TitleList";
-import TitleCard from "./TitleCard";
-import TitleGridFilters from "./TitleGridFilters";
-import { useWatchList } from "@/hooks/useWatchList";
+import { Layout } from "@/components/title/TitleList";
+import Section from "@/components/common/Section";
+import EmptyStateCard from "@/components/common/EmptyStateCard";
+import TitleList from "@/components/title/TitleList";
+import TitleCard from "@/components/title/TitleCard";
+import TitleGridFilters from "@/components/title/TitleGridFilters";
+import type { Title } from "@/types";
 
 type TypeFilter = "all" | "tv" | "movie";
 
-export default function Watchlist({
+export type UserTitleListProps = {
+  layout?: "carousel" | "grid";
+  items: Title[];
+  sectionTitle: string;
+  emptyText: string;
+  viewAllHref: string;
+  gridHeading: string;
+  rateTitle?: (id: number, mediaType: "tv" | "movie", rating: number) => Promise<void>;
+};
+
+export default function UserTitleList({
   layout = "carousel",
-}: {
-  layout?: Layout;
-}) {
-  const { watchList } = useWatchList();
+  items,
+  sectionTitle,
+  emptyText,
+  viewAllHref,
+  gridHeading,
+  rateTitle,
+}: UserTitleListProps) {
   const isGrid = layout === "grid";
 
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
@@ -24,13 +37,13 @@ export default function Watchlist({
 
   const filtered = useMemo(
     () =>
-      watchList
+      items
         .filter((t) => typeFilter === "all" || t.type === typeFilter)
         .filter(
           (t) =>
             genreFilter === "all" || (t.genres ?? []).includes(genreFilter)
         ),
-    [watchList, typeFilter, genreFilter]
+    [items, typeFilter, genreFilter]
   );
 
   function handleTypeChange(v: TypeFilter) {
@@ -40,16 +53,14 @@ export default function Watchlist({
 
   // Grid mode: render full filter header + list directly (no Section wrapper)
   if (isGrid) {
-    if (!watchList.length) {
+    if (!items.length) {
       return (
         <div className="mb-8">
           <h2 className="text-2xl text-white font-bold leading-normal mb-2">
-            🍿 My Watchlist
+            {gridHeading}
           </h2>
           <EmptyStateCard>
-            <p className="text-center text-sm font-medium">
-              Add titles to your watchlist
-            </p>
+            <p className="text-center text-sm font-medium">{emptyText}</p>
           </EmptyStateCard>
         </div>
       );
@@ -58,8 +69,8 @@ export default function Watchlist({
     return (
       <div className="mb-12">
         <TitleGridFilters
-          title="🍿 My Watchlist"
-          items={watchList}
+          title={gridHeading}
+          items={items}
           typeFilter={typeFilter}
           genreFilter={genreFilter}
           onTypeChange={handleTypeChange}
@@ -69,7 +80,9 @@ export default function Watchlist({
         <TitleList
           items={filtered}
           layout="grid"
-          renderItem={(t, layout) => <TitleCard title={t} fill={layout === "grid"} />}
+          renderItem={(t, l) => (
+            <TitleCard title={t} rateTitle={rateTitle} fill={l === "grid"} />
+          )}
         />
       </div>
     );
@@ -77,22 +90,22 @@ export default function Watchlist({
 
   return (
     <Section
-      title="🍿 My Watchlist"
-      isEmpty={!watchList.length}
+      title={sectionTitle}
+      isEmpty={!items.length}
       showViewAll
-      viewAllHref="/watchlist"
+      viewAllHref={viewAllHref}
       emptyContent={
         <EmptyStateCard>
-          <p className="text-center text-sm font-medium">
-            Add titles to your watchlist
-          </p>
+          <p className="text-center text-sm font-medium">{emptyText}</p>
         </EmptyStateCard>
       }
     >
       <TitleList
-        items={watchList}
+        items={items}
         layout="carousel"
-        renderItem={(t, layout) => <TitleCard title={t} fill={layout === "grid"} />}
+        renderItem={(t, l) => (
+          <TitleCard title={t} rateTitle={rateTitle} fill={l === "grid"} />
+        )}
       />
     </Section>
   );

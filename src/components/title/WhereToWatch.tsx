@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import ResultsTable from "@/components/ResultsTable";
+import ResultsTable from "@/components/title/ResultsTable";
 import type { TitleSource } from "@/types/title";
 
 const PRIORITY_REGIONS = ["GB", "US", "CA", "AU", "IE"];

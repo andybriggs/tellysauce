@@ -1,12 +1,12 @@
 "use client";
 
 import { Layout } from "./TitleList";
-import Section from "./Section";
-import EmptyStateCard from "./EmptyStateCard";
+import Section from "@/components/common/Section";
+import EmptyStateCard from "@/components/common/EmptyStateCard";
 import TitleList from "./TitleList";
 import { useDiscoverTitles } from "@/hooks/useDiscoverTitles";
 import { useState } from "react";
-import { PillTabs } from "./PillTabs";
+import { PillTabs } from "@/components/common/PillTabs";
 import type { Title } from "@/types";
 
 export default function PopularTitles({

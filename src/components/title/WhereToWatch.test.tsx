@@ -3,7 +3,7 @@ import { vi, beforeEach } from 'vitest';
 import WhereToWatch from './WhereToWatch';
 import type { TitleSource } from '@/types/title';
 
-vi.mock('@/components/ResultsTable', () => ({
+vi.mock('@/components/title/ResultsTable', () => ({
   default: ({ data }: { data: { name: string }[] }) => (
     <ul>{data.map((s) => <li key={s.name}>{s.name}</li>)}</ul>
   ),

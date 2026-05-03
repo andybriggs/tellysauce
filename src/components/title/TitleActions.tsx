@@ -1,10 +1,10 @@
 "use client";
 
-import StarRating from "@/components/StarRating";
+import StarRating from "@/components/watchlist/StarRating";
 import { useRatedTitles } from "@/hooks/useRatedTitles";
 import type { Title } from "@/types";
 import useIsLoggedIn from "@/hooks/useIsLoggedIn";
-import AuthButton from "./AuthButton";
+import AuthButton from "@/components/common/AuthButton";
 
 export default function TitleActions({
   title,

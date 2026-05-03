@@ -3,8 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import Providers from "./providers";
-import Footer from "@/components/Footer";
-import CookieBanner from "@/components/CookieBanner";
+import Footer from "@/components/common/Footer";
+import CookieBanner from "@/components/common/CookieBanner";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
