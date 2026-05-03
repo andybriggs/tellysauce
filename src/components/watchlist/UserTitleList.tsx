@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Layout } from "@/components/title/TitleList";
 import Section from "@/components/common/Section";
 import EmptyStateCard from "@/components/common/EmptyStateCard";
 import TitleList from "@/components/title/TitleList";
