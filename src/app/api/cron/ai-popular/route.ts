@@ -33,7 +33,7 @@ async function fetchGroundedTitles(mediaType: "movie" | "tv"): Promise<CronRec[]
   const prompt = `Search the following sources for the 12 most popular and well-received ${kind} right now:
 
 SOURCES TO SEARCH:
-- IMDb: Most Popular ${kind === "movies" ? "Movies" : "TV Shows"} chart and Top Rated recent releases
+- IMDb: US Most Popular ${kind === "movies" ? "Movies" : "TV Shows"} chart (US ranking only — ignore the global chart which is skewed by non-Western audiences) and Top Rated recent releases
 - Rotten Tomatoes: Most Popular and Certified Fresh ${kind === "movies" ? "movies" : "TV shows"} this week
 - Metacritic: Highest-scoring new ${kind === "movies" ? "movie" : "TV"} releases
 - Reddit: r/${kind === "movies" ? "movies, r/MovieSuggestions, r/TrueFilm, r/criterion, r/letterboxd" : "television, r/NetflixBestOf, r/television"} — high-upvote threads from the past 7 days
@@ -48,7 +48,7 @@ RULES — follow all of these strictly:
 
 3. GENRE BALANCE: Spread across genres. At most 1 horror or thriller. Prioritise drama, comedy, action, sci-fi, animation, documentary. No multiple titles from the same franchise.
 
-4. REGIONAL FOCUS: English-speaking markets (US, UK, AU, CA, IE) and Western Europe. Non-English-language and non-Western content only if it achieved major mainstream crossover in English-speaking markets (e.g. wide theatrical release, top-10 Netflix globally in English-speaking regions). This applies to all non-Western productions — East Asian, South Asian, and others.
+4. REGIONAL FOCUS: English-speaking markets (US, UK, AU, CA, IE) and Western Europe. Exclude all non-Western productions (South Asian, East Asian, etc.) unless the title was: (a) distributed theatrically in US/UK cinemas by a major studio or streamer, AND (b) reviewed positively by mainstream English-language critics (e.g. The Guardian, NYT, Variety, IndieWire). High IMDb global rankings or large diaspora viewership in English-speaking countries do NOT count as crossover. Bollywood titles are excluded unless they meet both criteria above.
 
 5. NO DUPLICATES: Every title must appear exactly once.
 

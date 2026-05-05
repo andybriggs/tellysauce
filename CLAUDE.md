@@ -124,7 +124,7 @@ await sql.query(`CREATE TABLE IF NOT EXISTS ...`);
 - Runs daily at 06:00 UTC (configured in `vercel.json`)
 - Auth: `Authorization: Bearer $CRON_SECRET` header (Vercel adds this automatically)
 - Fetches top 10 movies + top 10 TV shows being positively discussed in Western/mainstream online communities (Reddit etc.)
-- **Regional focus**: English-speaking countries (US, UK, AU, CA, IE) + Western Europe. East Asian content only if major Western crossover (e.g. Squid Game).
+- **Regional focus**: English-speaking countries (US, UK, AU, CA, IE) + Western Europe. Non-Western content (South Asian, East Asian, etc.) excluded unless theatrically distributed in US/UK by a major studio AND reviewed by mainstream English-language critics. IMDb global rankings and diaspora viewership do not count as crossover. The prompt uses the US IMDb chart (not the global chart) to avoid skew from non-Western audiences.
 - Resolves AI-returned title strings to TMDB IDs, enriches with poster/description, stores in `ai_popular_titles`
 - Guard: skips DB write if 0 titles resolved (preserves previous day's data)
 - **New-first ordering**: before inserting, the previous day's `tmdb_id`s are queried. Titles absent from the previous batch get lower rank values (appear first in the carousel); returning/duplicate titles follow in their original AI-returned order. Logic lives in exported `prioritiseNewTitles(resolved, prevTmdbIds)` in `src/app/api/cron/ai-popular/route.ts`.
