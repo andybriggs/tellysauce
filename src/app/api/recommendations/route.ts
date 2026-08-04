@@ -7,62 +7,7 @@ import { recommendationItems, recommendationSets, titles } from "@/db/schema";
 
 export const runtime = "nodejs";
 
-// Ensure tables exist (matches the POST route's bootstrap so GET can run first safely)
-const ensureTablesOnce = (async () => {
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS recommendation_sets (
-      id              text PRIMARY KEY,
-      user_id         text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      key             text NOT NULL,
-      user_key        text NOT NULL UNIQUE,
-      origin          text NOT NULL,
-      source          text NOT NULL DEFAULT 'GEMINI',
-      input_snapshot  jsonb NOT NULL,
-      seed_media_type text,
-      seed_tmdb_id    integer,
-      seed_imdb_id    text,
-      seed_title      text,
-      cache_version   text NOT NULL DEFAULT '1',
-      created_at      timestamptz NOT NULL DEFAULT now(),
-      updated_at      timestamptz NOT NULL DEFAULT now(),
-      expires_at      timestamptz,
-      is_stale        boolean NOT NULL DEFAULT false
-    );
-  `);
-
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS recommendation_items (
-      id                   text PRIMARY KEY,
-      set_id               text NOT NULL REFERENCES recommendation_sets(id) ON DELETE CASCADE,
-      rank                 integer NOT NULL,
-      title                text NOT NULL,
-      description          text,
-      reason               text,
-      tags                 text[],
-      suggested_media_type text,
-      suggested_tmdb_id    integer,
-      suggested_imdb_id    text,
-      raw_json             jsonb NOT NULL,
-      created_at           timestamptz NOT NULL DEFAULT now(),
-      updated_at           timestamptz NOT NULL DEFAULT now()
-    );
-  `);
-
-  await db.execute(sql`
-    DO $$
-    BEGIN
-      IF NOT EXISTS (
-        SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'recommendation_items_set_rank_idx'
-      ) THEN
-        CREATE INDEX recommendation_items_set_rank_idx ON recommendation_items (set_id, rank);
-      END IF;
-    END
-    $$;
-  `);
-})();
-
 export async function GET(req: NextRequest) {
-  await ensureTablesOnce;
 
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
