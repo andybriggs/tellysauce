@@ -10,6 +10,11 @@ vi.mock("drizzle-orm", () => ({
   sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }),
 }));
 
+// Make unstable_cache a transparent pass-through so tests aren't affected by caching
+vi.mock("next/cache", () => ({
+  unstable_cache: (fn: () => unknown) => fn,
+}));
+
 import { fetchAiPopularTitles, fetchAiPopularData } from "./aiPopular";
 
 const movieRows = [
