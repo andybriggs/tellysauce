@@ -42,6 +42,7 @@ const ResultItem = ({ result }: { result: AutoCompleteResult }) => {
   return (
     <Link
       href={`/title/${result.type}/${result.id}`}
+      prefetch={false}
       className="flex items-center rounded-md p-1.5 hover:bg-indigo-600 hover:text-white cursor-pointer"
     >
       {!loaded && <Shimmer />}

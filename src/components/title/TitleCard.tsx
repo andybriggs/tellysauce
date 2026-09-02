@@ -28,7 +28,14 @@ const TitleCard = ({ title, rateTitle, showStatusOverlay, fill }: Props) => {
   const titleStars = typeof rateTitle === "function";
 
   return (
-    <Link href={`/title/${type}/${id}`} className={fill ? "block w-full h-full" : "block flex-none"}>
+    {/* prefetch disabled: carousels render 40+ cards, and each prefetch is a
+        full server render of the title page (the root layout reads cookies, so
+        the route is dynamic and can't be served from the ISR cache) */}
+    <Link
+      href={`/title/${type}/${id}`}
+      prefetch={false}
+      className={fill ? "block w-full h-full" : "block flex-none"}
+    >
       <div className={`relative ${fill ? "w-full h-full" : "w-48 h-64 flex-none"} rounded-xl shadow-md overflow-hidden snap-start select-none`}>
         {poster ? (
           <Image
