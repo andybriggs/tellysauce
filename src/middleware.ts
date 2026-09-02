@@ -14,6 +14,15 @@ const SEO_BOT_UA = /Googlebot|Bingbot|Slurp|DuckDuckBot/i;
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const ua = request.headers.get("user-agent") ?? "";
+  const host = request.headers.get("host") ?? "";
+
+  // Redirect Vercel preview URLs to the canonical production domain
+  if (host.endsWith(".vercel.app")) {
+    const url = new URL(request.url);
+    url.host = "www.tellysauce.com";
+    url.protocol = "https:";
+    return NextResponse.redirect(url, 301);
+  }
 
   if (SCANNER_PATH.test(pathname)) {
     return new NextResponse(null, { status: 404 });
