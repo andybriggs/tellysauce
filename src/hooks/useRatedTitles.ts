@@ -21,7 +21,7 @@ export function useRatedTitles() {
     isLoading: swrLoading,
     isValidating,
     mutate,
-  } = useSWR<Title[]>("/api/rated", fetcher);
+  } = useSWR<Title[]>("/api/rated", fetcher, { revalidateOnFocus: false });
 
   const isSaved = useCallback(
     (id?: number) =>

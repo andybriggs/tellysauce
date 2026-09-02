@@ -14,7 +14,8 @@ type TitleInput = TitleMeta | Title;
 export function useWatchList() {
   const { data, error, isLoading, mutate } = useSWR<Title[]>(
     "/api/watchlist",
-    fetcher
+    fetcher,
+    { revalidateOnFocus: false }
   );
 
   // Safer: check by id + type (TMDB ids aren't globally unique across tv/movie)
