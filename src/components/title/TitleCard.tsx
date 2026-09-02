@@ -27,10 +27,10 @@ const TitleCard = ({ title, rateTitle, showStatusOverlay, fill }: Props) => {
   const { poster, name, id, type } = title;
   const titleStars = typeof rateTitle === "function";
 
+  // prefetch disabled: carousels render 40+ cards, and each prefetch is a
+  // full server render of the title page (the root layout reads cookies, so
+  // the route is dynamic and can't be served from the ISR cache)
   return (
-    {/* prefetch disabled: carousels render 40+ cards, and each prefetch is a
-        full server render of the title page (the root layout reads cookies, so
-        the route is dynamic and can't be served from the ISR cache) */}
     <Link
       href={`/title/${type}/${id}`}
       prefetch={false}
