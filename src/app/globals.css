@@ -45,4 +45,10 @@ body {
     0% { background-position: -200% 0; }
     100% { background-position: 200% 0; }
   }
+
+  /* Trophy case tray sliding in from the right edge */
+  @keyframes drawer-in {
+    from { transform: translateX(100%); }
+    to   { transform: translateX(0); }
+  }
 }

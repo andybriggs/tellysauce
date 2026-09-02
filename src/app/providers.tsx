@@ -1,6 +1,7 @@
 "use client";
 import { SessionProvider } from "next-auth/react";
 import type { Session } from "next-auth";
+import BadgeProvider from "@/components/badges/BadgeProvider";
 
 export default function Providers({
   children,
@@ -9,5 +10,9 @@ export default function Providers({
   children: React.ReactNode;
   session: Session | null;
 }) {
-  return <SessionProvider session={session}>{children}</SessionProvider>;
+  return (
+    <SessionProvider session={session}>
+      <BadgeProvider>{children}</BadgeProvider>
+    </SessionProvider>
+  );
 }

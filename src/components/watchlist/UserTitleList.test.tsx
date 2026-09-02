@@ -175,3 +175,13 @@ describe('UserTitleList – grid mode', () => {
     expect(stars.length).toBeGreaterThan(0);
   });
 });
+
+describe('UserTitleList - badges', () => {
+  it('does not render a badge shelf - badges live in the trophy case', () => {
+    render(
+      <UserTitleList {...baseProps} items={mockItems} layout="grid" />,
+      { wrapper }
+    );
+    expect(screen.queryByTestId(/^badge-shelf-/)).not.toBeInTheDocument();
+  });
+});

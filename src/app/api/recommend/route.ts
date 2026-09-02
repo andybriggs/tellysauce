@@ -13,6 +13,8 @@ import {
   replaceRecommendationItems,
 } from "@/server/recommendations";
 
+import { awardBadges } from "@/server/badges";
+
 export { type Rec } from "@/server/recommendations";
 
 export const runtime = "nodejs";
@@ -73,6 +75,28 @@ function brief(str?: string | null, max = 240) {
 /** ------------------------------------------------------------------ */
 /** Main handler                                                        */
 /** ------------------------------------------------------------------ */
+
+/**
+ * Records a successful generation against the caller's allowance and returns any
+ * badges this call unlocked. lifetime_rec_calls is tracked separately because
+ * free_rec_calls_used caps at 3 and pro_rec_calls_this_period resets each cycle.
+ */
+async function recordRecCall(
+  userId: string,
+  isSubscribed: boolean
+): Promise<string[]> {
+  if (isSubscribed) {
+    await db.execute(
+      sql`UPDATE users SET pro_rec_calls_this_period = pro_rec_calls_this_period + 1, lifetime_rec_calls = lifetime_rec_calls + 1 WHERE id = ${userId}`
+    );
+  } else {
+    await db.execute(
+      sql`UPDATE users SET free_rec_calls_used = free_rec_calls_used + 1, lifetime_rec_calls = lifetime_rec_calls + 1 WHERE id = ${userId}`
+    );
+  }
+
+  return awardBadges(userId, "recs");
+}
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -197,17 +221,14 @@ Double-check your response against the exclusion list before returning it.`;
       });
       await replaceRecommendationItems(setId, verified);
 
-      if (isSubscribed) {
-        await db.execute(
-          sql`UPDATE users SET pro_rec_calls_this_period = pro_rec_calls_this_period + 1 WHERE id = ${userId}`
-        );
-      } else {
-        await db.execute(
-          sql`UPDATE users SET free_rec_calls_used = free_rec_calls_used + 1 WHERE id = ${userId}`
-        );
-      }
+      const unlockedBadges = await recordRecCall(userId, isSubscribed);
 
-      return Response.json({ recommendations: verified, key, setId });
+      return Response.json({
+        recommendations: verified,
+        key,
+        setId,
+        unlockedBadges,
+      });
     }
 
     // ---------------------------- PROFILE MODE ----------------------------
@@ -311,17 +332,14 @@ Double-check your response against the exclusion list before returning it.`;
     });
     await replaceRecommendationItems(setId, verified);
 
-    if (isSubscribed) {
-      await db.execute(
-        sql`UPDATE users SET pro_rec_calls_this_period = pro_rec_calls_this_period + 1 WHERE id = ${userId}`
-      );
-    } else {
-      await db.execute(
-        sql`UPDATE users SET free_rec_calls_used = free_rec_calls_used + 1 WHERE id = ${userId}`
-      );
-    }
+    const unlockedBadges = await recordRecCall(userId, isSubscribed);
 
-    return Response.json({ recommendations: verified, key, setId });
+    return Response.json({
+      recommendations: verified,
+      key,
+      setId,
+      unlockedBadges,
+    });
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error("Recommend route error:", err);

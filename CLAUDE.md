@@ -34,6 +34,7 @@ Always use **yarn** (not npm). `package.json` has `"packageManager": "yarn@1.22.
 - `recommendation_sets` - one row per user per cache key (profile or seed). `user_key` = `${userId}:${key}`, unique. 7-day expiry via `expires_at`.
 - `recommendation_items` - individual recommendations within a set. `suggested_tmdb_id` and `suggested_media_type` are populated after TMDB validation; `raw_json` stores the full OpenAI response object.
 - `ai_popular_titles` - daily AI-curated popular titles from Reddit/online buzz (populated by cron)
+- `user_badges` - gamification awards, one row per `(user_id, badge_key)`. Unique via `user_badges_user_key_unique`. `seen` is false until the unlock modal has been shown. Awards are permanent.
 
 ## Key environment variables (`.env.local`)
 
@@ -112,6 +113,8 @@ await sql.query(`CREATE TABLE IF NOT EXISTS ...`);
 | `POST /api/recommend`                                    | AI → TMDB validation → upsert `titles` → save items (profile or seed mode) - subscription-gated |
 | `GET /api/recommendations?key=...`                       | Cached recommendation items, joined with `titles` for poster data                               |
 | `GET /api/cron/ai-popular`                               | Daily cron: OpenAI web search → TMDB → `ai_popular_titles`                                      |
+| `GET /api/badges`                                        | Evaluates all categories, then returns `{ badges, progress }`                                   |
+| `POST /api/badges`                                       | Marks badge keys as seen (`{ keys: string[] }`)                                                 |
 | `GET /api/autocomplete`                                  | TMDB title search                                                                               |
 | `GET /api/resolve-title`                                 | Advanced TMDB title resolution with scoring (used by `/open/title` page)                        |
 | `GET /api/subscription-status`                           | Returns `{ subscriptionStatus, freeRecCallsUsed }` for the current user                         |
@@ -177,6 +180,8 @@ src/components/
 │                    # WhereToWatch, TrailerWithPosterOverlay, RedditQuotes, ResultsTable,
 │                    # PosterCard, PopularTitles
 ├── search/          # Search, SearchResults
+├── badges/          # BadgeProvider, BadgeTrophyCase, BadgeUnlockModal,
+│                    # BadgeCelebration, BadgeRosette, BadgeShelf
 ├── recommendations/ # RecommendationsSection, PaywallModal
 └── watchlist/       # Watchlist, RatedTitles, UserTitleList, StarRating, WatchlistButton
 ```
@@ -204,6 +209,25 @@ Import with full paths: `@/components/title/TitleCard`, `@/components/common/Sec
 - `TitleStatusBadge` (`src/components/title/TitleStatusBadge.tsx`) - small bottom-left badge on carousel cards showing watchlist (emerald bookmark) or rated (amber star + number) status. Only visible to logged-in users.
 - Enabled via `showStatusOverlay` prop on `TitleCard` and `TitleList`. Pass `showStatusOverlay` on `TitleList` to enable per-carousel.
 - Active on AI picks, TMDB popular carousels (`PopularTitles`), and recommendations (`RecommendationsSection`). NOT active on Watchlist or RatedTitles - those use `renderItem`.
+
+### Gamification badges
+
+15 badges - 5 tiers across 3 categories. The catalogue (`src/lib/badges.ts`) is the single source of truth for thresholds, names and copy, and is imported by both server and client.
+
+| Category | Counts | Thresholds |
+| --- | --- | --- |
+| `watchlist` | `user_titles` rows with `status = 'WATCHLIST'` | 5 / 15 / 30 / 50 / 100 |
+| `rated` | `user_titles` rows with `status = 'RATED'` | 5 / 15 / 30 / 50 / 100 |
+| `recs` | `users.lifetime_rec_calls` | 1 / 3 / 10 / 25 / 50 |
+
+- **Backend-driven.** `awardBadges(userId, category)` in `src/server/badges.ts` counts, then inserts every met tier with `ON CONFLICT DO NOTHING ... RETURNING badge_key`, so it returns only genuinely new awards. Idempotent and race-safe, which matters because the `neon-http` driver has no transactions. It never throws - a badge failure must not break the write that triggered it.
+- **Two award paths.** On write (`POST /api/watchlist`, `/api/rated`, `/api/recommend` each return `unlockedBadges: string[]`), and on read - `GET /api/badges` calls `awardAllBadges` first so a user whose history predates the feature is caught up rather than seeing met-but-locked tiers.
+- **`users.lifetime_rec_calls`** exists because `free_rec_calls_used` caps at 3 and `pro_rec_calls_this_period` resets each billing cycle, so neither can drive a lifetime milestone. Incremented in `recordRecCall()` in the recommend route.
+- **Celebration policy.** `BadgeProvider` (`src/components/badges/BadgeProvider.tsx`, mounted in `providers.tsx`) queues unlocks and shows **only the highest new tier per category**, marking the rest seen silently - otherwise an established account gets a stack of modals. It also fetches `/api/badges` on mount to catch unlocks whose modal never appeared.
+- **Trophy case.** `BadgeTrophyCase.tsx` is a tab pinned to the right edge (`z-40`, under the `z-60` modal layer) showing a numberless gold rosette and an earned count; clicking it opens a tray with all three categories. It is rendered by `BadgeProvider`, so it is global - which is also the only place recommendation badges surface, since no page lists AI recommendations. Badges are deliberately *not* shown inline on `/watchlist` or `/all-rated-titles`.
+- **Progress** comes from `GET /api/badges` (`{ badges, progress }`), so the tray needs no watchlist/ratings hooks of its own.
+- **Art** is `BadgeRosette.tsx`, an original parametric SVG - 12 petals, ribbon tails, tier numeral, one palette table for all five tiers. `showNumber={false}` gives the plain rosette used as the trophy case icon. No external asset, no attribution.
+- **Animation** is `lottie-react` playing `src/components/badges/celebration.json` (extracted from `public/nice.lottie`, a dotLottie ZIP that `lottie-react` cannot read directly). Loaded via `next/dynamic` so it stays out of every other page's bundle.
 
 ## Coding conventions
 

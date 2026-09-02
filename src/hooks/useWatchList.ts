@@ -2,6 +2,7 @@
 import useSWR from "swr";
 import { useCallback } from "react";
 import type { Title, TitleMeta } from "@/types";
+import { useBadgeCelebration } from "@/components/badges/BadgeProvider";
 
 const fetcher = (url: string) =>
   fetch(url).then((r) => {
@@ -12,6 +13,7 @@ const fetcher = (url: string) =>
 type TitleInput = TitleMeta | Title;
 
 export function useWatchList() {
+  const { celebrate } = useBadgeCelebration();
   const { data, error, isLoading, mutate } = useSWR<Title[]>(
     "/api/watchlist",
     fetcher,
@@ -48,14 +50,20 @@ export function useWatchList() {
         mt = input.type as "tv" | "movie";
       }
 
-      await fetch("/api/watchlist", {
+      const res = await fetch("/api/watchlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tmdbId, mediaType: mt }),
       });
+
+      const body = (await res
+        .json()
+        .catch(() => ({}))) as { unlockedBadges?: string[] };
+      if (body.unlockedBadges?.length) celebrate(body.unlockedBadges);
+
       mutate();
     },
-    [mutate]
+    [mutate, celebrate]
   );
 
   const remove = useCallback(

@@ -31,6 +31,10 @@ export const users = pgTable("users", {
   stripeSubscriptionId: text("stripe_subscription_id"),
   subscriptionStatus: text("subscription_status"), // 'active' | 'canceled' | 'past_due' | null
   subscriptionPeriodEnd: timestamp("subscription_period_end", { withTimezone: true }),
+  // Lifetime count of AI recommendation generations. Unlike free_rec_calls_used
+  // (caps at 3) and pro_rec_calls_this_period (resets each billing cycle), this
+  // only ever increases - it drives the recommendation badge tiers.
+  lifetimeRecCalls: integer("lifetime_rec_calls").notNull().default(0),
 });
 
 export const mediaTypeEnum = pgEnum("media_type", ["tv", "movie"]);
@@ -159,4 +163,20 @@ export const recommendationItems = pgTable("recommendation_items", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
+});
+
+export const userBadges = pgTable("user_badges", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  // Badge identifier from the catalogue in src/lib/badges.ts, e.g. "rated_15"
+  badgeKey: text("badge_key").notNull(),
+  // False until the unlock modal has been shown to the user
+  seen: boolean("seen").notNull().default(false),
+  awardedAt: timestamp("awarded_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  // Unique on (user_id, badge_key) via the hand-written constraint
+  // "user_badges_user_key_unique" in drizzle/0006_user_badges.sql
 });

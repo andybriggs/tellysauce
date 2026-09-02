@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { buildRecKey } from "@/lib/recs";
 import type { SeedInput, Title } from "@/types";
+import { useBadgeCelebration } from "@/components/badges/BadgeProvider";
 
 /* ---------- Types ---------- */
 
@@ -30,6 +31,7 @@ type PostResponse = {
   recommendations?: RecItem[];
   key?: string;
   setId?: string;
+  unlockedBadges?: string[];
 };
 
 type GenerateArgs = {
@@ -73,6 +75,7 @@ async function fetchJson<T>(input: RequestInfo | URL, init?: RequestInit): Promi
 /* ---------- Hook ---------- */
 
 export function useRecommendations({ seed }: { seed?: SeedInput } = {}) {
+  const { celebrate } = useBadgeCelebration();
   const [titles, setTitles] = useState<Title[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [paywallError, setPaywallError] = useState<"free_exhausted" | "monthly_limit" | null>(null);
@@ -129,6 +132,8 @@ export function useRecommendations({ seed }: { seed?: SeedInput } = {}) {
       if (!res.ok) return;
 
       const data = (await res.json()) as PostResponse;
+      if (data.unlockedBadges?.length) celebrate(data.unlockedBadges);
+
       const mapped = (data.recommendations ?? [])
         .map((r) => recToTitle(r))
         .filter((t): t is Title => t !== null);
@@ -136,7 +141,7 @@ export function useRecommendations({ seed }: { seed?: SeedInput } = {}) {
     } finally {
       setIsLoading(false);
     }
-  }, [seed]);
+  }, [seed, celebrate]);
 
   const clearPaywall = useCallback(() => setPaywallError(null), []);
 

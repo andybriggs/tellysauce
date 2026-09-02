@@ -8,17 +8,21 @@ vi.mock("@/server/titleStore", () => ({
   getRated: vi.fn(),
   rateTitle: vi.fn(),
 }));
+vi.mock("@/server/badges", () => ({ awardBadges: vi.fn() }));
 
 import { getServerSession } from "next-auth";
 import { getRated, rateTitle } from "@/server/titleStore";
+import { awardBadges } from "@/server/badges";
 import { GET, POST } from "./route";
 
 const mockSession = vi.mocked(getServerSession);
 const mockGetRated = vi.mocked(getRated);
 const mockRateTitle = vi.mocked(rateTitle);
+const mockAwardBadges = vi.mocked(awardBadges);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockAwardBadges.mockResolvedValue([]);
 });
 
 describe("GET /api/rated", () => {
@@ -101,5 +105,39 @@ describe("POST /api/rated", () => {
     const data = await res.json();
     expect(data.ok).toBe(true);
     expect(mockRateTitle).toHaveBeenCalledWith("user-1", 550, "movie", 4);
+  });
+});
+
+describe("POST /api/rated badge unlocks", () => {
+  it("returns any badges the rating unlocked", async () => {
+    mockSession.mockResolvedValue({ user: { id: "user-1" } } as never);
+    mockRateTitle.mockResolvedValue(undefined);
+    mockAwardBadges.mockResolvedValue(["rated_5"]);
+
+    const req = new NextRequest("http://localhost/api/rated", {
+      method: "POST",
+      body: JSON.stringify({ tmdbId: 550, mediaType: "movie", rating: 4 }),
+      headers: { "Content-Type": "application/json" },
+    });
+    const res = await POST(req);
+    const data = await res.json();
+
+    expect(data.ok).toBe(true);
+    expect(data.unlockedBadges).toEqual(["rated_5"]);
+    expect(mockAwardBadges).toHaveBeenCalledWith("user-1", "rated");
+  });
+
+  it("returns an empty array when nothing unlocked", async () => {
+    mockSession.mockResolvedValue({ user: { id: "user-1" } } as never);
+    mockRateTitle.mockResolvedValue(undefined);
+
+    const req = new NextRequest("http://localhost/api/rated", {
+      method: "POST",
+      body: JSON.stringify({ tmdbId: 550, mediaType: "movie", rating: 4 }),
+      headers: { "Content-Type": "application/json" },
+    });
+    const data = await (await POST(req)).json();
+
+    expect(data.unlockedBadges).toEqual([]);
   });
 });

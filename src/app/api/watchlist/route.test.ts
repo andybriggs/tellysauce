@@ -9,18 +9,22 @@ vi.mock("@/server/titleStore", () => ({
   addToWatchlist: vi.fn(),
   removeFromWatchlist: vi.fn(),
 }));
+vi.mock("@/server/badges", () => ({ awardBadges: vi.fn() }));
 
 import { getServerSession } from "next-auth";
 import { getWatchlist, addToWatchlist, removeFromWatchlist } from "@/server/titleStore";
+import { awardBadges } from "@/server/badges";
 import { GET, POST, DELETE } from "./route";
 
 const mockSession = vi.mocked(getServerSession);
 const mockGetWatchlist = vi.mocked(getWatchlist);
 const mockAddToWatchlist = vi.mocked(addToWatchlist);
 const mockRemoveFromWatchlist = vi.mocked(removeFromWatchlist);
+const mockAwardBadges = vi.mocked(awardBadges);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockAwardBadges.mockResolvedValue([]);
 });
 
 describe("GET /api/watchlist", () => {
@@ -88,6 +92,23 @@ describe("POST /api/watchlist", () => {
     const data = await res.json();
     expect(data.ok).toBe(true);
     expect(mockAddToWatchlist).toHaveBeenCalledWith("user-1", 550, "movie");
+  });
+
+  it("returns any badges the add unlocked", async () => {
+    mockSession.mockResolvedValue({ user: { id: "user-1" } } as never);
+    mockAddToWatchlist.mockResolvedValue(undefined);
+    mockAwardBadges.mockResolvedValue(["watchlist_5"]);
+
+    const req = new NextRequest("http://localhost/api/watchlist", {
+      method: "POST",
+      body: JSON.stringify({ tmdbId: 550, mediaType: "movie" }),
+      headers: { "Content-Type": "application/json" },
+    });
+    const res = await POST(req);
+    const data = await res.json();
+
+    expect(data.unlockedBadges).toEqual(["watchlist_5"]);
+    expect(mockAwardBadges).toHaveBeenCalledWith("user-1", "watchlist");
   });
 });
 

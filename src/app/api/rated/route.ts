@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { rateTitle, getRated } from "@/server/titleStore";
+import { awardBadges } from "@/server/badges";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -24,6 +25,9 @@ export async function POST(req: Request) {
     );
   }
 
-  await rateTitle(session.user.id as string, Number(tmdbId), mediaType, rating);
-  return NextResponse.json({ ok: true });
+  const userId = session.user.id as string;
+  await rateTitle(userId, Number(tmdbId), mediaType, rating);
+
+  const unlockedBadges = await awardBadges(userId, "rated");
+  return NextResponse.json({ ok: true, unlockedBadges });
 }

@@ -64,6 +64,13 @@ export const apiHandlers = [
     HttpResponse.json({ recommendations: [] })
   ),
 
+  http.get("/api/badges", () =>
+    HttpResponse.json({
+      badges: [],
+      progress: { watchlist: 0, rated: 0, recs: 0 },
+    })
+  ),
+  http.post("/api/badges", () => HttpResponse.json({ ok: true })),
   http.get("/api/subscription-status", () =>
     HttpResponse.json({ subscriptionStatus: null, freeRecCallsUsed: 0 })
   ),

@@ -3,6 +3,7 @@
 import useSWR from "swr";
 import { useCallback, useState } from "react";
 import type { Title } from "@/types";
+import { useBadgeCelebration } from "@/components/badges/BadgeProvider";
 
 const fetcher = (url: string) =>
   fetch(url).then((r) => {
@@ -13,6 +14,7 @@ const fetcher = (url: string) =>
 const clamp = (n: number) => Math.max(1, Math.min(5, Math.round(n)));
 
 export function useRatedTitles() {
+  const { celebrate } = useBadgeCelebration();
   const [submittingIds, setSubmittingIds] = useState<Set<number>>(new Set());
 
   const {
@@ -48,7 +50,7 @@ export function useRatedTitles() {
       });
 
       try {
-        await fetch("/api/rated", {
+        const res = await fetch("/api/rated", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -57,6 +59,11 @@ export function useRatedTitles() {
             rating: clamp(rating),
           }),
         });
+
+        const body = (await res
+          .json()
+          .catch(() => ({}))) as { unlockedBadges?: string[] };
+        if (body.unlockedBadges?.length) celebrate(body.unlockedBadges);
 
         await mutate();
       } finally {
@@ -67,7 +74,7 @@ export function useRatedTitles() {
         });
       }
     },
-    [mutate]
+    [mutate, celebrate]
   );
 
   const isSubmittingAny = submittingIds.size > 0;

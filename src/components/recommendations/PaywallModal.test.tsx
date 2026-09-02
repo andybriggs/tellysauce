@@ -44,9 +44,8 @@ describe('PaywallModal', () => {
 
   it('calls onClose when clicking the backdrop', () => {
     const onClose = vi.fn();
-    const { container } = render(<PaywallModal onClose={onClose} />);
-    const backdrop = container.firstChild as HTMLElement;
-    fireEvent.click(backdrop);
+    render(<PaywallModal onClose={onClose} />);
+    fireEvent.click(screen.getByTestId('modal-backdrop'));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 

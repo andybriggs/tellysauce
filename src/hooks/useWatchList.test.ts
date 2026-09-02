@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { SWRConfig } from "swr";
 import { createElement } from "react";
@@ -16,6 +16,15 @@ const mockTitle: Title = {
   description: "A teacher turns cook.",
   year: 2008,
 };
+
+const mockCelebrate = vi.fn(() => ({ celebrate: vi.fn() }));
+vi.mock("@/components/badges/BadgeProvider", () => ({
+  useBadgeCelebration: () => mockCelebrate(),
+}));
+
+beforeEach(() => {
+  mockCelebrate.mockReturnValue({ celebrate: vi.fn() });
+});
 
 const wrapper = ({ children }: { children: React.ReactNode }) =>
   createElement(SWRConfig, { value: { provider: () => new Map() } }, children);
@@ -212,5 +221,57 @@ describe("useWatchList", () => {
 
       expect(deleteCalled).toBe(true);
     });
+  });
+});
+
+
+describe("useWatchList badge unlocks", () => {
+  it("celebrates badges returned by the write", async () => {
+    const celebrate = vi.fn();
+    mockCelebrate.mockReturnValue({ celebrate });
+    server.use(
+      http.post("/api/watchlist", () =>
+        HttpResponse.json({ ok: true, unlockedBadges: ["watchlist_5"] })
+      )
+    );
+
+    const { result } = renderHook(() => useWatchList(), { wrapper });
+    await act(async () => {
+      await result.current.add(1396, "tv");
+    });
+
+    expect(celebrate).toHaveBeenCalledWith(["watchlist_5"]);
+  });
+
+  it("does not celebrate when the write unlocks nothing", async () => {
+    const celebrate = vi.fn();
+    mockCelebrate.mockReturnValue({ celebrate });
+    server.use(
+      http.post("/api/watchlist", () =>
+        HttpResponse.json({ ok: true, unlockedBadges: [] })
+      )
+    );
+
+    const { result } = renderHook(() => useWatchList(), { wrapper });
+    await act(async () => {
+      await result.current.add(1396, "tv");
+    });
+
+    expect(celebrate).not.toHaveBeenCalled();
+  });
+
+  it("survives a write that returns no JSON body", async () => {
+    const celebrate = vi.fn();
+    mockCelebrate.mockReturnValue({ celebrate });
+    server.use(
+      http.post("/api/watchlist", () => new HttpResponse(null, { status: 200 }))
+    );
+
+    const { result } = renderHook(() => useWatchList(), { wrapper });
+    await act(async () => {
+      await result.current.add(1396, "tv");
+    });
+
+    expect(celebrate).not.toHaveBeenCalled();
   });
 });

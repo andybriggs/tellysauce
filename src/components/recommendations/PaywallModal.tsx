@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Modal from "@/components/common/Modal";
 
 type Props = {
   onClose: () => void;
@@ -24,11 +25,8 @@ export default function PaywallModal({ onClose, reason }: Props) {
   const isMonthlyLimit = reason === "monthly_limit";
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="relative w-full max-w-md bg-gray-900 rounded-3xl p-8 ring-1 ring-white/10 shadow-2xl text-center">
+    <Modal open onClose={onClose} labelledBy="paywall-title">
+      <div className="p-8">
         <button
           onClick={onClose}
           className="absolute top-4 right-5 text-gray-400 hover:text-white transition text-xl leading-none"
@@ -38,7 +36,7 @@ export default function PaywallModal({ onClose, reason }: Props) {
         </button>
 
         <div className="text-4xl mb-4">✨</div>
-        <h2 className="text-2xl font-bold text-white mb-2">
+        <h2 id="paywall-title" className="text-2xl font-bold text-white mb-2">
           {isMonthlyLimit ? "Monthly limit reached" : "Free recommendations used up"}
         </h2>
         <p className="text-gray-300 mb-6 text-sm">
@@ -88,6 +86,6 @@ export default function PaywallModal({ onClose, reason }: Props) {
           </>
         )}
       </div>
-    </div>
+    </Modal>
   );
 }

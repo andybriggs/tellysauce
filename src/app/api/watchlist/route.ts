@@ -6,6 +6,7 @@ import {
   removeFromWatchlist,
   getWatchlist,
 } from "@/server/titleStore";
+import { awardBadges } from "@/server/badges";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -27,8 +28,11 @@ export async function POST(req: Request) {
     );
   }
 
-  await addToWatchlist(session.user.id as string, Number(tmdbId), mediaType);
-  return NextResponse.json({ ok: true });
+  const userId = session.user.id as string;
+  await addToWatchlist(userId, Number(tmdbId), mediaType);
+
+  const unlockedBadges = await awardBadges(userId, "watchlist");
+  return NextResponse.json({ ok: true, unlockedBadges });
 }
 
 export async function DELETE(req: Request) {
