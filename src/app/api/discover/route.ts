@@ -47,7 +47,9 @@ export async function GET(req: Request) {
           rating: 0,
         }));
 
-        return NextResponse.json({ titles });
+        return NextResponse.json({ titles }, {
+          headers: { "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=3600" },
+        });
       } catch (err: unknown) {
         // Table may not exist yet (migration pending) — return empty gracefully
         console.error("[discover] AI source query failed:", err instanceof Error ? err.message : err);
