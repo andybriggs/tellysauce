@@ -93,7 +93,7 @@ describe("fetchAiPopularData", () => {
 
   it("returns aiReason and redditQuotes when row exists", async () => {
     mockExecute.mockResolvedValue({
-      rows: [{ ai_reason: "Trending on Reddit", reddit_quotes: [{ text: "Amazing show", subreddit: "r/tv" }] }],
+      rows: [{ tmdb_id: 1396, ai_reason: "Trending on Reddit", reddit_quotes: [{ text: "Amazing show", subreddit: "r/tv" }] }],
     });
 
     const result = await fetchAiPopularData(1396, "tv");
@@ -106,7 +106,7 @@ describe("fetchAiPopularData", () => {
 
   it("returns null aiReason when ai_reason is null", async () => {
     mockExecute.mockResolvedValue({
-      rows: [{ ai_reason: null, reddit_quotes: [] }],
+      rows: [{ tmdb_id: 603, ai_reason: null, reddit_quotes: [] }],
     });
 
     const result = await fetchAiPopularData(603, "movie");
@@ -116,7 +116,7 @@ describe("fetchAiPopularData", () => {
 
   it("returns empty redditQuotes when reddit_quotes is not an array", async () => {
     mockExecute.mockResolvedValue({
-      rows: [{ ai_reason: "Popular", reddit_quotes: null }],
+      rows: [{ tmdb_id: 603, ai_reason: "Popular", reddit_quotes: null }],
     });
 
     const result = await fetchAiPopularData(603, "movie");
@@ -130,6 +130,31 @@ describe("fetchAiPopularData", () => {
     const result = await fetchAiPopularData(99999, "movie");
 
     expect(result).toBeNull();
+  });
+
+  it("returns null for a title absent from the day's picks without a second query", async () => {
+    mockExecute.mockResolvedValue({
+      rows: [{ tmdb_id: 603, ai_reason: "Popular", reddit_quotes: [] }],
+    });
+
+    // A crawler walking arbitrary title ids must not cost an extra DB round trip
+    const result = await fetchAiPopularData(1182861, "movie");
+
+    expect(result).toBeNull();
+    expect(mockExecute).toHaveBeenCalledTimes(1);
+  });
+
+  it("looks up the right title when the day has several picks", async () => {
+    mockExecute.mockResolvedValue({
+      rows: [
+        { tmdb_id: 603, ai_reason: "Matrix reason", reddit_quotes: [] },
+        { tmdb_id: 278, ai_reason: "Shawshank reason", reddit_quotes: [] },
+      ],
+    });
+
+    const result = await fetchAiPopularData(278, "movie");
+
+    expect(result?.aiReason).toBe("Shawshank reason");
   });
 
   it("returns null when db throws", async () => {

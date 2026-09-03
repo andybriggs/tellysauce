@@ -46,45 +46,51 @@ export type AiPopularData = {
   redditQuotes: RedditQuote[];
 };
 
-const fetchAiPopularDataUncached = async (
-  tmdbId: number,
+// Keyed by tmdb_id. There are only ~10 rows per media type per day, so the
+// whole day's panel data fits in one cache entry.
+type AiPopularDataMap = Record<string, AiPopularData>;
+
+const fetchAiPopularDataMapUncached = async (
   mediaType: "movie" | "tv"
-): Promise<AiPopularData | null> => {
+): Promise<AiPopularDataMap> => {
   const result = await db.execute(sql`
-    SELECT ai_reason, reddit_quotes
+    SELECT tmdb_id, ai_reason, reddit_quotes
     FROM ai_popular_titles
-    WHERE tmdb_id = ${tmdbId}
-      AND media_type = ${mediaType}
+    WHERE media_type = ${mediaType}
       AND fetched_date = (
         SELECT MAX(fetched_date)
         FROM ai_popular_titles
         WHERE media_type = ${mediaType}
       )
-    LIMIT 1
   `);
 
-  const row = result.rows?.[0];
-  if (!row) return null;
-
-  const rawQuotes = row.reddit_quotes;
-  const redditQuotes: RedditQuote[] = Array.isArray(rawQuotes) ? rawQuotes : [];
-
-  return {
-    aiReason: (row.ai_reason as string | null) ?? null,
-    redditQuotes,
-  };
+  const map: AiPopularDataMap = {};
+  for (const row of result.rows ?? []) {
+    const rawQuotes = row.reddit_quotes;
+    map[String(row.tmdb_id)] = {
+      aiReason: (row.ai_reason as string | null) ?? null,
+      redditQuotes: Array.isArray(rawQuotes) ? rawQuotes : [],
+    };
+  }
+  return map;
 };
 
+// One cache key per media type, not one per title. Crawlers walk arbitrary
+// title ids, so a per-title key never hits and every bot request became a
+// Neon wakeup - and a wakeup bills the full idle suspend window, not the
+// 10ms the query takes. The cron writes this table once a day, so a 24h
+// revalidate is as fresh as the data ever gets.
 export async function fetchAiPopularData(
   tmdbId: number,
   mediaType: "movie" | "tv"
 ): Promise<AiPopularData | null> {
   try {
-    return await unstable_cache(
-      () => fetchAiPopularDataUncached(tmdbId, mediaType),
-      [`ai-popular-data-${tmdbId}-${mediaType}`],
-      { revalidate: 3600 }
+    const map = await unstable_cache(
+      () => fetchAiPopularDataMapUncached(mediaType),
+      [`ai-popular-data-map-${mediaType}`],
+      { revalidate: 86400 }
     )();
+    return map[String(tmdbId)] ?? null;
   } catch {
     return null;
   }
