@@ -8,7 +8,36 @@ function req(pathname: string, ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) C
   });
 }
 
+function previewReq(pathname: string) {
+  return new NextRequest(`https://tellysauce-abc123.vercel.app${pathname}`, {
+    headers: { host: "tellysauce-abc123.vercel.app" },
+  });
+}
+
 describe("middleware", () => {
+  describe("preview URL redirect", () => {
+    it("redirects .vercel.app pages to the canonical domain", () => {
+      const res = middleware(previewReq("/title/tv/12345"));
+      expect(res.status).toBe(301);
+      expect(res.headers.get("location")).toBe(
+        "https://www.tellysauce.com/title/tv/12345"
+      );
+    });
+
+    it("does NOT redirect cron routes", () => {
+      // Vercel's scheduler invokes the deployment on its .vercel.app host and
+      // does not follow redirects, so a 301 here silently kills the cron job.
+      expect(middleware(previewReq("/api/cron/ai-popular")).status).toBe(200);
+    });
+
+    it("leaves the canonical domain alone", () => {
+      const res = new NextRequest("https://www.tellysauce.com/", {
+        headers: { host: "www.tellysauce.com" },
+      });
+      expect(middleware(res).status).toBe(200);
+    });
+  });
+
   describe("scanner path blocking", () => {
     it.each([
       "/.git/config",

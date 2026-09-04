@@ -16,8 +16,12 @@ export function middleware(request: NextRequest) {
   const ua = request.headers.get("user-agent") ?? "";
   const host = request.headers.get("host") ?? "";
 
-  // Redirect Vercel preview URLs to the canonical production domain
-  if (host.endsWith(".vercel.app")) {
+  // Redirect Vercel preview URLs to the canonical production domain.
+  // Cron is exempt: Vercel's scheduler invokes the deployment on its
+  // .vercel.app host and does not follow redirects, so redirecting here
+  // silently stops the job from ever running. The route authenticates on
+  // CRON_SECRET before doing any work, so letting it through is safe.
+  if (host.endsWith(".vercel.app") && !pathname.startsWith("/api/cron/")) {
     const url = new URL(request.url);
     url.host = "www.tellysauce.com";
     url.protocol = "https:";
