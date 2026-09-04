@@ -15,26 +15,17 @@ function previewReq(pathname: string) {
 }
 
 describe("middleware", () => {
-  describe("preview URL redirect", () => {
-    it("redirects .vercel.app pages to the canonical domain", () => {
-      const res = middleware(previewReq("/title/tv/12345"));
-      expect(res.status).toBe(301);
-      expect(res.headers.get("location")).toBe(
-        "https://www.tellysauce.com/title/tv/12345"
-      );
+  describe("host handling", () => {
+    // A .vercel.app -> canonical domain redirect used to live here. It caught
+    // Vercel's cron scheduler, which invokes the deployment on its .vercel.app
+    // host and does not follow redirects, silently killing the daily job. The
+    // middleware must not redirect on host.
+    it("does not redirect requests on the .vercel.app host", () => {
+      expect(middleware(previewReq("/title/tv/12345")).status).toBe(200);
     });
 
-    it("does NOT redirect cron routes", () => {
-      // Vercel's scheduler invokes the deployment on its .vercel.app host and
-      // does not follow redirects, so a 301 here silently kills the cron job.
+    it("lets cron through on the .vercel.app host", () => {
       expect(middleware(previewReq("/api/cron/ai-popular")).status).toBe(200);
-    });
-
-    it("leaves the canonical domain alone", () => {
-      const res = new NextRequest("https://www.tellysauce.com/", {
-        headers: { host: "www.tellysauce.com" },
-      });
-      expect(middleware(res).status).toBe(200);
     });
   });
 
