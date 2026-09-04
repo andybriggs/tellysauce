@@ -8,6 +8,11 @@ vi.mock("@/db", () => ({
   },
 }));
 
+vi.mock("next/cache", () => ({
+  revalidateTag: vi.fn(),
+  unstable_cache: (fn: () => unknown) => fn,
+}));
+
 vi.mock("@/server/tmdb", () => ({
   TMDB_BASE: "https://api.themoviedb.org/3",
   searchTmdbByTitle: vi.fn(),
@@ -31,6 +36,7 @@ vi.mock("@/lib/ai", () => {
 });
 
 import { db } from "@/db";
+import { revalidateTag } from "next/cache";
 import { searchTmdbByTitle } from "@/server/tmdb";
 import { GET } from "./route";
 import { prioritiseNewTitles } from "./helpers";
@@ -216,6 +222,64 @@ describe("GET /api/cron/ai-popular", () => {
 
     expect(data.movies).toBe(0);
     expect(data.tv).toBe(0);
+  });
+
+  it("invalidates the AI popular cache after writing", async () => {
+    const structuredTitle = {
+      title: "A Show",
+      description: "Overview.",
+      reason: "Popular",
+      tags: ["drama"],
+      year: 2024,
+    };
+
+    const { mockResponsesCreate } = await getMocks();
+    mockResponsesCreate
+      .mockResolvedValueOnce(makeStructuredResponse([structuredTitle]))
+      .mockResolvedValueOnce(makeStructuredResponse([structuredTitle]));
+    mockSearchTmdbByTitle.mockResolvedValue({
+      id: 7777,
+      title: "A Show",
+      posterPath: "/p.jpg",
+      overview: "Overview.",
+      year: 2024,
+    });
+
+    const res = await GET(makeRequest("Bearer test-cron-secret"));
+
+    expect(res.status).toBe(200);
+    // Without this the 24h read cache would hide the new picks for most of a day
+    expect(vi.mocked(revalidateTag)).toHaveBeenCalledWith("ai-popular");
+  });
+
+  it("still reports success when cache invalidation throws", async () => {
+    const structuredTitle = {
+      title: "A Show",
+      description: "Overview.",
+      reason: "Popular",
+      tags: ["drama"],
+      year: 2024,
+    };
+
+    const { mockResponsesCreate } = await getMocks();
+    mockResponsesCreate
+      .mockResolvedValueOnce(makeStructuredResponse([structuredTitle]))
+      .mockResolvedValueOnce(makeStructuredResponse([structuredTitle]));
+    mockSearchTmdbByTitle.mockResolvedValue({
+      id: 7777,
+      title: "A Show",
+      posterPath: "/p.jpg",
+      overview: "Overview.",
+      year: 2024,
+    });
+    vi.mocked(revalidateTag).mockImplementationOnce(() => {
+      throw new Error("no store");
+    });
+
+    // The rows are already written, so this must not be reported as a failure
+    const res = await GET(makeRequest("Bearer test-cron-secret"));
+
+    expect(res.status).toBe(200);
   });
 
   it("returns 500 when OpenAI web search throws", async () => {

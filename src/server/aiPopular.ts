@@ -4,6 +4,9 @@ import { sql } from "drizzle-orm";
 import type { Title } from "@/types";
 import type { RedditQuote } from "@/types/reddit";
 
+/** Invalidated by the cron once it has written a fresh day of picks. */
+export const AI_POPULAR_TAG = "ai-popular";
+
 const fetchAiPopularTitlesUncached = async (
   mediaType: "movie" | "tv"
 ): Promise<Title[]> => {
@@ -34,7 +37,7 @@ export async function fetchAiPopularTitles(
     return await unstable_cache(
       () => fetchAiPopularTitlesUncached(mediaType),
       [`ai-popular-${mediaType}`],
-      { revalidate: 86400 }
+      { revalidate: 86400, tags: [AI_POPULAR_TAG] }
     )();
   } catch {
     return [];
@@ -88,7 +91,7 @@ export async function fetchAiPopularData(
     const map = await unstable_cache(
       () => fetchAiPopularDataMapUncached(mediaType),
       [`ai-popular-data-map-${mediaType}`],
-      { revalidate: 86400 }
+      { revalidate: 86400, tags: [AI_POPULAR_TAG] }
     )();
     return map[String(tmdbId)] ?? null;
   } catch {

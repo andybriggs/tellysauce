@@ -1,6 +1,8 @@
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
+import { revalidateTag } from "next/cache";
 import { randomUUID } from "crypto";
+import { AI_POPULAR_TAG } from "@/server/aiPopular";
 import { searchTmdbByTitle, tmdbImg } from "@/server/tmdb";
 import type { RedditQuote } from "@/types/reddit";
 import { openai } from "@/lib/ai";
@@ -300,6 +302,16 @@ export async function GET(req: Request) {
       saveBatch(movieResolved, "movie", fetchedDate),
       saveBatch(tvResolved, "tv", fetchedDate),
     ]);
+
+    // The read helpers cache for 24h, so without this the new picks could sit
+    // invisible behind a stale cache entry for most of a day. The rows are
+    // already written by this point, so a failure here must not report the
+    // whole job as failed - it just means the picks surface a bit later.
+    try {
+      revalidateTag(AI_POPULAR_TAG);
+    } catch (err) {
+      console.error("[ai-popular] revalidateTag failed:", err);
+    }
 
     return Response.json({
       ok: true,
