@@ -149,7 +149,9 @@ For each title return:
 
 Your entire response must be the JSON object described in the output schema — 12 titles, no preamble, no extra text.`;
 
-  const MAX_ATTEMPTS = 3;
+  // Two, not three: a single call can sit for ~200s before the API returns a 429,
+  // so a third attempt cannot fit inside the 300s maxDuration anyway.
+  const MAX_ATTEMPTS = 2;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     let text = "";
@@ -160,7 +162,7 @@ Your entire response must be the JSON object described in the output schema — 
         tools: [
           {
             type: "web_search",
-            search_context_size: "high",
+            search_context_size: "low",
             user_location: { type: "approximate", country: AI_POPULAR_REGION },
           },
         ],
@@ -210,7 +212,7 @@ Your entire response must be the JSON object described in the output schema — 
       // the run — anything else is a real error and should surface immediately.
       const status = (err as { status?: number })?.status;
       if (status === 429 && attempt < MAX_ATTEMPTS) {
-        const waitMs = 20_000 * attempt;
+        const waitMs = 10_000 * attempt;
         console.warn(
           `[ai-popular] Rate limited for ${mediaType}, retrying in ${waitMs}ms (attempt ${attempt}/${MAX_ATTEMPTS})`
         );
@@ -397,37 +399,38 @@ export async function GET(req: Request) {
 
   const fetchedDate = new Date().toISOString().slice(0, 10);
 
+  // One media type per invocation. Each grounded web search takes ~90s, so doing
+  // both plus any 429 backoff overran the 300s maxDuration and the whole run was
+  // lost to a FUNCTION_INVOCATION_TIMEOUT. vercel.json schedules movie and tv
+  // separately; omitting the param still does both, which is handy for local runs.
+  const typeParam = new URL(req.url).searchParams.get("type");
+  if (typeParam && typeParam !== "movie" && typeParam !== "tv") {
+    return Response.json(
+      { error: "type must be 'movie' or 'tv'" },
+      { status: 400 }
+    );
+  }
+  const mediaTypes: Array<"movie" | "tv"> = typeParam
+    ? [typeParam as "movie" | "tv"]
+    : ["movie", "tv"];
+
   try {
-    // Stage 1: grounded web search + JSON structuring in a single call per media
-    // type. Deliberately sequential: a high-context web search is ~70-80k tokens
-    // and the account TPM limit is 200k, so firing both at once risks a 429 that
-    // takes out the whole run. maxDuration is 300s, which is ample for two.
-    const movieRecs = await fetchGroundedTitles("movie");
-    const tvRecs = await fetchGroundedTitles("tv");
+    // Response keys stay "movies"/"tv" as before so existing callers and tests
+    // do not have to care that invocations are now split.
+    const counts: Record<string, number> = {};
 
-    console.log(
-      `[ai-popular] Stage 1 results: movies=${movieRecs.length}, tv=${tvRecs.length}`
-    );
-    if (movieRecs.length === 0)
-      console.error("[ai-popular] Stage 1 produced 0 movie recs");
-    if (tvRecs.length === 0)
-      console.error("[ai-popular] Stage 1 produced 0 tv recs");
+    for (const mediaType of mediaTypes) {
+      const recs = await fetchGroundedTitles(mediaType);
+      console.log(`[ai-popular] Stage 1 ${mediaType}: ${recs.length} recs`);
+      if (recs.length === 0)
+        console.error(`[ai-popular] Stage 1 produced 0 ${mediaType} recs`);
 
-    // Stage 2: resolve to TMDB IDs + enrich with poster/description
-    const [movieResolved, tvResolved] = await Promise.all([
-      resolveRecs(movieRecs, "movie"),
-      resolveRecs(tvRecs, "tv"),
-    ]);
+      const resolved = await resolveRecs(recs, mediaType);
+      console.log(`[ai-popular] Stage 2 ${mediaType}: ${resolved.length} resolved`);
 
-    console.log(
-      `[ai-popular] Stage 2 results: movies=${movieResolved.length}, tv=${tvResolved.length}`
-    );
-
-    // Save to DB
-    await Promise.all([
-      saveBatch(movieResolved, "movie", fetchedDate),
-      saveBatch(tvResolved, "tv", fetchedDate),
-    ]);
+      await saveBatch(resolved, mediaType, fetchedDate);
+      counts[mediaType === "movie" ? "movies" : "tv"] = resolved.length;
+    }
 
     // The read helpers cache for 24h, so without this the new picks could sit
     // invisible behind a stale cache entry for most of a day. The rows are
@@ -439,12 +442,7 @@ export async function GET(req: Request) {
       console.error("[ai-popular] revalidateTag failed:", err);
     }
 
-    return Response.json({
-      ok: true,
-      fetchedDate,
-      movies: movieResolved.length,
-      tv: tvResolved.length,
-    });
+    return Response.json({ ok: true, fetchedDate, ...counts });
   } catch (err) {
     console.error("[ai-popular] Cron job failed:", err);
     return Response.json(
