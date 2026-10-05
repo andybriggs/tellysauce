@@ -76,14 +76,39 @@ describe('PopularTitles', () => {
     mockUseDiscoverTitles.mockReturnValue({ titles: [], isLoading: false, error: null });
   });
 
-  it('renders the TMDB movies section title', () => {
+  it('renders the popular movies section title', () => {
     render(<PopularTitles type="movie" />, { wrapper });
-    expect(screen.getByText(/TMDB Popular movies/i)).toBeInTheDocument();
+    expect(screen.getByText(/Popular movies/i)).toBeInTheDocument();
   });
 
-  it('renders the TMDB TV shows section title', () => {
+  it('renders the popular TV shows section title', () => {
     render(<PopularTitles type="tv" />, { wrapper });
-    expect(screen.getByText(/TMDB Popular TV shows/i)).toBeInTheDocument();
+    expect(screen.getByText(/Popular TV shows/i)).toBeInTheDocument();
+  });
+
+  it('prefers an explicit title prop over the default heading', () => {
+    render(<PopularTitles type="tv" source="regional" title="📺 New & returning in Ireland" />, { wrapper });
+    expect(screen.getByText('📺 New & returning in Ireland')).toBeInTheDocument();
+  });
+
+  it('hides timeframe tabs for the regional source', () => {
+    mockUseDiscoverTitles.mockReturnValue({ titles: mockTitles, isLoading: false, error: null });
+    render(<PopularTitles type="tv" source="regional" />, { wrapper });
+    expect(screen.queryByRole('tab', { name: 'Recent' })).toBeNull();
+    expect(screen.queryByRole('tab', { name: 'All time' })).toBeNull();
+  });
+
+  it('passes the resolved region through for the regional source', () => {
+    render(<PopularTitles type="tv" source="regional" />, { wrapper });
+    expect(mockUseDiscoverTitles).toHaveBeenCalledWith(
+      'tv',
+      expect.objectContaining({ source: 'regional', timeframe: undefined, region: 'GB' })
+    );
+  });
+
+  it('shows regional empty-state copy when the region has nothing airing', () => {
+    render(<PopularTitles type="tv" source="regional" />, { wrapper });
+    expect(screen.getByText(/Nothing airing in this region/i)).toBeInTheDocument();
   });
 
   it('renders the AI picks movie title when source is ai', () => {

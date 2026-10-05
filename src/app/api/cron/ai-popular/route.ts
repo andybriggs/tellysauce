@@ -22,8 +22,59 @@ type CronRec = {
   reason: string;
   tags: string[];
   year: number | null;
+  /** Latest episode air date or release date, as the model reports it. */
+  lastAired: string | null;
   quotes: RedditQuote[];
 };
+
+/**
+ * The cron has no user, so AI picks are grounded to one configured market.
+ * Making them genuinely per-region needs a `region` column on
+ * ai_popular_titles and one run per region.
+ */
+const AI_POPULAR_REGION = (process.env.AI_POPULAR_REGION ?? "GB").toUpperCase();
+
+/** Streaming services and editorial sources that actually exist in a market. */
+const REGION_CONTEXT: Record<
+  string,
+  { market: string; services: string; sources: string[]; subreddits: string[] }
+> = {
+  GB: {
+    market: "the United Kingdom and Ireland",
+    services:
+      "BBC iPlayer, ITVX, Channel 4, Sky/NOW, Netflix, Prime Video, Disney+, Apple TV+",
+    sources: [
+      "The Guardian TV reviews and What's On guides",
+      "Radio Times",
+      "The Times and Telegraph TV critics",
+    ],
+    subreddits: ["uktv", "britishtv"],
+  },
+  US: {
+    market: "the United States and Canada",
+    services:
+      "Netflix, Hulu, Max, Prime Video, Disney+, Apple TV+, Paramount+, Peacock",
+    sources: [
+      "Variety and The Hollywood Reporter",
+      "Vulture and The New York Times TV critics",
+    ],
+    subreddits: ["NetflixBestOf"],
+  },
+  AU: {
+    market: "Australia and New Zealand",
+    services:
+      "ABC iview, SBS On Demand, Stan, BINGE, Netflix, Prime Video, Disney+, Apple TV+",
+    sources: [
+      "The Guardian Australia TV reviews",
+      "The Sydney Morning Herald TV critics",
+    ],
+    subreddits: ["australiantv"],
+  },
+};
+
+function regionContext(region: string) {
+  return REGION_CONTEXT[region] ?? REGION_CONTEXT.GB;
+}
 
 /** ------------------------------------------------------------------ */
 /** Stage 1: Grounded web search + JSON structuring in one call        */
@@ -31,83 +82,151 @@ type CronRec = {
 
 async function fetchGroundedTitles(mediaType: "movie" | "tv"): Promise<CronRec[]> {
   const kind = mediaType === "movie" ? "movies" : "TV shows";
-  const currentYear = new Date().getFullYear();
-  const prompt = `Search the following sources for the 12 most popular and well-received ${kind} right now:
+  const isMovie = mediaType === "movie";
+  const ctx = regionContext(AI_POPULAR_REGION);
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+  // The window the title itself must fall inside — "right now" is meaningless
+  // to a model with no date anchor, so state the boundary explicitly.
+  const windowDays = isMovie ? 70 : 56;
+  const windowStart = new Date(now.getTime() - windowDays * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+
+  const sourceLines = [
+    `- IMDb: Most Popular ${isMovie ? "Movies" : "TV Shows"} chart`,
+    `- Rotten Tomatoes: Most Popular and Certified Fresh ${kind} this week`,
+    `- Metacritic: highest-scoring new ${isMovie ? "movie" : "TV"} releases`,
+    ...ctx.sources.map((src) => `- ${src}`),
+    `- Reddit: ${[
+      ...(isMovie
+        ? ["movies", "MovieSuggestions", "TrueFilm", "letterboxd"]
+        : ["television", "NetflixBestOf"]),
+      ...ctx.subreddits,
+    ]
+      .map((sub) => `r/${sub}`)
+      .join(", ")} — high-upvote threads from the past 7 days`,
+  ].join("\n");
+
+  const prompt = `Today's date is ${today}. Use web search to find what is genuinely popular AS OF TODAY — do not rely on your own training knowledge, which is older than today's date and will give you stale titles.
+
+TASK: find the 12 ${kind} that viewers in ${ctx.market} are most enthusiastic about right now.
 
 SOURCES TO SEARCH:
-- IMDb: US Most Popular ${kind === "movies" ? "Movies" : "TV Shows"} chart (US ranking only — ignore the global chart which is skewed by non-Western audiences) and Top Rated recent releases
-- Rotten Tomatoes: Most Popular and Certified Fresh ${kind === "movies" ? "movies" : "TV shows"} this week
-- Metacritic: Highest-scoring new ${kind === "movies" ? "movie" : "TV"} releases
-- Reddit: r/${kind === "movies" ? "movies, r/MovieSuggestions, r/TrueFilm, r/criterion, r/letterboxd" : "television, r/NetflixBestOf, r/television"} — high-upvote threads from the past 7 days
+${sourceLines}
 
-Combine signals from all sources. A title appearing across multiple sources is a strong signal. Prioritise genuine quality and audience enthusiasm.
+Combine signals across sources. A title appearing in several is a strong signal. Prioritise genuine quality and audience enthusiasm over marketing noise.
 
 RULES — follow all of these strictly:
 
-1. RECENCY: Only include ${kind} released in ${currentYear - 2} or later. The only exception is a title released before ${currentYear - 2} that is trending RIGHT NOW due to a specific recent event (new season, award win, sequel) — at most 1 such exception.
+1. RECENCY — this is the most important rule. ${
+    isMovie
+      ? `Every film must have had its cinema release or streaming debut between ${windowStart} and ${today}.`
+      : `Every show must have had a NEW EPISODE broadcast or released between ${windowStart} and ${today}. A show whose latest season finished before ${windowStart} does not qualify, however good it was. Returning seasons of established shows are very much wanted — a long-running show airing a new season right now belongs on this list.`
+  } If you cannot confirm from search results that a title meets this window, leave it out and find another.
 
-2. MAINSTREAM APPEAL: Wide theatrical releases, major streaming titles (Netflix, Prime, Disney+, Apple TV+, HBO/Max), or shows with large viewership numbers. No niche cult titles.
+2. INCLUDE LOCAL TITLES: ${ctx.market} produces its own ${kind}, and these are often missed in favour of big US releases. Actively look for domestic productions currently airing or just released there. At least 4 of the 12 should be ${
+    isMovie ? "locally or co-produced" : "domestic or local co-productions"
+  } if that many qualify.
 
-3. GENRE BALANCE: Spread across genres. At most 1 horror or thriller. Prioritise drama, comedy, action, sci-fi, animation, documentary. No multiple titles from the same franchise.
+3. AVAILABILITY: the title should be watchable in ${ctx.market} — in cinemas, on broadcast, or on one of: ${ctx.services}. Do not cite a service unavailable in that market.
 
-4. REGIONAL FOCUS: English-speaking markets (US, UK, AU, CA, IE) and Western Europe. Exclude all non-Western productions (South Asian, East Asian, etc.) unless the title was: (a) distributed theatrically in US/UK cinemas by a major studio or streamer, AND (b) reviewed positively by mainstream English-language critics (e.g. The Guardian, NYT, Variety, IndieWire). High IMDb global rankings or large diaspora viewership in English-speaking countries do NOT count as crossover. Bollywood titles are excluded unless they meet both criteria above.
+4. GENRE BALANCE: spread across genres. At most 1 horror and at most 2 thrillers. No two titles from the same franchise. Exclude daily/continuing output entirely — no soaps, no talk shows, no panel shows, no news, no live sport, no reality competitions.
 
-5. NO DUPLICATES: Every title must appear exactly once.
+5. LANGUAGE: English-language productions, or productions with a major English-language release in ${ctx.market}. Exclude titles whose primary audience is outside Western markets unless they had a wide ${ctx.market} release and were reviewed by mainstream English-language critics.
+
+6. NO DUPLICATES: every title exactly once.
 
 For each title return:
-- title: the film or show name
-- year: release year as an integer if known, otherwise null
-- description: what it is in 10 words or fewer
-- reason: why it is popular right now in 10 words or fewer
-- tags: 3–5 genre/style tags
+- title: the exact ${isMovie ? "film" : "show"} name as it would appear on IMDb or TMDB
+- year: ${isMovie ? "release year" : "year the show FIRST aired, not the current season's year"} as an integer, or null if unknown
+- lastAired: the date of ${
+    isMovie ? "its release" : "its most recent episode"
+  } in YYYY-MM-DD form, as precisely as your search results support. This is evidence for rule 1 — do not guess it.
+- description: what it is, 10 words or fewer
+- reason: why it is popular right now, 10 words or fewer
+- tags: 3-5 genre/style tags
 
 Your entire response must be the JSON object described in the output schema — 12 titles, no preamble, no extra text.`;
 
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    const res = await openai.responses.create({
-      model: "gpt-4o-mini",
-      tools: [{ type: "web_search_preview" }],
-      input: prompt,
-      text: {
-        format: {
-          type: "json_schema",
-          name: "title_list",
-          strict: true,
-          schema: {
-            type: "object",
-            properties: {
-              titles: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    title: { type: "string" },
-                    description: { type: "string" },
-                    reason: { type: "string" },
-                    tags: { type: "array", items: { type: "string" } },
-                    year: { anyOf: [{ type: "integer" }, { type: "null" }] },
+  const MAX_ATTEMPTS = 3;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    let text = "";
+
+    try {
+      const res = await openai.responses.create({
+        model: "gpt-6-luna",
+        tools: [
+          {
+            type: "web_search",
+            search_context_size: "high",
+            user_location: { type: "approximate", country: AI_POPULAR_REGION },
+          },
+        ],
+        input: prompt,
+        text: {
+          format: {
+            type: "json_schema",
+            name: "title_list",
+            strict: true,
+            schema: {
+              type: "object",
+              properties: {
+                titles: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      title: { type: "string" },
+                      description: { type: "string" },
+                      reason: { type: "string" },
+                      tags: { type: "array", items: { type: "string" } },
+                      year: { anyOf: [{ type: "integer" }, { type: "null" }] },
+                      lastAired: { anyOf: [{ type: "string" }, { type: "null" }] },
+                    },
+                    required: [
+                      "title",
+                      "description",
+                      "reason",
+                      "tags",
+                      "year",
+                      "lastAired",
+                    ],
+                    additionalProperties: false,
                   },
-                  required: ["title", "description", "reason", "tags", "year"],
-                  additionalProperties: false,
                 },
               },
+              required: ["titles"],
+              additionalProperties: false,
             },
-            required: ["titles"],
-            additionalProperties: false,
           },
         },
-      },
-    });
-
-    const text = res.output_text ?? "";
+      });
+      text = res.output_text ?? "";
+    } catch (err) {
+      // A high-context web search is ~70-80k tokens, so a burst can trip the
+      // per-minute token limit. That is worth waiting out rather than failing
+      // the run — anything else is a real error and should surface immediately.
+      const status = (err as { status?: number })?.status;
+      if (status === 429 && attempt < MAX_ATTEMPTS) {
+        const waitMs = 20_000 * attempt;
+        console.warn(
+          `[ai-popular] Rate limited for ${mediaType}, retrying in ${waitMs}ms (attempt ${attempt}/${MAX_ATTEMPTS})`
+        );
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+        continue;
+      }
+      throw err;
+    }
 
     if (!text) {
       console.warn(
-        `[ai-popular] OpenAI web search returned empty response for ${mediaType} (attempt ${attempt}/2)`
+        `[ai-popular] OpenAI web search returned empty response for ${mediaType} (attempt ${attempt}/${MAX_ATTEMPTS})`
       );
-      if (attempt < 2) continue;
+      if (attempt < MAX_ATTEMPTS) continue;
       throw new Error(
-        `OpenAI web search returned empty response for ${mediaType} after 2 attempts`
+        `OpenAI web search returned empty response for ${mediaType} after ${MAX_ATTEMPTS} attempts`
       );
     }
 
@@ -123,11 +242,11 @@ Your entire response must be the JSON object described in the output schema — 
 
       if (recs.length === 0) {
         console.warn(
-          `[ai-popular] Structured response contained 0 titles for ${mediaType} (attempt ${attempt}/2)`
+          `[ai-popular] Structured response contained 0 titles for ${mediaType} (attempt ${attempt}/${MAX_ATTEMPTS})`
         );
-        if (attempt < 2) continue;
+        if (attempt < MAX_ATTEMPTS) continue;
         throw new Error(
-          `Structured response contained 0 titles for ${mediaType} after 2 attempts`
+          `Structured response contained 0 titles for ${mediaType} after ${MAX_ATTEMPTS} attempts`
         );
       }
 
@@ -146,12 +265,18 @@ Your entire response must be the JSON object described in the output schema — 
         reason: r.reason,
         tags: r.tags,
         year: r.year,
+        lastAired: r.lastAired ?? null,
         quotes: [],
       }));
     } catch (err) {
-      console.warn(`[ai-popular] Failed to parse structured response for ${mediaType} (attempt ${attempt}/2):`, err);
-      if (attempt < 2) continue;
-      throw new Error(`Failed to parse structured response for ${mediaType} after 2 attempts`);
+      console.warn(
+        `[ai-popular] Failed to parse structured response for ${mediaType} (attempt ${attempt}/${MAX_ATTEMPTS}):`,
+        err
+      );
+      if (attempt < MAX_ATTEMPTS) continue;
+      throw new Error(
+        `Failed to parse structured response for ${mediaType} after ${MAX_ATTEMPTS} attempts`
+      );
     }
   }
 
@@ -273,11 +398,12 @@ export async function GET(req: Request) {
   const fetchedDate = new Date().toISOString().slice(0, 10);
 
   try {
-    // Stage 1: grounded web search + JSON structuring in a single call per media type
-    const [movieRecs, tvRecs] = await Promise.all([
-      fetchGroundedTitles("movie"),
-      fetchGroundedTitles("tv"),
-    ]);
+    // Stage 1: grounded web search + JSON structuring in a single call per media
+    // type. Deliberately sequential: a high-context web search is ~70-80k tokens
+    // and the account TPM limit is 200k, so firing both at once risks a 429 that
+    // takes out the whole run. maxDuration is 300s, which is ample for two.
+    const movieRecs = await fetchGroundedTitles("movie");
+    const tvRecs = await fetchGroundedTitles("tv");
 
     console.log(
       `[ai-popular] Stage 1 results: movies=${movieRecs.length}, tv=${tvRecs.length}`

@@ -15,6 +15,9 @@ import useIsLoggedIn from "@/hooks/useIsLoggedIn";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 import PopularTitles from "@/components/title/PopularTitles";
 import HeroSection from "@/components/layout/HeroSection";
+import RegionPicker from "@/components/common/RegionPicker";
+import { useRegion } from "@/hooks/useRegion";
+import { isSupportedRegion, regionLabel } from "@/lib/region";
 import type { Title } from "@/types";
 
 export default function HomeClient({
@@ -28,6 +31,7 @@ export default function HomeClient({
 
   const isLoggedIn = useIsLoggedIn();
   const subStatus = useSubscriptionStatus();
+  const { region } = useRegion();
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
 
   // Detect ?subscription=success redirect from Stripe
@@ -85,6 +89,7 @@ export default function HomeClient({
       <HeroSection>
         <Container>
           <div className="flex p-4 justify-end items-center gap-3 relative z-11">
+            <RegionPicker />
             {isLoggedIn && subStatus?.subscriptionStatus === "active" && (
               <button
                 onClick={handleManageSubscription}
@@ -136,6 +141,13 @@ export default function HomeClient({
       <div className="max-w-screen-xl mx-auto p-8">
         <PopularTitles source="ai" initialTitles={aiMovies} />
         <PopularTitles source="ai" type="tv" initialTitles={aiTv} />
+        {isSupportedRegion(region) && (
+          <PopularTitles
+            source="regional"
+            type="tv"
+            title={`📺 New & returning in ${regionLabel(region)}`}
+          />
+        )}
         <PopularTitles />
         <PopularTitles type="tv" />
         {isLoggedIn && (

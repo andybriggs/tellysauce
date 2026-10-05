@@ -2,6 +2,7 @@
 import { SessionProvider } from "next-auth/react";
 import type { Session } from "next-auth";
 import BadgeProvider from "@/components/badges/BadgeProvider";
+import RegionProvider from "@/components/common/RegionProvider";
 
 export default function Providers({
   children,
@@ -12,7 +13,9 @@ export default function Providers({
 }) {
   return (
     <SessionProvider session={session}>
-      <BadgeProvider>{children}</BadgeProvider>
+      <RegionProvider>
+        <BadgeProvider>{children}</BadgeProvider>
+      </RegionProvider>
     </SessionProvider>
   );
 }

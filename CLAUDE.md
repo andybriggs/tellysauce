@@ -46,6 +46,7 @@ Always use **yarn** (not npm). `package.json` has `"packageManager": "yarn@1.22.
 - `STRIPE_SECRET_KEY` - Stripe secret key (`sk_test_...` locally, `sk_live_...` on Vercel)
 - `STRIPE_WEBHOOK_SECRET` - Stripe webhook signing secret. **Local dev**: use the `whsec_...` printed by `stripe listen` (different from the dashboard secret). **Vercel**: use the secret from the dashboard webhook endpoint.
 - `STRIPE_PRICE_ID` - Stripe Price ID (`price_...`) for the £1.99/month TellySauce Pro plan
+- `AI_POPULAR_REGION` - ISO country code the AI picks cron grounds itself to (default `GB`). Drives `user_location` on the web search plus the services/sources named in the prompt.
 - `OMDB_API_KEY` - OMDb API key for IMDb and Rotten Tomatoes ratings on the title detail page. Free (1,000 req/day) from omdbapi.com. If absent, both rating pills are hidden.
 
 ## Important patterns
@@ -56,7 +57,7 @@ All AI calls use the shared client from `src/lib/ai.ts` (`openai` instance, `ope
 
 **Recommendations** (`src/app/api/recommend/route.ts`) - pipeline per request:
 
-1. `openai.chat.completions.create` with `response_format: { type: "json_schema", ... }` (strict structured output). Schema includes `mediaType: enum["movie","tv"]` on each item.
+1. `openai.chat.completions.create` (`gpt-6-luna`, in `src/server/recommendations.ts`) with `response_format: { type: "json_schema", ... }` (strict structured output). Schema includes `mediaType: enum["movie","tv"]` on each item.
 2. Parallel TMDB search per recommendation (`/search/movie` or `/search/tv`) - year-constrained first, then unconstrained fallback. Unresolvable titles are filtered out.
 3. Each verified title is upserted into the shared `titles` table (`ON CONFLICT (tmdb_id, media_type) DO UPDATE`).
 4. Results saved to `recommendation_items` with `suggested_tmdb_id` and `suggested_media_type` populated.
@@ -66,12 +67,39 @@ All AI calls use the shared client from `src/lib/ai.ts` (`openai` instance, `ope
 - Cache read: `GET /api/recommendations?key=...` - joins `recommendation_items` with `titles` to return `poster`.
 - Service functions (`callOpenAI`, `validateAndEnrich`, `upsertTitle`, `upsertRecommendationSet`, `replaceRecommendationItems`) live in `src/server/recommendations.ts` and are imported by the route. The `Rec` type is exported from there too.
 
-**Cron** (`src/app/api/cron/ai-popular/route.ts`) - 4-stage pipeline:
+**Cron** (`src/app/api/cron/ai-popular/route.ts`) - 2-stage pipeline:
 
-1. **Stage 1** - web search: `openai.responses.create` with model `gpt-4o-mini-search-preview` + `web_search_preview` tool. Returns pipe-delimited text of trending titles from Reddit.
-2. **Stage 2** - JSON structuring: `gpt-4o-mini` chat completions with `json_schema`. Parses the Stage 1 text into structured `{ titles: [...] }`.
-3. **Stage 3** - TMDB resolution: fetches poster/description from TMDB for each title.
-4. **Stage 3.5** - quote generation: `gpt-4o-mini` chat completions with `json_schema`. Generates Reddit-style viewer quotes per title.
+1. **Stage 1** - grounded web search + JSON structuring in a **single** `openai.responses.create` call: model `gpt-6-luna`, the modern `web_search` tool (`search_context_size: "high"`, `user_location` from `AI_POPULAR_REGION`), and a strict `json_schema` output. Runs once per media type, **sequentially** - a high-context search is ~70-80k tokens against a 200k TPM limit, so firing movie and TV in parallel risks a 429 taking out the whole run. Retries up to 3 times, with backoff on 429 specifically.
+2. **Stage 2** - TMDB resolution: `searchTmdbByTitle` per title, in batches of 5, then poster/description enrichment.
+
+The prompt **must** state today's date. Without a date anchor the model answers from its training distribution, which is how the carousels previously ended up showing titles that were popular at the model's training cutoff rather than now. The schema also requires a `lastAired` date per title as checkable evidence for the recency rule.
+
+**Dead code to be aware of**: the Reddit quote feature is wired end to end (the `reddit_quotes` jsonb column, the `RedditQuote` type, the `fetchAiPopularData` read helper and the `RedditQuotes` UI component all exist) but Stage 1 hardcodes `quotes: []`, so the column is always written as `NULL`. Nothing renders.
+
+### Region handling
+
+Region is a single shared setting, not a per-component constant. `src/lib/region.ts` owns it:
+
+- `WATCH_REGION_KEY` is the **existing** `"watch_region"` localStorage key, so a region chosen on a title page and one chosen in the header are the same choice.
+- `detectRegion()` - localStorage, then the `navigator.language` country suffix, then `DEFAULT_REGION` (`"GB"`).
+- `regionOriginCountries(code)` - the TMDB `with_origin_country` group for a region (`GB -> ["GB","IE"]`, `AU -> ["AU","NZ"]`, `US -> ["US","CA"]`). Neighbouring markets are grouped so co-productions are not missed. Unknown codes fall back to the GB group.
+- `regionLabel(code)` - via `Intl.DisplayNames`.
+
+`RegionProvider` (`src/components/common/RegionProvider.tsx`) is mounted in `providers.tsx`. `useRegion()` returns `{ region, setRegion }` where **`region` is `null` until the client has read localStorage** - consumers must not fetch while it is null, or they fire a throwaway request for the wrong region and risk a hydration mismatch. `useDiscoverTitles` handles this by returning a null SWR key. The context default is a working non-null value so components render fine outside the provider (component tests rely on this).
+
+Consumers: `RegionPicker` in the header, the region-scoped carousel, `WhereToWatch`, and the `region` field on the `POST /api/recommend` body.
+
+**Caveat**: the picker does **not** change the AI picks carousels. The cron has no user and grounds to `AI_POPULAR_REGION`. Per-region AI picks would need a `region` column on `ai_popular_titles` (it has none) and one cron run per region.
+
+### TMDB discover query shapes
+
+`src/lib/discover.ts` holds the constants and post-filters for the discover carousels. These exist for a specific reason: TMDB's `popularity` metric rewards steady page traffic, so an **unfiltered `popularity.desc` on `/discover/tv` returns daily-airing talk shows and soaps** - the carousel used to open with Watch What Happens Live, The Tonight Show and Law & Order: SVU.
+
+- `EXCLUDED_TV_GENRES` - news, reality, talk, soap, kids (`without_genres`).
+- `dropEvergreenSeries()` - drops shows whose `first_air_date` is more than `EVERGREEN_MAX_AGE_YEARS` (6) old. TMDB has no parameter for "not a decades-old continuing series", so this runs after the fetch. **This is the filter that separates Slow Horses (2022) from Coronation Street (1960)**, so do not remove it. Note `Number("")` is `0`, not `NaN` - the emptiness check must come before the numeric one.
+- Any query that gets post-filtered fetches 2 pages (`mergePages`) so a full carousel survives.
+- All-time lists need an upper date bound (`primary_release_date.lte` / `first_air_date.lte`) and a high `vote_count.gte`, otherwise barely-released titles with inflated averages outrank the classics.
+- The regional treatment is **TV-only** - recent GB/IE film releases are mostly obscure indies.
 
 ### DB migrations
 
@@ -110,6 +138,7 @@ await sql.query(`CREATE TABLE IF NOT EXISTS ...`);
 | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | `GET /api/discover?type=movie\|tv&timeframe=recent\|all` | TMDB popular/top-rated                                                                          |
 | `GET /api/discover?type=movie\|tv&source=ai`             | AI picks from `ai_popular_titles` DB table                                                      |
+| `GET /api/discover?type=tv&source=regional&region=GB`     | Region-scoped TV currently airing in that market (TV only; 400 for `type=movie`)                |
 | `POST /api/recommend`                                    | AI → TMDB validation → upsert `titles` → save items (profile or seed mode) - subscription-gated |
 | `GET /api/recommendations?key=...`                       | Cached recommendation items, joined with `titles` for poster data                               |
 | `GET /api/cron/ai-popular`                               | Daily cron: OpenAI web search → TMDB → `ai_popular_titles`                                      |

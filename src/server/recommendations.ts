@@ -37,7 +37,7 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 
 export async function callOpenAI(prompt: string): Promise<Rec[]> {
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-6-luna",
     messages: [{ role: "user", content: prompt }],
     response_format: {
       type: "json_schema",

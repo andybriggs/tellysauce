@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { buildRecKey } from "@/lib/recs";
 import type { SeedInput, Title } from "@/types";
 import { useBadgeCelebration } from "@/components/badges/BadgeProvider";
+import { useRegion } from "@/hooks/useRegion";
 
 /* ---------- Types ---------- */
 
@@ -76,6 +77,7 @@ async function fetchJson<T>(input: RequestInfo | URL, init?: RequestInit): Promi
 
 export function useRecommendations({ seed }: { seed?: SeedInput } = {}) {
   const { celebrate } = useBadgeCelebration();
+  const { region } = useRegion();
   const [titles, setTitles] = useState<Title[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [paywallError, setPaywallError] = useState<"free_exhausted" | "monthly_limit" | null>(null);
@@ -107,7 +109,7 @@ export function useRecommendations({ seed }: { seed?: SeedInput } = {}) {
         : [];
 
       const body = seed
-        ? JSON.stringify({ mode: "seed", seed, watchList: watchListTitles })
+        ? JSON.stringify({ mode: "seed", seed, watchList: watchListTitles, region })
         : JSON.stringify({
             mode: "profile",
             titles: (ratedTitles ?? []).map((s) => ({
@@ -116,6 +118,7 @@ export function useRecommendations({ seed }: { seed?: SeedInput } = {}) {
               rating: s.rating,
             })),
             watchList: watchListTitles,
+            region,
           });
 
       const res = await fetch("/api/recommend", {
@@ -141,7 +144,7 @@ export function useRecommendations({ seed }: { seed?: SeedInput } = {}) {
     } finally {
       setIsLoading(false);
     }
-  }, [seed, celebrate]);
+  }, [seed, celebrate, region]);
 
   const clearPaywall = useCallback(() => setPaywallError(null), []);
 

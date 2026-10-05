@@ -2,31 +2,19 @@
 import { useState, useEffect } from "react";
 import ResultsTable from "@/components/title/ResultsTable";
 import type { TitleSource } from "@/types/title";
-
-const PRIORITY_REGIONS = ["GB", "US", "CA", "AU", "IE"];
-const STORAGE_KEY = "watch_region";
-
-function detectDefaultRegion(): string {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) return stored;
-    const lang = navigator.language ?? "";
-    const parts = lang.split("-");
-    if (parts.length >= 2) return parts[parts.length - 1].toUpperCase();
-  } catch { }
-  return "GB";
-}
+import { useRegion } from "@/hooks/useRegion";
+import { DEFAULT_REGION, PRIORITY_REGIONS } from "@/lib/region";
 
 interface WhereToWatchProps {
   allSources: Record<string, TitleSource[]>;
 }
 
 export default function WhereToWatch({ allSources }: WhereToWatchProps) {
-  const [region, setRegion] = useState("GB");
+  const { region: resolvedRegion, setRegion } = useRegion();
+  const region = resolvedRegion ?? DEFAULT_REGION;
   const [countryNames, setCountryNames] = useState<Intl.DisplayNames | null>(null);
 
   useEffect(() => {
-    setRegion(detectDefaultRegion());
     setCountryNames(new Intl.DisplayNames(["en"], { type: "region" }));
   }, []);
 
@@ -38,13 +26,6 @@ export default function WhereToWatch({ allSources }: WhereToWatchProps) {
     if (pb !== -1) return 1;
     return a.localeCompare(b);
   });
-
-  const handleChange = (code: string) => {
-    setRegion(code);
-    try {
-      localStorage.setItem(STORAGE_KEY, code);
-    } catch { }
-  };
 
   const TYPE_ORDER = ["free", "ads", "sub", "rent", "buy"];
   const sources = (allSources[region] ?? []).slice().sort((a, b) => {
@@ -65,7 +46,7 @@ export default function WhereToWatch({ allSources }: WhereToWatchProps) {
       <div className="mb-3">
         <select
           value={region}
-          onChange={(e) => handleChange(e.target.value)}
+          onChange={(e) => setRegion(e.target.value)}
           className="rounded bg-slate-700 px-2 py-1 text-sm text-white"
         >
           {dropdownRegions.map((code) => (

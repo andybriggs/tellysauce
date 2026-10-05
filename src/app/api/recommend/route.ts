@@ -14,6 +14,7 @@ import {
 } from "@/server/recommendations";
 
 import { awardBadges } from "@/server/badges";
+import { regionLabel } from "@/lib/region";
 
 export { type Rec } from "@/server/recommendations";
 
@@ -40,6 +41,7 @@ type ProfilePayload = {
   titles: TitleInput[];
   watchList?: WatchListItem[];
   count?: number;
+  region?: string;
 };
 
 type SeedPayload = {
@@ -47,6 +49,7 @@ type SeedPayload = {
   seed: SeedInput;
   watchList?: WatchListItem[];
   count?: number;
+  region?: string;
 };
 
 type RecommendBody = ProfilePayload | SeedPayload;
@@ -151,6 +154,16 @@ export async function POST(req: NextRequest) {
         : null;
     const targetCount = desired ?? (mode === "seed" ? 3 : 8);
 
+    // Anchoring the prompt to today's date matters: without it the model falls
+    // back on its training distribution and "recent" silently means
+    // "recent as of training", which is years out of date.
+    const today = new Date().toISOString().slice(0, 10);
+    const region =
+      isRecord(body) && typeof body.region === "string" && body.region
+        ? body.region.toUpperCase()
+        : "GB";
+    const regionName = regionLabel(region);
+
     // ---- Common: watchlist to avoid ----
     const watchList: WatchListItem[] =
       isRecord(body) && Array.isArray(body.watchList) ? body.watchList : [];
@@ -172,7 +185,7 @@ export async function POST(req: NextRequest) {
 
       const formatPreference = seed.type === "tv" ? "TV series" : seed.type === "movie" ? "films" : "titles";
 
-      const prompt = `You are a TV and film expert.
+      const prompt = `You are a TV and film expert. Today's date is ${today}. The user watches in ${regionName}.
 
 SEED TITLE:
 - Title: ${seed.title}
@@ -192,7 +205,8 @@ Return EXACTLY ${targetCount} titles that share the STRONGEST match with the see
 
 Prefer ${formatPreference} to match the seed format, unless a cross-format title is an exceptional match.
 If the seed is acclaimed for a specific quality (e.g. dark humour, unreliable narrator, slow burn tension), bias toward titles with that same quality.
-Prefer titles from the past 5 years but include older classics if they are a strong match.
+Prefer titles released or airing new seasons since ${Number(today.slice(0, 4)) - 5}, but include older classics if they are a strong match. Recent releases from the last two years are especially welcome — do not restrict yourself to titles you have long known about.
+Favour titles available to watch in ${regionName}, including local productions from that market.
 For each title provide: description (max 15 words), reason it matches the seed (max 10 words), 3-5 genre/style tags, release year (or null), and mediaType ("movie" or "tv").
 Double-check your response against the exclusion list before returning it.`;
 
@@ -292,7 +306,7 @@ Double-check your response against the exclusion list before returning it.`;
       unrated ? `Unrated:\n${unrated}` : null,
     ].filter(Boolean).join("\n\n");
 
-    const prompt = `You are a TV and film expert.
+    const prompt = `You are a TV and film expert. Today's date is ${today}. The user watches in ${regionName}.
 
 User's rated titles - higher rating = stronger preference signal:
 
@@ -307,7 +321,8 @@ Return EXACTLY ${targetCount} titles the user is likely to rate 4 or 5 stars.
 Weight your choices heavily toward the 5-star and 4-star titles as taste signals.
 Mirror the dominant media type (${dominant}) unless a cross-type title is an exceptional match.
 Focus on taste alignment, not general popularity.
-Prefer titles from the past 5 years but include older titles if they are a strong match.
+Prefer titles released or airing new seasons since ${Number(today.slice(0, 4)) - 5}, but include older titles if they are a strong match. Recent releases from the last two years are especially welcome — do not restrict yourself to titles you have long known about.
+Favour titles available to watch in ${regionName}, including local productions from that market.
 For each title provide: description (max 15 words), reason it suits this user (max 10 words), 3-5 genre/style tags, release year (or null), and mediaType ("movie" or "tv").
 Double-check your response against the exclusion list before returning it.`;
 
