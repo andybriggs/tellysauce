@@ -70,8 +70,11 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function makeRequest(authHeader?: string) {
-  return new NextRequest("http://localhost/api/cron/ai-popular", {
+function makeRequest(authHeader?: string, type?: string) {
+  const url = type
+    ? `http://localhost/api/cron/ai-popular?type=${type}`
+    : "http://localhost/api/cron/ai-popular";
+  return new NextRequest(url, {
     headers: authHeader ? { authorization: authHeader } : {},
   });
 }
@@ -346,5 +349,38 @@ describe("prioritiseNewTitles", () => {
     const result = prioritiseNewTitles(titles, prev);
     expect(result.map((t) => t.tmdbId)).toEqual([7, 8, 9]);
   });
-});
+  it("rejects an unknown type", async () => {
+    const res = await GET(makeRequest("Bearer test-cron-secret", "anime"));
+    expect(res.status).toBe(400);
+  });
 
+  it("runs only the requested media type", async () => {
+    const { mockResponsesCreate } = await getMocks();
+    mockResponsesCreate.mockResolvedValue(
+      makeStructuredResponse([
+        {
+          title: "Slow Horses",
+          description: "Failed spies",
+          reason: "New season",
+          tags: ["drama"],
+          year: 2022,
+        },
+      ])
+    );
+    mockSearchTmdbByTitle.mockResolvedValue({
+      id: 95480,
+      title: "Slow Horses",
+      posterPath: "/sh.jpg",
+      overview: "Failed spies.",
+      year: 2022,
+    });
+
+    const res = await GET(makeRequest("Bearer test-cron-secret", "tv"));
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.tv).toBe(1);
+    // Only one search call, and no movie batch — the whole point of the split.
+    expect(mockResponsesCreate).toHaveBeenCalledTimes(1);
+    expect(data.movies).toBeUndefined();
+  });
+});

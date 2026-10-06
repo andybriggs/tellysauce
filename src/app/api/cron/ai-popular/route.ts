@@ -418,8 +418,23 @@ export async function GET(req: Request) {
     // Response keys stay "movies"/"tv" as before so existing callers and tests
     // do not have to care that invocations are now split.
     const counts: Record<string, number> = {};
+    const skipped: string[] = [];
+    const started = Date.now();
+    // A grounded search takes ~90s, or ~200s when the API holds a rate-limited
+    // request before rejecting it. Starting a second one past this point would
+    // overrun maxDuration and lose the whole invocation to a 504, including the
+    // media type that already succeeded. Better to return partial results.
+    const SECOND_TYPE_CUTOFF_MS = 150_000;
 
     for (const mediaType of mediaTypes) {
+      if (Date.now() - started > SECOND_TYPE_CUTOFF_MS) {
+        console.warn(
+          `[ai-popular] Skipping ${mediaType} — not enough time left in this invocation`
+        );
+        skipped.push(mediaType);
+        continue;
+      }
+
       const recs = await fetchGroundedTitles(mediaType);
       console.log(`[ai-popular] Stage 1 ${mediaType}: ${recs.length} recs`);
       if (recs.length === 0)
@@ -442,7 +457,12 @@ export async function GET(req: Request) {
       console.error("[ai-popular] revalidateTag failed:", err);
     }
 
-    return Response.json({ ok: true, fetchedDate, ...counts });
+    return Response.json({
+      ok: true,
+      fetchedDate,
+      ...counts,
+      ...(skipped.length ? { skipped } : {}),
+    });
   } catch (err) {
     console.error("[ai-popular] Cron job failed:", err);
     return Response.json(

@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/ai-popular?type=movie",
-      "schedule": "0 6 * * *"
+      "schedule": "0 3 * * *"
     },
     {
       "path": "/api/cron/ai-popular?type=tv",
