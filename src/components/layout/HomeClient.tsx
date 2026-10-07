@@ -16,6 +16,7 @@ import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 import PopularTitles from "@/components/title/PopularTitles";
 import HeroSection from "@/components/layout/HeroSection";
 import RegionPicker from "@/components/common/RegionPicker";
+import HeaderMenu from "@/components/layout/HeaderMenu";
 import { useRegion } from "@/hooks/useRegion";
 import { isSupportedRegion, regionLabel } from "@/lib/region";
 import type { Title } from "@/types";
@@ -88,7 +89,8 @@ export default function HomeClient({
       )}
       <HeroSection>
         <Container>
-          <div className="flex p-4 justify-end items-center gap-3 relative z-11">
+          {/* Below sm these controls overflow, so they collapse into HeaderMenu. */}
+          <div className="hidden sm:flex p-4 justify-end items-center gap-3 relative z-11">
             <RegionPicker />
             {isLoggedIn && subStatus?.subscriptionStatus === "active" && (
               <button
@@ -100,6 +102,10 @@ export default function HomeClient({
             )}
             <AuthButton />
           </div>
+          <HeaderMenu
+            isSubscriber={isLoggedIn && subStatus?.subscriptionStatus === "active"}
+            onManageSubscription={handleManageSubscription}
+          />
         </Container>
         <div className="relative px-6 py-20 text-center isolate sm:px-16 ">
           <Hero />
