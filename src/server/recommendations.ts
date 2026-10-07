@@ -69,8 +69,11 @@ export async function callOpenAI(prompt: string): Promise<Rec[]> {
         },
       },
     },
-    temperature: 0.7,
-    max_tokens: 1600,
+    // gpt-6-luna rejects both `temperature` (only the default is allowed) and
+    // `max_tokens` (it wants `max_completion_tokens`). The budget covers
+    // reasoning tokens as well as the response - 8 recommendations used ~1035
+    // including ~500 of reasoning, so this leaves room for a 12-item request.
+    max_completion_tokens: 3000,
   });
 
   const content = response.choices[0]?.message?.content ?? "{}";

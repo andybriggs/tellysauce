@@ -192,6 +192,31 @@ describe("POST /api/recommend", () => {
     expect(data.recommendations[0].poster).toContain("image.tmdb.org");
   });
 
+  it("sends only params gpt-6-luna accepts", async () => {
+    // Regression guard: gpt-6-luna rejects `max_tokens` (wants
+    // `max_completion_tokens`) and any explicit `temperature`. Passing either
+    // returns a 400 from OpenAI, which surfaced as a 500 on /api/recommend.
+    mockSession.mockResolvedValue({ user: { id: "user-1" } } as never);
+    setupSubscriptionExec({ subscription_status: "active", free_rec_calls_used: 10 });
+    stubTmdbSuccess();
+
+    const mockCreate = await getMockCreate();
+    mockCreate.mockResolvedValueOnce(makeOpenAIResponse([makeRec()]));
+
+    const req = new NextRequest("http://localhost/api/recommend", {
+      method: "POST",
+      body: JSON.stringify({ titles: [{ title: "Inception", rating: 5 }] }),
+      headers: { "Content-Type": "application/json" },
+    });
+    await POST(req);
+
+    const params = mockCreate.mock.calls[0][0];
+    expect(params.model).toBe("gpt-6-luna");
+    expect(params).not.toHaveProperty("max_tokens");
+    expect(params).not.toHaveProperty("temperature");
+    expect(params.max_completion_tokens).toBeGreaterThanOrEqual(2000);
+  });
+
   it("filters out recommendations that cannot be resolved in TMDB", async () => {
     mockSession.mockResolvedValue({ user: { id: "user-1" } } as never);
     setupSubscriptionExec({ subscription_status: "active", free_rec_calls_used: 0 });
