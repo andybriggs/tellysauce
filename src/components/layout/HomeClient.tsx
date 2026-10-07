@@ -87,6 +87,13 @@ export default function HomeClient({
           </button>
         </div>
       )}
+      {/* Outside HeroSection on purpose: that section is `relative z-10`, which
+          creates a stacking context and would trap this fixed button's z-40
+          beneath the z-30 MobileTopBar. Being fixed, its position is unaffected. */}
+      <HeaderMenu
+        isSubscriber={isLoggedIn && subStatus?.subscriptionStatus === "active"}
+        onManageSubscription={handleManageSubscription}
+      />
       <HeroSection>
         <Container>
           {/* Below sm these controls overflow, so they collapse into HeaderMenu. */}
@@ -102,10 +109,6 @@ export default function HomeClient({
             )}
             <AuthButton />
           </div>
-          <HeaderMenu
-            isSubscriber={isLoggedIn && subStatus?.subscriptionStatus === "active"}
-            onManageSubscription={handleManageSubscription}
-          />
         </Container>
         <div className="relative px-6 py-20 text-center isolate sm:px-16 ">
           <Hero />

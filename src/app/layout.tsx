@@ -5,6 +5,7 @@ import "./globals.css";
 import Providers from "./providers";
 import Footer from "@/components/common/Footer";
 import CookieBanner from "@/components/common/CookieBanner";
+import MobileTopBar from "@/components/layout/MobileTopBar";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
@@ -35,6 +36,7 @@ export default async function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <MobileTopBar />
         <Providers session={session}>{children}</Providers>
         <Footer />
         <CookieBanner />

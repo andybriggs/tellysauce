@@ -27,4 +27,18 @@ describe("HeroSection", () => {
     );
     expect(overlay).toBeInTheDocument();
   });
+  it("creates a stacking context, so fixed overlay controls must not be nested inside it", () => {
+    // Regression guard: the HeaderMenu burger originally rendered in here and
+    // its z-40 was trapped beneath the z-30 MobileTopBar, making it invisible.
+    // If this z-index is ever removed the constraint goes away, but while it is
+    // here anything fixed and layered above the page has to be a sibling.
+    const { container } = render(
+      <HeroSection>
+        <div>child</div>
+      </HeroSection>
+    );
+    const section = container.querySelector("section");
+    expect(section?.className).toContain("relative");
+    expect(section?.className).toContain("z-10");
+  });
 });
