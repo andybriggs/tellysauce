@@ -60,6 +60,24 @@ export const titles = pgTable("titles", {
     .notNull(),
 });
 
+/**
+ * OMDb ratings, cached by IMDb id. Keyed on imdb_id rather than hung off
+ * `titles` because a titles row is written client-side after render, so it may
+ * not exist yet when a title page is being built.
+ *
+ * Exists because OMDb's free tier allows 1,000 requests/day and every ISR
+ * revalidation used to spend one. Blowing the quota made every page render
+ * "Rating unavailable" and, worse, cached that for an hour.
+ */
+export const titleRatings = pgTable("title_ratings", {
+  imdbId: text("imdb_id").primaryKey(),
+  imdbRating: text("imdb_rating"),
+  rtRating: text("rt_rating"),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
 export const userTitles = pgTable("user_titles", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: text("user_id")

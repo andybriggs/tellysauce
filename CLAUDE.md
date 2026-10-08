@@ -34,6 +34,7 @@ Always use **yarn** (not npm). `package.json` has `"packageManager": "yarn@1.22.
 - `recommendation_sets` - one row per user per cache key (profile or seed). `user_key` = `${userId}:${key}`, unique. 7-day expiry via `expires_at`.
 - `recommendation_items` - individual recommendations within a set. `suggested_tmdb_id` and `suggested_media_type` are populated after TMDB validation; `raw_json` stores the full OpenAI response object.
 - `ai_popular_titles` - daily AI-curated popular titles from Reddit/online buzz (populated by cron)
+- `title_ratings` - OMDb IMDb/RT ratings cached by `imdb_id`, 24h TTL. Exists to stay under OMDb's 1,000/day free limit and to serve stale ratings when it is exceeded.
 - `user_badges` - gamification awards, one row per `(user_id, badge_key)`. Unique via `user_badges_user_key_unique`. `seen` is false until the unlock modal has been shown. Awards are permanent.
 
 ## Key environment variables (`.env.local`)
@@ -126,11 +127,13 @@ await sql.query(`CREATE TABLE IF NOT EXISTS ...`);
 
 ### OMDb API (IMDb + Rotten Tomatoes ratings)
 
-- `fetchIMDbRating(imdbId)` in `src/server/omdb.ts` - server-side fetch to `https://www.omdbapi.com/?i={imdbId}&apikey={OMDB_API_KEY}`
-- Returns `{ imdbRating: string | null, rtRating: string | null }` - `imdbRating` from the top-level field (e.g. `"8.9"`), `rtRating` from the `Ratings` array entry where `Source === "Rotten Tomatoes"` (e.g. `"92%"`)
-- Cached via Next.js ISR (`next: { revalidate }`) - same 1-hour window as the TMDB fetch
-- Results passed to `ExternalLinks` as `imdbRating` / `rtRating`; IMDb pill shows "Rating unavailable" when null, RT pill is omitted entirely when null
-- TMDB rating is no longer displayed on the title page
+- `fetchIMDbRating(imdbId, revalidate)` in `src/server/omdb.ts` - returns `{ imdbRating, rtRating }`. `imdbRating` is the top-level OMDb field (e.g. `"8.4"`), `rtRating` comes from the `Ratings` entry where `Source === "Rotten Tomatoes"` (e.g. `"96%"`).
+- **Backed by the `title_ratings` table**, keyed on `imdb_id`, with a 24h TTL. OMDb's free tier allows only **1,000 requests/day** and every ISR revalidation used to spend one, so the quota ran out regularly - which rendered "Rating unavailable" and then cached that for an hour. The table caps it at roughly one call per title per day.
+- **Failure path matters most**: when OMDb is unreachable, out of quota (a 401 carrying `"Request limit reached!"`) or returns `Response: "False"`, a previously stored rating is served **even if stale**. Only a title that has never resolved returns nulls.
+- Every failure path logs with an `[omdb]` prefix. It used to fail silently, which is why the quota problem was invisible in Vercel logs.
+- A missing `title_ratings` table is caught, not thrown - the title page still renders.
+- `ExternalLinks` shows "Rating unavailable" inside the IMDb pill when `imdbRating` is null; the RT pill is omitted entirely when `rtRating` is null. RT data is frequently absent for TV series, which is expected rather than a fault.
+- TMDB rating is not displayed on the title page.
 
 ### API routes
 
