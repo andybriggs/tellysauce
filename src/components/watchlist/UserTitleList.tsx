@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Section from "@/components/common/Section";
 import EmptyStateCard from "@/components/common/EmptyStateCard";
 import TitleList from "@/components/title/TitleList";
@@ -9,6 +9,13 @@ import TitleGridFilters from "@/components/title/TitleGridFilters";
 import type { Title } from "@/types";
 
 type TypeFilter = "all" | "tv" | "movie";
+
+const TYPE_PARAM = "type";
+const GENRE_PARAM = "genre";
+
+function parseTypeFilter(value: string | null): TypeFilter {
+  return value === "tv" || value === "movie" ? value : "all";
+}
 
 export type UserTitleListProps = {
   layout?: "carousel" | "grid";
@@ -34,6 +41,51 @@ export default function UserTitleList({
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [genreFilter, setGenreFilter] = useState("all");
 
+  /**
+   * Grid mode mirrors the filters into the query string so opening a title and
+   * pressing back lands you on the same filtered view instead of resetting to
+   * "All". `replaceState` rather than a router push - the filter is a view of
+   * this page, not a history step of its own.
+   *
+   * Read in an effect rather than during render: the server render has no URL to
+   * read, so seeding state from `window.location` would be a hydration mismatch.
+   * Back out of a title page is a same-document navigation, hence `popstate`.
+   */
+  useEffect(() => {
+    if (!isGrid) return;
+
+    const applyFromUrl = () => {
+      const params = new URLSearchParams(window.location.search);
+      setTypeFilter(parseTypeFilter(params.get(TYPE_PARAM)));
+      setGenreFilter(params.get(GENRE_PARAM) ?? "all");
+    };
+
+    applyFromUrl();
+    window.addEventListener("popstate", applyFromUrl);
+    return () => window.removeEventListener("popstate", applyFromUrl);
+  }, [isGrid]);
+
+  const writeFiltersToUrl = useCallback(
+    (type: TypeFilter, genre: string) => {
+      if (!isGrid) return;
+      // Unrelated params are preserved - this page is not the only thing that
+      // may have written to the query string.
+      const params = new URLSearchParams(window.location.search);
+      if (type === "all") params.delete(TYPE_PARAM);
+      else params.set(TYPE_PARAM, type);
+      if (genre === "all") params.delete(GENRE_PARAM);
+      else params.set(GENRE_PARAM, genre);
+
+      const query = params.toString();
+      window.history.replaceState(
+        null,
+        "",
+        query ? `${window.location.pathname}?${query}` : window.location.pathname
+      );
+    },
+    [isGrid]
+  );
+
   const filtered = useMemo(
     () =>
       items
@@ -48,6 +100,12 @@ export default function UserTitleList({
   function handleTypeChange(v: TypeFilter) {
     setTypeFilter(v);
     setGenreFilter("all");
+    writeFiltersToUrl(v, "all");
+  }
+
+  function handleGenreChange(v: string) {
+    setGenreFilter(v);
+    writeFiltersToUrl(typeFilter, v);
   }
 
   // Grid mode: render full filter header + list directly (no Section wrapper)
@@ -73,7 +131,7 @@ export default function UserTitleList({
           typeFilter={typeFilter}
           genreFilter={genreFilter}
           onTypeChange={handleTypeChange}
-          onGenreChange={setGenreFilter}
+          onGenreChange={handleGenreChange}
           resultCount={filtered.length}
         />
         <TitleList

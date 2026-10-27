@@ -10,13 +10,9 @@ import SearchResults from "@/components/search/SearchResults";
 import Watchlist from "@/components/watchlist/Watchlist";
 import { useStreamingSearch } from "@/hooks/useStreamingSearch";
 import AuthButton from "@/components/common/AuthButton";
-import Container from "@/components/common/Container";
 import useIsLoggedIn from "@/hooks/useIsLoggedIn";
-import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 import PopularTitles from "@/components/title/PopularTitles";
 import HeroSection from "@/components/layout/HeroSection";
-import RegionPicker from "@/components/common/RegionPicker";
-import HeaderMenu from "@/components/layout/HeaderMenu";
 import { useRegion } from "@/hooks/useRegion";
 import { isSupportedRegion, regionLabel } from "@/lib/region";
 import type { Title } from "@/types";
@@ -31,7 +27,6 @@ export default function HomeClient({
   const { state, dispatch, fetchAutoCompleteResults } = useStreamingSearch();
 
   const isLoggedIn = useIsLoggedIn();
-  const subStatus = useSubscriptionStatus();
   const { region } = useRegion();
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
 
@@ -43,12 +38,6 @@ export default function HomeClient({
       window.history.replaceState({}, "", "/");
     }
   }, []);
-
-  const handleManageSubscription = async () => {
-    const res = await fetch("/api/stripe/portal", { method: "POST" });
-    const data = (await res.json()) as { url?: string };
-    if (data.url) window.location.href = data.url;
-  };
 
   const { searchQuery, autoCompleteResults, isLoading } = state;
 
@@ -87,29 +76,7 @@ export default function HomeClient({
           </button>
         </div>
       )}
-      {/* Outside HeroSection on purpose: that section is `relative z-10`, which
-          creates a stacking context and would trap this fixed button's z-40
-          beneath the z-30 MobileTopBar. Being fixed, its position is unaffected. */}
-      <HeaderMenu
-        isSubscriber={isLoggedIn && subStatus?.subscriptionStatus === "active"}
-        onManageSubscription={handleManageSubscription}
-      />
       <HeroSection>
-        <Container>
-          {/* Below sm these controls overflow, so they collapse into HeaderMenu. */}
-          <div className="hidden sm:flex p-4 justify-end items-center gap-3 relative z-11">
-            <RegionPicker />
-            {isLoggedIn && subStatus?.subscriptionStatus === "active" && (
-              <button
-                onClick={handleManageSubscription}
-                className="text-xs font-semibold text-white/80 hover:text-white bg-white/10 hover:bg-white/20 px-3 py-1 rounded-full transition"
-              >
-                ✨ Pro · Manage
-              </button>
-            )}
-            <AuthButton />
-          </div>
-        </Container>
         <div className="relative px-6 py-20 text-center isolate sm:px-16 ">
           <Hero />
           <div className="max-w-2xl mx-auto relative overflow-visible">

@@ -205,8 +205,10 @@ Components are organised by domain under `src/components/`:
 ```
 src/components/
 ├── common/          # Container, Section, SectionHeader, SectionList, PillTabs,
-│                    # Footer, CookieBanner, EmptyStateCard, AuthButton
-├── layout/          # Hero, HeroSection, Backdrop, BackLink, HomeClient
+│                    # Footer, CookieBanner, EmptyStateCard, AuthButton,
+│                    # BackToTopButton
+├── layout/          # Hero, HeroSection, Backdrop, BackLink, HomeClient,
+│                    # HeaderMenu, MobileTopBar
 ├── title/           # TitleCard, TitleList, TitleHeader, TitleStatusBadge, MetaPills,
 │                    # TitleActions, TitleGridFilters, Overview, TagsList, ExternalLinks,
 │                    # WhereToWatch, TrailerWithPosterOverlay, RedditQuotes, ResultsTable,
@@ -227,10 +229,27 @@ Import with full paths: `@/components/title/TitleCard`, `@/components/common/Sec
 - `src/components/title/PopularTitles.tsx` - handles both TMDB and AI picks via `source` prop. `source="ai"` hides the timeframe tabs and shows a different title. Accepts optional `initialTitles` prop (passed as SWR `fallbackData` with `revalidateOnMount: false`) so AI picks render from server data without a client fetch.
 - `src/components/recommendations/RecommendationsSection.tsx` - on-demand AI recommendations (profile + seed mode). Delegates all fetch/cache/POST/paywall logic to `useRecommendations` hook. Renders results using the standard `TitleList` carousel + `TitleCard`.
 - `src/components/watchlist/UserTitleList.tsx` - shared parameterised component used by both `Watchlist` and `RatedTitles`. Contains filter state and grid/carousel rendering. `Watchlist` and `RatedTitles` are thin wrappers that supply their hook data and config props.
+- `src/components/common/BackToTopButton.tsx` - fixed bottom-right control, appears past 500px of scroll. Rendered by `/watchlist` and `/all-rated-titles`, which are long grids whose filters live at the very top.
 - `src/hooks/useDiscoverTitles.ts` - SWR hook, accepts `{ timeframe?, source?, initialData? }` options. When `initialData` is set, it is used as SWR `fallbackData` and `revalidateOnMount` is disabled.
 - `src/hooks/useRecommendations.ts` - hook encapsulating recommendation fetch/cache/generate/paywall logic. Returns `{ titles, isLoading, paywallError, clearPaywall, generate, key }`.
 - `src/hooks/useSubscriptionStatus.ts` - fetches `GET /api/subscription-status` once when the user logs in. Returns `{ subscriptionStatus, freeRecCallsUsed } | null`.
 - `src/server/aiPopular.ts` - two server-only DB helpers: `fetchAiPopularTitles(mediaType)` (used by the homepage to SSR the AI picks carousels) and `fetchAiPopularData(tmdbId, mediaType)` (used by the title detail page for the Reddit quotes / AI reason panel). Both query `ai_popular_titles` and return `[]` / `null` on error rather than throwing.
+
+### Site navigation
+
+`HeaderMenu` (`src/components/layout/HeaderMenu.tsx`) is the only nav, at every breakpoint. It is mounted globally in `providers.tsx` as a sibling of `{children}` - fixed overlay controls must not be nested inside a page, because `HeroSection` is `relative z-10` and would trap the burger's `z-40` beneath the `z-30` `MobileTopBar`. It is self-contained: subscription state via `useSubscriptionStatus`, and it calls `POST /api/stripe/portal` itself.
+
+It carries `/watchlist` and `/all-rated-titles` as links because those pages were otherwise only reachable by scrolling the homepage to their carousels. Auth-only links are hidden when signed out.
+
+Burger position pairs with the global trophy case: on mobile `right-16` leaves room for the trophy bubble at `right-3`; from `sm` up the bubble moves to the middle of the right edge and the burger takes the corner (`sm:right-4`).
+
+### Grid filters live in the URL
+
+`UserTitleList` in **grid mode** mirrors its type and genre filters into the query string (`?type=movie&genre=Drama`) with `window.history.replaceState` - a view of the page, not a history step of its own. Opening a title and pressing back therefore returns to the same filtered view (Next restores scroll position too). Carousel mode leaves the URL untouched.
+
+The filters are read in an effect, on mount and on `popstate`, **not** during render: the server render has no URL to read, so seeding state from `window.location` would be a hydration mismatch. Back out of a title page is a same-document navigation, which is why `popstate` is the signal.
+
+Note for tests: grid mode writes to the URL, so a test that clicks a filter pollutes the next one unless the URL is reset in `beforeEach`.
 
 ### Session pre-loading (eliminates auth flash)
 

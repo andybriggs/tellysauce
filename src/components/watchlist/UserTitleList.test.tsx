@@ -55,6 +55,12 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
   <SWRConfig value={{ provider: () => new Map() }}>{children}</SWRConfig>
 );
 
+// Grid mode writes the filters to the query string, so each test has to start
+// from a clean URL or it inherits the previous one's filter.
+beforeEach(() => {
+  window.history.replaceState(null, '', '/watchlist');
+});
+
 const baseProps = {
   sectionTitle: '🍿 My Watchlist',
   emptyText: 'Add titles to your watchlist',
@@ -173,6 +179,68 @@ describe('UserTitleList – grid mode', () => {
     );
     const stars = screen.getAllByRole('button', { name: /rate/i });
     expect(stars.length).toBeGreaterThan(0);
+  });
+});
+
+describe('UserTitleList – grid filters survive navigation', () => {
+  it('mirrors the type filter into the query string', () => {
+    render(
+      <UserTitleList {...baseProps} items={mockItems} layout="grid" />,
+      { wrapper }
+    );
+    fireEvent.click(screen.getByRole('tab', { name: 'Movies' }));
+    expect(window.location.search).toBe('?type=movie');
+  });
+
+  it('mirrors the genre filter into the query string', () => {
+    render(
+      <UserTitleList {...baseProps} items={mixedWithGenres} layout="grid" />,
+      { wrapper }
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Mystery' }));
+    expect(window.location.search).toBe('?genre=Mystery');
+  });
+
+  it('drops the params again when the filters go back to "all"', () => {
+    window.history.replaceState(null, '', '/watchlist?type=movie');
+    render(
+      <UserTitleList {...baseProps} items={mockItems} layout="grid" />,
+      { wrapper }
+    );
+    fireEvent.click(screen.getByRole('tab', { name: 'All' }));
+    expect(window.location.search).toBe('');
+  });
+
+  it('restores the filters from the query string on mount', () => {
+    window.history.replaceState(null, '', '/watchlist?type=movie');
+    render(
+      <UserTitleList {...baseProps} items={mockItems} layout="grid" />,
+      { wrapper }
+    );
+    expect(screen.queryByText('Twin Peaks')).not.toBeInTheDocument();
+    expect(screen.getByText('Inception')).toBeInTheDocument();
+  });
+
+  it('re-reads the filters on back navigation', () => {
+    render(
+      <UserTitleList {...baseProps} items={mockItems} layout="grid" />,
+      { wrapper }
+    );
+    expect(screen.getByText('Twin Peaks')).toBeInTheDocument();
+
+    // What pressing back out of a title page amounts to: the URL is the filtered
+    // one again and popstate fires.
+    window.history.replaceState(null, '', '/watchlist?type=movie');
+    fireEvent.popState(window);
+
+    expect(screen.queryByText('Twin Peaks')).not.toBeInTheDocument();
+    expect(screen.getByText('Inception')).toBeInTheDocument();
+  });
+
+  it('leaves the URL alone in carousel mode, where there are no filters', () => {
+    window.history.replaceState(null, '', '/?foo=bar');
+    render(<UserTitleList {...baseProps} items={mockItems} />, { wrapper });
+    expect(window.location.search).toBe('?foo=bar');
   });
 });
 

@@ -1,6 +1,7 @@
 import RatedTitles from "@/components/watchlist/RatedTitles";
 import Container from "@/components/common/Container";
 import BackLink from "@/components/layout/BackLink";
+import BackToTopButton from "@/components/common/BackToTopButton";
 
 export default function AllRatedTitlesPage() {
   return (
@@ -11,6 +12,7 @@ export default function AllRatedTitlesPage() {
         </div>
         <RatedTitles layout="grid" />
       </Container>
+      <BackToTopButton />
     </div>
   );
 }

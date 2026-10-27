@@ -1,5 +1,6 @@
 import Container from "@/components/common/Container";
 import BackLink from "@/components/layout/BackLink";
+import BackToTopButton from "@/components/common/BackToTopButton";
 import Watchlist from "@/components/watchlist/Watchlist";
 
 export default function WatchlistPage() {
@@ -11,6 +12,7 @@ export default function WatchlistPage() {
         </div>
         <Watchlist layout="grid" />
       </Container>
+      <BackToTopButton />
     </div>
   );
 }
