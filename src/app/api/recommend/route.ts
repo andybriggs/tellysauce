@@ -11,7 +11,9 @@ import {
   validateAndEnrich,
   upsertRecommendationSet,
   replaceRecommendationItems,
+  type Rec,
 } from "@/server/recommendations";
+import { getRated, getWatchlist } from "@/server/titleStore";
 
 import { awardBadges } from "@/server/badges";
 import { regionLabel } from "@/lib/region";
@@ -67,6 +69,39 @@ type UserSubRow = {
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
+}
+
+/** Extra recs requested beyond the target, to absorb post-filter drops. */
+const EXTRA_RECS = 4;
+/** Prompt caps per rating tier - generous, but bounded for a huge history. */
+const MAX_LOVED = 60;
+const MAX_OKAY = 15;
+const MAX_DISLIKED = 20;
+
+/**
+ * Every title the user has rated or saved, as display names (for the prompt)
+ * and `${mediaType}:${tmdbId}` keys (for an exact post-filter). Matching on
+ * TMDB id catches what title slugs miss, e.g. "The Office (US)" vs "The Office".
+ * A DB failure degrades to no exclusions rather than failing the request.
+ */
+async function loadExclusions(
+  userId: string
+): Promise<{ names: string[]; ids: Set<string> }> {
+  try {
+    const [rated, watchlist] = await Promise.all([
+      getRated(userId),
+      getWatchlist(userId),
+    ]);
+    const all = [...rated, ...watchlist];
+    return {
+      names: all.map((t) => t.name).filter((n): n is string => !!n),
+      ids: new Set(all.map((t) => `${t.type}:${t.id}`)),
+    };
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error("[recommend] failed to load exclusions:", err);
+    return { names: [], ids: new Set() };
+  }
 }
 
 function brief(str?: string | null, max = 240) {
@@ -164,12 +199,24 @@ export async function POST(req: NextRequest) {
         : "GB";
     const regionName = regionLabel(region);
 
-    // ---- Common: watchlist to avoid ----
+    // ---- Common: everything the user has already rated or saved ----
+    // Loaded from the DB rather than trusted from the body, so the exclusion
+    // covers the user's whole history - not just the titles sent as taste signal.
     const watchList: WatchListItem[] =
       isRecord(body) && Array.isArray(body.watchList) ? body.watchList : [];
-    const watchlistTitles = watchList
+    const bodyWatchlistTitles = watchList
       .map((w) => (typeof w === "string" ? w : (w.title || w.name || "")))
       .filter(Boolean);
+    const exclusions = await loadExclusions(userId);
+    const watchlistTitles = [...exclusions.names, ...bodyWatchlistTitles];
+
+    // Ask for a few extra: some will be dropped as already-seen or unresolvable
+    // on TMDB, and the carousel should still be full.
+    const requestCount = targetCount + EXTRA_RECS;
+    const finalise = (recs: Rec[]) =>
+      recs
+        .filter((r) => !exclusions.ids.has(`${r.mediaType}:${r.resolvedTmdbId}`))
+        .slice(0, targetCount);
 
     // ---------------------------- SEED MODE ----------------------------
     if (mode === "seed") {
@@ -178,8 +225,7 @@ export async function POST(req: NextRequest) {
         return Response.json({ error: "Seed title missing" }, { status: 400 });
       }
 
-      const avoidLines = [...watchlistTitles, seed.title]
-        .filter(Boolean)
+      const avoidLines = [...new Set([...watchlistTitles, seed.title].filter(Boolean))]
         .map((t) => `- ${t}`)
         .join("\n") || "- (none)";
 
@@ -197,7 +243,7 @@ SEED TITLE:
 TITLES TO EXCLUDE - the user has already seen or saved all of these. Do not suggest any of them under any circumstances:
 ${avoidLines}
 
-Return EXACTLY ${targetCount} titles that share the STRONGEST match with the seed across:
+Return EXACTLY ${requestCount} titles that share the STRONGEST match with the seed across:
 - Tone and emotional register (most important)
 - Themes and subject matter
 - Narrative structure or storytelling craft
@@ -217,8 +263,9 @@ Double-check your response against the exclusion list before returning it.`;
       const filtered = recommendations.filter(
         (r) => r.title && !forbiddenSlugs.has(slugTitle(r.title))
       );
-      // Validate against TMDB, enrich with poster, filter out unresolvable titles
-      const verified = await validateAndEnrich(filtered);
+      // Validate against TMDB, enrich with poster, filter out unresolvable titles,
+      // then drop anything whose TMDB id the user has already rated or saved
+      const verified = finalise(await validateAndEnrich(filtered));
 
       const key = buildRecKey({ mode, seed });
       const { setId } = await upsertRecommendationSet({
@@ -254,7 +301,7 @@ Double-check your response against the exclusion list before returning it.`;
       return Response.json({ error: "No titles provided" }, { status: 400 });
     }
 
-    const compact = titles.slice(0, 12).map((s) => ({
+    const compact = titles.map((s) => ({
       title:
         typeof s.title === "string"
           ? s.title
@@ -273,42 +320,44 @@ Double-check your response against the exclusion list before returning it.`;
     }));
 
     const favoriteTitles = compact.map((s) => s.title);
-    const avoidLines = [...favoriteTitles, ...watchlistTitles]
-      .filter(Boolean)
+    const avoidLines = [...new Set([...favoriteTitles, ...watchlistTitles].filter(Boolean))]
       .map((t) => `- ${t}`)
       .join("\n") || "- (none)";
 
-    // Group by rating tier for stronger signal
-    const byTier = (star: number) =>
+    // Taste signal. Every 4-5 star title is sent (strongest first), because the
+    // body arrives sorted by rated date and a fixed cut would drop favourites in
+    // favour of whatever was rated last. 1-2 stars go in as explicit dislikes.
+    const line = (s: (typeof compact)[number]) =>
+      `- ${s.title}${s.type ? ` (${s.type === "tv" ? "TV" : "Film"})` : ""}`;
+    const tier = (min: number, max: number, cap: number) =>
       compact
-        .filter((s) => s.rating != null && Math.round(s.rating) === star)
-        .map((s) => `- ${s.title}${s.type ? ` (${s.type === "tv" ? "TV" : "Film"})` : ""}`)
-        .join("\n");
+        .filter((s) => s.rating != null && s.rating >= min && s.rating <= max)
+        .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
+        .slice(0, cap);
 
-    const unrated = compact
-      .filter((s) => s.rating == null)
-      .map((s) => `- ${s.title}${s.type ? ` (${s.type === "tv" ? "TV" : "Film"})` : ""}`)
-      .join("\n");
+    const loved = tier(4, 5, MAX_LOVED);
+    const okay = tier(3, 3, MAX_OKAY);
+    const disliked = tier(1, 2, MAX_DISLIKED);
 
     // Compute dominant media type from top-rated titles (4★+)
-    const topRated = compact.filter((s) => s.rating != null && s.rating >= 4);
-    const tvCount = topRated.filter((s) => s.type === "tv").length;
-    const movieCount = topRated.filter((s) => s.type === "movie").length;
+    const tvCount = loved.filter((s) => s.type === "tv").length;
+    const movieCount = loved.filter((s) => s.type === "movie").length;
     const dominant =
       tvCount > movieCount ? "TV shows" : movieCount > tvCount ? "films" : "mixed (TV and film equally)";
 
     const tierLines = [
-      byTier(5) ? `★★★★★ (5/5):\n${byTier(5)}` : null,
-      byTier(4) ? `★★★★☆ (4/5):\n${byTier(4)}` : null,
-      byTier(3) ? `★★★☆☆ (3/5):\n${byTier(3)}` : null,
-      byTier(2) ? `★★☆☆☆ (2/5):\n${byTier(2)}` : null,
-      byTier(1) ? `★☆☆☆☆ (1/5):\n${byTier(1)}` : null,
-      unrated ? `Unrated:\n${unrated}` : null,
+      loved.length
+        ? `LOVED (rated 4-5 stars, strongest first) - the main taste signal:\n${loved.map((s) => `${line(s)} - ${s.rating}★`).join("\n")}`
+        : null,
+      okay.length ? `OK (rated 3 stars) - weak signal:\n${okay.map(line).join("\n")}` : null,
+      disliked.length
+        ? `DISLIKED (rated 1-2 stars) - steer away from titles like these:\n${disliked.map(line).join("\n")}`
+        : null,
     ].filter(Boolean).join("\n\n");
 
     const prompt = `You are a TV and film expert. Today's date is ${today}. The user watches in ${regionName}.
 
-User's rated titles - higher rating = stronger preference signal:
+User's ratings:
 
 ${tierLines}
 
@@ -317,8 +366,8 @@ User's dominant preference: ${dominant}.
 TITLES TO EXCLUDE - the user has already seen or saved all of these. Do not suggest any of them under any circumstances:
 ${avoidLines}
 
-Return EXACTLY ${targetCount} titles the user is likely to rate 4 or 5 stars.
-Weight your choices heavily toward the 5-star and 4-star titles as taste signals.
+Return EXACTLY ${requestCount} titles the user is likely to rate 4 or 5 stars.
+Base your choices on the LOVED titles. Avoid the tone, themes and styles of the DISLIKED titles.
 Mirror the dominant media type (${dominant}) unless a cross-type title is an exceptional match.
 Focus on taste alignment, not general popularity.
 Prefer titles released or airing new seasons since ${Number(today.slice(0, 4)) - 5}, but include older titles if they are a strong match. Recent releases from the last two years are especially welcome — do not restrict yourself to titles you have long known about.
@@ -333,8 +382,9 @@ Double-check your response against the exclusion list before returning it.`;
     const filtered = recommendations.filter(
       (r) => r.title && !forbiddenSlugs.has(slugTitle(r.title))
     );
-    // Validate against TMDB, enrich with poster, filter out unresolvable titles
-    const verified = await validateAndEnrich(filtered);
+    // Validate against TMDB, enrich with poster, filter out unresolvable titles,
+    // then drop anything whose TMDB id the user has already rated or saved
+    const verified = finalise(await validateAndEnrich(filtered));
 
     const key = buildRecKey({ mode });
     const { setId } = await upsertRecommendationSet({

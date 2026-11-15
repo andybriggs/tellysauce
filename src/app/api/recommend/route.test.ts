@@ -18,6 +18,11 @@ vi.mock("@/lib/recs", () => ({
   slugTitle: vi.fn((s: string) => s.toLowerCase().trim()),
 }));
 
+vi.mock("@/server/titleStore", () => ({
+  getRated: vi.fn().mockResolvedValue([]),
+  getWatchlist: vi.fn().mockResolvedValue([]),
+}));
+
 // OpenAI mock via @/lib/ai
 vi.mock("@/lib/ai", () => {
   const mockCreate = vi.fn();
@@ -29,6 +34,7 @@ vi.mock("@/lib/ai", () => {
 
 import { getServerSession } from "next-auth";
 import { db } from "@/db";
+import { getRated, getWatchlist } from "@/server/titleStore";
 import { POST } from "./route";
 
 const mockSession = vi.mocked(getServerSession);
@@ -111,6 +117,8 @@ function setupSubscriptionExec(row: {
 beforeEach(() => {
   vi.clearAllMocks();
   mockDb.execute.mockResolvedValue(undefined);
+  vi.mocked(getRated).mockResolvedValue([]);
+  vi.mocked(getWatchlist).mockResolvedValue([]);
   vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
   vi.stubEnv("TMDB_ACCESS_TOKEN", "test-tmdb-token");
 });
@@ -344,5 +352,144 @@ describe("POST /api/recommend", () => {
     const data = await res.json();
     expect(Array.isArray(data.recommendations)).toBe(true);
     expect(data.recommendations[0].resolvedTmdbId).toBeDefined();
+  });
+
+  describe("already-seen exclusion", () => {
+    function profileRequest(titles: unknown[]) {
+      return new NextRequest("http://localhost/api/recommend", {
+        method: "POST",
+        body: JSON.stringify({ titles }),
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    it("drops a rec whose TMDB id the user has already rated, even when the title differs", async () => {
+      mockSession.mockResolvedValue({ user: { id: "user-1" } } as never);
+      setupSubscriptionExec({ subscription_status: "active", free_rec_calls_used: 0 });
+      stubTmdbSuccess(); // every search resolves to movie 603
+      vi.mocked(getRated).mockResolvedValue([
+        { id: 603, type: "movie", name: "Matrix, The" },
+      ] as never);
+
+      const mockCreate = await getMockCreate();
+      mockCreate.mockResolvedValueOnce(
+        makeOpenAIResponse([makeRec({ title: "The Matrix (1999)" })])
+      );
+
+      const res = await POST(profileRequest([{ title: "Inception", rating: 5 }]));
+      expect(res.status).toBe(200);
+      expect((await res.json()).recommendations).toHaveLength(0);
+    });
+
+    it("lists every rated and watchlisted title in the prompt, not just those sent as signal", async () => {
+      mockSession.mockResolvedValue({ user: { id: "user-1" } } as never);
+      setupSubscriptionExec({ subscription_status: "active", free_rec_calls_used: 0 });
+      stubTmdbSuccess();
+      vi.mocked(getRated).mockResolvedValue([
+        { id: 1, type: "tv", name: "Old Rated Show" },
+      ] as never);
+      vi.mocked(getWatchlist).mockResolvedValue([
+        { id: 2, type: "movie", name: "Saved Film" },
+      ] as never);
+
+      const mockCreate = await getMockCreate();
+      mockCreate.mockResolvedValueOnce(makeOpenAIResponse([makeRec()]));
+
+      await POST(profileRequest([{ title: "Inception", rating: 5 }]));
+      const prompt = mockCreate.mock.calls[0][0].messages[0].content as string;
+      expect(prompt).toContain("- Old Rated Show");
+      expect(prompt).toContain("- Saved Film");
+    });
+
+    it("excludes rated titles in seed mode too", async () => {
+      mockSession.mockResolvedValue({ user: { id: "user-1" } } as never);
+      setupSubscriptionExec({ subscription_status: "active", free_rec_calls_used: 0 });
+      stubTmdbSuccess();
+      vi.mocked(getRated).mockResolvedValue([
+        { id: 603, type: "movie", name: "The Matrix" },
+      ] as never);
+
+      const mockCreate = await getMockCreate();
+      mockCreate.mockResolvedValueOnce(makeOpenAIResponse([makeRec({ title: "Matrix" })]));
+
+      const res = await POST(
+        new NextRequest("http://localhost/api/recommend", {
+          method: "POST",
+          body: JSON.stringify({ mode: "seed", seed: { title: "Inception", type: "movie" } }),
+          headers: { "Content-Type": "application/json" },
+        })
+      );
+      const prompt = mockCreate.mock.calls[0][0].messages[0].content as string;
+      expect(prompt).toContain("- The Matrix");
+      expect((await res.json()).recommendations).toHaveLength(0);
+    });
+
+    it("still succeeds when the exclusion lookup fails", async () => {
+      mockSession.mockResolvedValue({ user: { id: "user-1" } } as never);
+      setupSubscriptionExec({ subscription_status: "active", free_rec_calls_used: 0 });
+      stubTmdbSuccess();
+      vi.mocked(getRated).mockRejectedValue(new Error("db down"));
+      vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const mockCreate = await getMockCreate();
+      mockCreate.mockResolvedValueOnce(makeOpenAIResponse([makeRec()]));
+
+      const res = await POST(profileRequest([{ title: "Inception", rating: 5 }]));
+      expect(res.status).toBe(200);
+      expect((await res.json()).recommendations).toHaveLength(1);
+    });
+  });
+
+  describe("profile taste signal", () => {
+    it("sends every 4-5 star title, strongest first, with 1-2 stars as dislikes", async () => {
+      mockSession.mockResolvedValue({ user: { id: "user-1" } } as never);
+      setupSubscriptionExec({ subscription_status: "active", free_rec_calls_used: 0 });
+      stubTmdbSuccess();
+
+      const mockCreate = await getMockCreate();
+      mockCreate.mockResolvedValueOnce(makeOpenAIResponse([makeRec()]));
+
+      // 20 recent 3-star ratings ahead of the favourites - the old slice(0, 12)
+      // would have sent none of the 5-star titles.
+      const titles = [
+        ...Array.from({ length: 20 }, (_, i) => ({ title: `Meh ${i}`, type: "tv", rating: 3 })),
+        { title: "Four Star", type: "tv", rating: 4 },
+        { title: "Five Star", type: "tv", rating: 5 },
+        { title: "Hated It", type: "movie", rating: 1 },
+      ];
+      await POST(
+        new NextRequest("http://localhost/api/recommend", {
+          method: "POST",
+          body: JSON.stringify({ titles }),
+          headers: { "Content-Type": "application/json" },
+        })
+      );
+      const prompt = mockCreate.mock.calls[0][0].messages[0].content as string;
+      const loved = prompt.slice(prompt.indexOf("LOVED"), prompt.indexOf("OK ("));
+      expect(loved.indexOf("Five Star")).toBeLessThan(loved.indexOf("Four Star"));
+      expect(loved.indexOf("Four Star")).toBeGreaterThan(-1);
+      expect(prompt).toMatch(/DISLIKED[^]*- Hated It/);
+      expect(prompt).toContain("Return EXACTLY 12 titles"); // 8 + 4 spare
+    });
+
+    it("trims the over-request back to the target count", async () => {
+      mockSession.mockResolvedValue({ user: { id: "user-1" } } as never);
+      setupSubscriptionExec({ subscription_status: "active", free_rec_calls_used: 0 });
+      stubTmdbSuccess();
+
+      const mockCreate = await getMockCreate();
+      mockCreate.mockResolvedValueOnce(
+        makeOpenAIResponse(Array.from({ length: 12 }, (_, i) => makeRec({ title: `Rec ${i}` })))
+      );
+
+      const res = await POST(
+        new NextRequest("http://localhost/api/recommend", {
+          method: "POST",
+          body: JSON.stringify({ titles: [{ title: "Inception", rating: 5 }] }),
+          headers: { "Content-Type": "application/json" },
+        })
+      );
+      expect((await res.json()).recommendations).toHaveLength(8);
+    });
   });
 });

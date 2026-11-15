@@ -64,7 +64,8 @@ All AI calls use the shared client from `src/lib/ai.ts` (`openai` instance, `ope
 4. Results saved to `recommendation_items` with `suggested_tmdb_id` and `suggested_media_type` populated.
 5. Response shape: `{ recommendations: [{ title, description, reason, tags, year, mediaType, resolvedTmdbId, poster }], key, setId }`.
 
-- Seed mode: 3 recommendations. Profile mode: 8 (grouped by rating tier in prompt; dominant media type inferred and included).
+- Seed mode: 3 recommendations. Profile mode: 8. Profile prompt sends **all** 4-5★ titles as LOVED (strongest first, cap 60), 3★ as weak signal (cap 15), 1-2★ as DISLIKED (cap 20); dominant media type is inferred from the 4-5★ titles. Do not reintroduce a fixed `slice` on the body - it arrives sorted by rated date, so a cut drops favourites.
+- **Already-seen exclusion**: `loadExclusions()` reads the user's full rated list + watchlist from the DB (not the request body). Names go in the prompt's exclusion list; `${mediaType}:${tmdbId}` keys post-filter the TMDB-resolved recs, which catches title variants that slug matching misses. Both modes request `target + 4` and trim back, so drops don't leave the carousel short.
 - Cache read: `GET /api/recommendations?key=...` - joins `recommendation_items` with `titles` to return `poster`.
 - Service functions (`callOpenAI`, `validateAndEnrich`, `upsertTitle`, `upsertRecommendationSet`, `replaceRecommendationItems`) live in `src/server/recommendations.ts` and are imported by the route. The `Rec` type is exported from there too.
 
