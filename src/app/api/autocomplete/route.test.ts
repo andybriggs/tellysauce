@@ -119,4 +119,44 @@ describe("GET /api/autocomplete", () => {
     const res = await GET(req);
     expect(res.status).toBe(502);
   });
+
+  it("re-ranks by title match across both pages and drops duplicates", async () => {
+    const pagesRequested: string[] = [];
+    server.use(
+      http.get("https://api.themoviedb.org/3/search/multi", ({ request }) => {
+        const page = new URL(request.url).searchParams.get("page") ?? "1";
+        pagesRequested.push(page);
+        const results =
+          page === "1"
+            ? [
+                { id: 1, media_type: "tv", name: "Jake and the Never Land Pirates", vote_count: 67 },
+                { id: 2, media_type: "movie", title: "Pirates of the Caribbean", vote_count: 23102 },
+              ]
+            : [
+                { id: 2, media_type: "movie", title: "Pirates of the Caribbean", vote_count: 23102 },
+                { id: 3, media_type: "movie", title: "The Pirates! In an Adventure with Scientists!", vote_count: 1273 },
+              ];
+        return HttpResponse.json({ results });
+      })
+    );
+
+    const res = await GET(new NextRequest("http://localhost/api/autocomplete?q=The+Pirates!"));
+    const data = await res.json();
+    expect(pagesRequested.sort()).toEqual(["1", "2"]);
+    expect(data.results.map((r: { id: number }) => r.id)).toEqual([3, 2, 1]);
+  });
+
+  it("still returns page 1 when page 2 fails", async () => {
+    server.use(
+      http.get("https://api.themoviedb.org/3/search/multi", ({ request }) =>
+        new URL(request.url).searchParams.get("page") === "2"
+          ? new HttpResponse(null, { status: 500 })
+          : HttpResponse.json({ results: [{ id: 7, media_type: "movie", title: "Dune" }] })
+      )
+    );
+
+    const res = await GET(new NextRequest("http://localhost/api/autocomplete?q=dune"));
+    expect(res.status).toBe(200);
+    expect((await res.json()).results.map((r: { id: number }) => r.id)).toEqual([7]);
+  });
 });

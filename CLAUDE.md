@@ -136,6 +136,14 @@ await sql.query(`CREATE TABLE IF NOT EXISTS ...`);
 - `ExternalLinks` shows "Rating unavailable" inside the IMDb pill when `imdbRating` is null; the RT pill is omitted entirely when `rtRating` is null. RT data is frequently absent for TV series, which is expected rather than a fault.
 - TMDB rating is not displayed on the title page.
 
+### Search ranking
+
+`GET /api/autocomplete` does **not** use TMDB's order. `/search/multi` ranks heavily by popularity, so "The Pirates!" used to open with Jake and the Never Land Pirates and put the exact film 14th. The route fetches pages 1 and 2 in parallel (page 2 is best-effort), dedupes, then sorts with `rankSearchResults` (`src/lib/searchRank.ts`):
+
+- Title match sets the tier: literal exact > literal prefix (only when the query has punctuation) > exact ignoring punctuation/leading article > prefix > near (prefix without article, or phrase inside) > all words > some words. Tiers are 12 apart.
+- `vote_count` adds up to 20 (5 per order of magnitude), so a far better-known title can climb **one** tier and no more. Ties keep TMDB's order.
+- TMDB has no typo tolerance ("brekaing bad" returns 0) and this does not add any.
+
 ### API routes
 
 | Route                                                    | Purpose                                                                                         |
