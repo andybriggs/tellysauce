@@ -492,4 +492,47 @@ describe("POST /api/recommend", () => {
       expect((await res.json()).recommendations).toHaveLength(8);
     });
   });
+
+  describe("truncated OpenAI output", () => {
+    const req = () =>
+      new NextRequest("http://localhost/api/recommend", {
+        method: "POST",
+        body: JSON.stringify({ titles: [{ title: "Inception", rating: 5 }] }),
+        headers: { "Content-Type": "application/json" },
+      });
+    // What gpt-6-luna returns when reasoning eats the whole token budget.
+    const truncated = { choices: [{ finish_reason: "length", message: { content: "" } }] };
+
+    it("retries once when the model runs out of tokens before answering", async () => {
+      mockSession.mockResolvedValue({ user: { id: "user-1" } } as never);
+      setupSubscriptionExec({ subscription_status: "active", free_rec_calls_used: 0 });
+      stubTmdbSuccess();
+
+      const mockCreate = await getMockCreate();
+      mockCreate
+        .mockResolvedValueOnce(truncated)
+        .mockResolvedValueOnce(makeOpenAIResponse([makeRec()]));
+
+      const res = await POST(req());
+      expect(res.status).toBe(200);
+      expect((await res.json()).recommendations).toHaveLength(1);
+      expect(mockCreate).toHaveBeenCalledTimes(2);
+    });
+
+    it("fails cleanly, without charging the user, when both attempts are truncated", async () => {
+      mockSession.mockResolvedValue({ user: { id: "user-1" } } as never);
+      setupSubscriptionExec({ subscription_status: "active", free_rec_calls_used: 0 });
+
+      const mockCreate = await getMockCreate();
+      mockCreate.mockResolvedValue(truncated);
+
+      const res = await POST(req());
+      expect(res.status).toBe(500);
+      expect(mockCreate).toHaveBeenCalledTimes(2);
+      const charged = mockDb.execute.mock.calls.some((c) =>
+        JSON.stringify(c[0]).includes("lifetime_rec_calls")
+      );
+      expect(charged).toBe(false);
+    });
+  });
 });

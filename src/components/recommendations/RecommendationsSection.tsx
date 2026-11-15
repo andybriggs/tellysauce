@@ -33,7 +33,7 @@ export default function RecommendationsSection({
   const { ratedTitles } = useRatedTitles();
   const { watchList } = useWatchList();
 
-  const { titles, isLoading, paywallError, clearPaywall, generate } = useRecommendations({ seed });
+  const { titles, isLoading, paywallError, clearPaywall, generate, error } = useRecommendations({ seed });
 
   const isSeedMode = !!seed;
 
@@ -111,6 +111,13 @@ export default function RecommendationsSection({
             </button>
           </div>
         </div>
+
+        {error && !isLoading && (
+          <p role="alert" className="mt-4 rounded-xl bg-slate-900/70 px-4 py-3 text-sm text-white">
+            Couldn&apos;t get new recommendations just now. Please try again.
+            {hasResults ? " Showing your previous picks." : ""}
+          </p>
+        )}
 
         {/* Carousel or loading skeleton */}
         {isLoading ? (

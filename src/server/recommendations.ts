@@ -35,7 +35,29 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 /** OpenAI structured call                                              */
 /** ------------------------------------------------------------------ */
 
+/**
+ * Reasoning tokens count against `max_completion_tokens`. With a long exclusion
+ * list the model sometimes spends the whole budget thinking and returns empty
+ * content (`finish_reason: "length"`), which used to reach `JSON.parse("")` and
+ * fail the request. Observed usage: ~1,800-2,500 tokens normally, with
+ * reasoning occasionally running past 3,000 on its own.
+ */
+const MAX_COMPLETION_TOKENS = 8000;
+/** One retry - reasoning length varies run to run, so a second try usually lands. */
+const MAX_ATTEMPTS = 2;
+
 export async function callOpenAI(prompt: string): Promise<Rec[]> {
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const recs = await requestRecs(prompt);
+    if (recs) return recs;
+    // eslint-disable-next-line no-console
+    console.warn(`[recommend] OpenAI returned no usable content (attempt ${attempt}/${MAX_ATTEMPTS})`);
+  }
+  throw new Error("OpenAI returned no usable recommendations");
+}
+
+/** One completion. Returns null when the output is empty, truncated or unparseable. */
+async function requestRecs(prompt: string): Promise<Rec[] | null> {
   const response = await openai.chat.completions.create({
     model: "gpt-6-luna",
     messages: [{ role: "user", content: prompt }],
@@ -70,14 +92,20 @@ export async function callOpenAI(prompt: string): Promise<Rec[]> {
       },
     },
     // gpt-6-luna rejects both `temperature` (only the default is allowed) and
-    // `max_tokens` (it wants `max_completion_tokens`). The budget covers
-    // reasoning tokens as well as the response - 8 recommendations used ~1035
-    // including ~500 of reasoning, so this leaves room for a 12-item request.
-    max_completion_tokens: 3000,
+    // `max_tokens` (it wants `max_completion_tokens`).
+    max_completion_tokens: MAX_COMPLETION_TOKENS,
   });
 
-  const content = response.choices[0]?.message?.content ?? "{}";
-  const parsed = JSON.parse(content) as { recommendations?: unknown[] };
+  const choice = response.choices[0];
+  const content = choice?.message?.content;
+  if (!content || choice.finish_reason === "length") return null;
+
+  let parsed: { recommendations?: unknown[] };
+  try {
+    parsed = JSON.parse(content) as { recommendations?: unknown[] };
+  } catch {
+    return null;
+  }
   return (parsed.recommendations ?? []).filter(
     (r): r is Rec =>
       isRecord(r) &&

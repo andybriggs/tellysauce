@@ -81,6 +81,9 @@ export function useRecommendations({ seed }: { seed?: SeedInput } = {}) {
   const [titles, setTitles] = useState<Title[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [paywallError, setPaywallError] = useState<"free_exhausted" | "monthly_limit" | null>(null);
+  // Set when a generation fails. Without it a failure just stopped the spinner
+  // and left the previous (cached) set on screen, which read as "same results".
+  const [error, setError] = useState(false);
 
   const key = useMemo(
     () => buildRecKey(seed ? { mode: "seed", seed } : { mode: "profile" }),
@@ -103,6 +106,7 @@ export function useRecommendations({ seed }: { seed?: SeedInput } = {}) {
 
   const generate = useCallback(async ({ ratedTitles, watchList }: GenerateArgs = {}) => {
     setIsLoading(true);
+    setError(false);
     try {
       const watchListTitles = Array.isArray(watchList)
         ? watchList.filter(isIdName).map((w) => w.name).filter(Boolean)
@@ -125,14 +129,21 @@ export function useRecommendations({ seed }: { seed?: SeedInput } = {}) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body,
-      });
+      }).catch(() => null);
+      if (!res) {
+        setError(true);
+        return;
+      }
 
       if (res.status === 402) {
         const json = await res.json().catch(() => ({})) as { error?: string };
         setPaywallError(json.error === "monthly_limit_reached" ? "monthly_limit" : "free_exhausted");
         return;
       }
-      if (!res.ok) return;
+      if (!res.ok) {
+        setError(true);
+        return;
+      }
 
       const data = (await res.json()) as PostResponse;
       if (data.unlockedBadges?.length) celebrate(data.unlockedBadges);
@@ -148,5 +159,5 @@ export function useRecommendations({ seed }: { seed?: SeedInput } = {}) {
 
   const clearPaywall = useCallback(() => setPaywallError(null), []);
 
-  return { titles, isLoading, paywallError, clearPaywall, generate, key };
+  return { titles, isLoading, paywallError, clearPaywall, generate, key, error };
 }

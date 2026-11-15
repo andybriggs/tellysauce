@@ -207,6 +207,30 @@ describe("useRecommendations", () => {
 
       expect(result.current.titles).toEqual([]);
       expect(result.current.paywallError).toBeNull();
+      expect(result.current.error).toBe(true);
+    });
+
+    it("clears error on the next successful generate", async () => {
+      let fail = true;
+      server.use(
+        http.get("/api/recommendations", () =>
+          HttpResponse.json({ set: null, items: [] })
+        ),
+        http.post("/api/recommend", () =>
+          fail
+            ? HttpResponse.json({ error: "server error" }, { status: 500 })
+            : HttpResponse.json({ recommendations: fakePostRecs })
+        )
+      );
+
+      const { result } = renderHook(() => useRecommendations());
+      await act(async () => { await result.current.generate({}); });
+      expect(result.current.error).toBe(true);
+
+      fail = false;
+      await act(async () => { await result.current.generate({}); });
+      expect(result.current.error).toBe(false);
+      expect(result.current.titles).toHaveLength(1);
     });
   });
 });
